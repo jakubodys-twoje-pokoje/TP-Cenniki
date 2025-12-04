@@ -73,9 +73,10 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
         const currentProfile = channel.seasonDiscounts[seasonId] || { 
           mobile: 0, mobileEnabled: true, 
+          genius: 0, geniusEnabled: true,
           seasonal: 0, seasonalEnabled: true,
-          additional1: 0, additional1Enabled: true,
-          additional2: 0, additional2Enabled: true,
+          firstMinute: 0, firstMinuteEnabled: true,
+          lastMinute: 0, lastMinuteEnabled: true,
         };
         
         return {
@@ -420,18 +421,20 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                               <tr className="text-xs text-slate-500 text-left">
                                  <th className="py-2 pr-2 font-medium">Sezon</th>
                                  <th className="py-2 px-2 font-medium" title="Zniżka dla urz. mobilnych">Mobile %</th>
-                                 <th className="py-2 px-2 font-medium" title="Zniżka sezonowa">Sezon %</th>
-                                 <th className="py-2 px-2 font-medium" title="Zniżka dodatkowa 1">Dod. 1 %</th>
-                                 <th className="py-2 px-2 font-medium" title="Zniżka dodatkowa 2">Dod. 2 %</th>
+                                 <th className="py-2 px-2 font-medium" title="Zniżka Genius">Genius %</th>
+                                 <th className="py-2 px-2 font-medium" title="Zniżka Sezonowa">Sezon %</th>
+                                 <th className="py-2 px-2 font-medium" title="First Minute">First Min %</th>
+                                 <th className="py-2 px-2 font-medium" title="Last Minute">Last Min %</th>
                               </tr>
                            </thead>
                            <tbody className="divide-y divide-slate-200">
                               {seasons.map((season) => {
                                  const discounts = channel.seasonDiscounts[season.id] || { 
                                    mobile: 0, mobileEnabled: true,
+                                   genius: 0, geniusEnabled: true,
                                    seasonal: 0, seasonalEnabled: true,
-                                   additional1: 0, additional1Enabled: true,
-                                   additional2: 0, additional2Enabled: true,
+                                   firstMinute: 0, firstMinuteEnabled: true,
+                                   lastMinute: 0, lastMinuteEnabled: true,
                                  };
                                  
                                  const renderDiscountCell = (field: keyof ChannelDiscountProfile, label: string) => {
@@ -465,14 +468,15 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                                     <tr key={season.id}>
                                        <td className="py-2 pr-2 font-medium text-slate-700 w-32">{season.name}</td>
                                        <td className="py-2 px-2">{renderDiscountCell('mobile', 'zniżkę mobilną')}</td>
+                                       <td className="py-2 px-2">{renderDiscountCell('genius', 'zniżkę Genius')}</td>
                                        <td className="py-2 px-2">{renderDiscountCell('seasonal', 'zniżkę sezonową')}</td>
-                                       <td className="py-2 px-2">{renderDiscountCell('additional1', 'zniżkę dodatkową 1')}</td>
-                                       <td className="py-2 px-2">{renderDiscountCell('additional2', 'zniżkę dodatkową 2')}</td>
+                                       <td className="py-2 px-2">{renderDiscountCell('firstMinute', 'First Minute')}</td>
+                                       <td className="py-2 px-2">{renderDiscountCell('lastMinute', 'Last Minute')}</td>
                                     </tr>
                                  );
                               })}
                               {seasons.length === 0 && (
-                                 <tr><td colSpan={5} className="py-4 text-center text-slate-400 italic">Brak zdefiniowanych sezonów. Dodaj sezony w zakładce "Sezony".</td></tr>
+                                 <tr><td colSpan={6} className="py-4 text-center text-slate-400 italic">Brak zdefiniowanych sezonów. Dodaj sezony w zakładce "Sezony".</td></tr>
                               )}
                            </tbody>
                         </table>

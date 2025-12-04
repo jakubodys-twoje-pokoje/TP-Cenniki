@@ -2,7 +2,7 @@
 import React, { useMemo, useState } from "react";
 import { Channel, GlobalSettings, RoomType, Season } from "../types";
 import { generatePricingGrid } from "../utils/pricingEngine";
-import { AlertCircle, CheckCircle, TrendingUp, Users, StickyNote, ChevronDown } from "lucide-react";
+import { AlertCircle, CheckCircle, TrendingUp, Users, StickyNote, ChevronDown, GripVertical } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface DashboardProps {
@@ -14,6 +14,7 @@ interface DashboardProps {
   notes: string;
   onNotesChange: (notes: string) => void;
   onRoomUpdate: (roomId: string, updates: Partial<RoomType>) => void;
+  onReorderRooms: (rooms: RoomType[]) => void;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({
@@ -25,10 +26,14 @@ const Dashboard: React.FC<DashboardProps> = ({
   notes,
   onNotesChange,
   onRoomUpdate,
+  onReorderRooms,
 }) => {
   const [occupancyFilter, setOccupancyFilter] = useState<"MAX" | number>("MAX");
   const [occupancyOverrides, setOccupancyOverrides] = useState<Record<string, number>>({});
   const [activeView, setActiveView] = useState<"ALL" | string>("ALL"); // 'ALL' for Direct or Channel ID
+  
+  // Drag and drop state for sorting ROOMS
+  const [draggedRoomId, setDraggedRoomId] = useState<string | null>(null);
 
   const pricingGrid = useMemo(() => {
     // Filter rooms based on selection
@@ -75,6 +80,32 @@ const Dashboard: React.FC<DashboardProps> = ({
     const updatedMap = { ...currentMap, [seasonId]: newValue };
     
     onRoomUpdate(roomId, { seasonBasePrices: updatedMap });
+  };
+  
+  const handleDragStart = (e: React.DragEvent, roomId: string) => {
+    setDraggedRoomId(roomId);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault(); // Necessary to allow dropping
+  };
+
+  const handleDrop = (e: React.DragEvent, targetRoomId: string) => {
+    e.preventDefault();
+    if (!draggedRoomId || draggedRoomId === targetRoomId) return;
+
+    const sourceIndex = rooms.findIndex(r => r.id === draggedRoomId);
+    const targetIndex = rooms.findIndex(r => r.id === targetRoomId);
+    
+    if (sourceIndex === -1 || targetIndex === -1) return;
+
+    const newRooms = [...rooms];
+    const [removed] = newRooms.splice(sourceIndex, 1);
+    newRooms.splice(targetIndex, 0, removed);
+    
+    onReorderRooms(newRooms);
+    setDraggedRoomId(null);
   };
 
   const occupancyOptions = [1, 2, 3, 4, 5, 6, 7];
@@ -153,6 +184,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             <table className="min-w-full divide-y divide-slate-200">
               <thead className="bg-slate-50 sticky top-0 z-10 shadow-sm">
                 <tr>
+                  <th className="px-1 w-6"></th> {/* Drag Handle Column */}
                   <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Typ Pokoju</th>
                   <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider w-28">Cena Bazowa</th>
                   <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Sezon</th>
@@ -175,8 +207,27 @@ const Dashboard: React.FC<DashboardProps> = ({
                     const channelData = activeView !== "ALL" ? row.channelCalculations[activeView] : null;
                     const maxForRoom = row.maxOccupancy;
                     
+                    // Determine if this is the first row for this room (header row)
+                    const isFirstRoomRow = idx === 0 || row.roomId !== pricingGrid[idx - 1].roomId;
+                    
+                    // Render row with drag attributes ONLY if it's the first row for the room
+                    // Otherwise just render regular row
                     return (
-                      <tr key={`${row.roomId}-${row.seasonId}`} className="hover:bg-slate-50 transition-colors">
+                      <tr 
+                        key={`${row.roomId}-${row.seasonId}`} 
+                        className={`hover:bg-slate-50 transition-colors ${draggedRoomId === row.roomId ? 'opacity-40' : ''}`}
+                        draggable={isFirstRoomRow}
+                        onDragStart={(e) => isFirstRoomRow && handleDragStart(e, row.roomId)}
+                        onDragOver={handleDragOver}
+                        onDrop={(e) => handleDrop(e, row.roomId)}
+                      >
+                         <td className="px-1 text-center">
+                            {isFirstRoomRow && (
+                               <div className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500">
+                                  <GripVertical size={16} />
+                               </div>
+                            )}
+                         </td>
                         <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-slate-900">{row.roomName}</td>
                         <td className="px-4 py-3 whitespace-nowrap text-sm">
                            <input 
@@ -241,7 +292,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                   })
                 ) : (
                    <tr>
-                     <td colSpan={activeView === "ALL" ? 5 : 9} className="px-4 py-8 text-center text-slate-500">
+                     <td colSpan={activeView === "ALL" ? 6 : 10} className="px-4 py-8 text-center text-slate-500">
                        Brak danych do wyświetlenia. Sprawdź filtry lub konfigurację.
                      </td>
                    </tr>

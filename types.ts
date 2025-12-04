@@ -4,13 +4,14 @@ export type SettingsTab = "global" | "rooms" | "seasons" | "channels";
 export interface ChannelDiscountProfile {
   mobile: number;
   mobileEnabled: boolean;
+  genius: number;
+  geniusEnabled: boolean;
   seasonal: number;
   seasonalEnabled: boolean;
-  additional1: number; 
-  additional1Enabled: boolean;
-  additional2: number; 
-  additional2Enabled: boolean;
-  // OBP removed from here, moved to GlobalSettings
+  firstMinute: number; 
+  firstMinuteEnabled: boolean;
+  lastMinute: number; 
+  lastMinuteEnabled: boolean;
 }
 
 export interface Channel {

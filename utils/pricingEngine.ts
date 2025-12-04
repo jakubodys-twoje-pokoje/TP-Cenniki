@@ -47,9 +47,10 @@ export const calculateChannelPrice = (
   // Fetch discounts for this specific season
   const discounts = channel.seasonDiscounts[seasonId] || { 
     mobile: 0, mobileEnabled: true,
+    genius: 0, geniusEnabled: true,
     seasonal: 0, seasonalEnabled: true,
-    additional1: 0, additional1Enabled: true,
-    additional2: 0, additional2Enabled: true,
+    firstMinute: 0, firstMinuteEnabled: true,
+    lastMinute: 0, lastMinuteEnabled: true,
   };
 
   // Target Net Price is simply the Direct Price (which is already adjusted for OBP)
@@ -66,9 +67,10 @@ export const calculateChannelPrice = (
 
   const discountFactor = 
     (1 - getDisc(discounts.mobile, discounts.mobileEnabled) / 100) * 
-    (1 - getDisc(discounts.seasonal, discounts.seasonalEnabled) / 100) * 
-    (1 - getDisc(discounts.additional1, discounts.additional1Enabled) / 100) *
-    (1 - getDisc(discounts.additional2, discounts.additional2Enabled) / 100);
+    (1 - getDisc(discounts.genius, discounts.geniusEnabled) / 100) * 
+    (1 - getDisc(discounts.seasonal, discounts.seasonalEnabled) / 100) *
+    (1 - getDisc(discounts.firstMinute, discounts.firstMinuteEnabled) / 100) *
+    (1 - getDisc(discounts.lastMinute, discounts.lastMinuteEnabled) / 100);
   
   const commissionFactor = 1 - (channel.commissionPct / 100);
   

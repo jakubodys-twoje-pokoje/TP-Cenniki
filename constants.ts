@@ -10,24 +10,34 @@ export const INITIAL_SETTINGS: GlobalSettings = {
 };
 
 // Helper to create default discount map for initial seasons
-const defaultDiscounts = (mobile: number = 0, seasonal: number = 0, additional1: number = 0, additional2: number = 0) => ({
+// Now supports 5 specific discount types
+const defaultDiscounts = (
+  mobile: number = 0, 
+  genius: number = 0, 
+  seasonal: number = 0, 
+  firstMinute: number = 0, 
+  lastMinute: number = 0
+) => ({
   "s1": { 
     mobile, mobileEnabled: true, 
+    genius, geniusEnabled: true,
     seasonal, seasonalEnabled: true,
-    additional1, additional1Enabled: true,
-    additional2, additional2Enabled: true,
+    firstMinute, firstMinuteEnabled: true,
+    lastMinute, lastMinuteEnabled: true,
   },
   "s2": { 
     mobile, mobileEnabled: true, 
+    genius, geniusEnabled: true,
     seasonal, seasonalEnabled: true,
-    additional1, additional1Enabled: true,
-    additional2, additional2Enabled: true,
+    firstMinute, firstMinuteEnabled: true,
+    lastMinute, lastMinuteEnabled: true,
   },
   "s3": { 
     mobile, mobileEnabled: true, 
+    genius, geniusEnabled: true,
     seasonal, seasonalEnabled: true,
-    additional1, additional1Enabled: true,
-    additional2, additional2Enabled: true,
+    firstMinute, firstMinuteEnabled: true,
+    lastMinute, lastMinuteEnabled: true,
   },
 });
 
@@ -37,28 +47,28 @@ export const INITIAL_CHANNELS: Channel[] = [
     name: "Booking.com",
     commissionPct: 20,
     color: "#003580",
-    seasonDiscounts: defaultDiscounts(10, 0, 0, 0), // 10% mobile default
+    seasonDiscounts: defaultDiscounts(10, 10, 0, 0, 0), // 10% mobile, 10% genius
   },
   {
     id: "airbnb",
     name: "Airbnb",
     commissionPct: 16,
     color: "#FF5A5F",
-    seasonDiscounts: defaultDiscounts(0, 0, 0, 0),
+    seasonDiscounts: defaultDiscounts(0, 0, 0, 15, 0), // Example first minute
   },
   {
     id: "noclegi",
     name: "Noclegi.pl",
     commissionPct: 12,
     color: "#34D399",
-    seasonDiscounts: defaultDiscounts(0, 0, 0, 0),
+    seasonDiscounts: defaultDiscounts(0, 0, 0, 0, 0),
   },
   {
     id: "noclegowo",
     name: "Noclegowo",
     commissionPct: 10,
     color: "#FBBF24",
-    seasonDiscounts: defaultDiscounts(0, 0, 0, 0),
+    seasonDiscounts: defaultDiscounts(0, 0, 0, 0, 0),
   },
 ];
 

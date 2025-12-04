@@ -80,6 +80,10 @@ const App: React.FC = () => {
     updateActiveProperty({ rooms: updatedRooms });
   };
 
+  const handleReorderRooms = (reorderedRooms: RoomType[]) => {
+    updateActiveProperty({ rooms: reorderedRooms });
+  };
+
   const handleAddProperty = () => {
     const newId = Date.now().toString();
     const newProperty: Property = {
@@ -373,6 +377,7 @@ const App: React.FC = () => {
               notes={activeProperty.notes || ""}
               onNotesChange={(n) => updateActiveProperty({ notes: n })}
               onRoomUpdate={handleRoomUpdate}
+              onReorderRooms={handleReorderRooms}
             />
           ) : (
             <SettingsPanel 
