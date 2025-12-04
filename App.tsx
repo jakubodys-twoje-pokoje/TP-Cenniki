@@ -1,8 +1,9 @@
 
 import React, { useState, useEffect, useRef } from "react";
-import { LayoutDashboard, Settings as SettingsIcon, Menu, BedDouble, Calendar, Share2, Cog, ChevronDown, ChevronRight, Building, Plus, Trash2, Bed, CheckCircle2, Copy, Cloud, CloudOff, Loader2 } from "lucide-react";
+import { LayoutDashboard, Settings as SettingsIcon, Menu, BedDouble, Calendar, Share2, Cog, ChevronDown, ChevronRight, Building, Plus, Trash2, Bed, CheckCircle2, Copy, Cloud, CloudOff, Loader2, RefreshCw, LogOut } from "lucide-react";
 import SettingsPanel from "./components/SettingsPanel";
 import Dashboard from "./components/Dashboard";
+import LoginScreen from "./components/LoginScreen";
 import {
   INITIAL_CHANNELS,
   INITIAL_ROOMS,
@@ -18,6 +19,10 @@ function deepClone<T>(obj: T): T {
 }
 
 const App: React.FC = () => {
+  // Auth State
+  const [session, setSession] = useState<any>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
   // Application State
   const [activeTab, setActiveTab] = useState<"dashboard" | "settings">("dashboard");
   const [activeSettingsTab, setActiveSettingsTab] = useState<SettingsTab>("rooms");
@@ -26,8 +31,9 @@ const App: React.FC = () => {
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
 
   // Sync Status State
-  const [syncStatus, setSyncStatus] = useState<'synced' | 'saving' | 'error' | 'offline'>('synced');
-  const [isLoading, setIsLoading] = useState(true);
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'synced' | 'saving' | 'error' | 'offline'>('idle');
+  const [isLoading, setIsLoading] = useState(false); // Changed default to false, controlled by auth
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Property Data
   const [properties, setProperties] = useState<Property[]>([]);
@@ -36,86 +42,104 @@ const App: React.FC = () => {
   // Track expanded sidebar items
   const [expandedProperties, setExpandedProperties] = useState<Set<string>>(new Set(["default"]));
 
-  // Ref to prevent saving triggered by realtime updates
-  const isRemoteUpdate = useRef(false);
+  // Ref to track the last known server state to prevent loops
+  const lastServerState = useRef<Record<string, string>>({});
+
   // Ref for debouncing save
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Ref for clearing success message
+  const statusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // 1. Initial Load from Supabase
+  // 0. Check Auth Session
   useEffect(() => {
-    const fetchProperties = async () => {
-      setIsLoading(true);
-      try {
-        const { data, error } = await supabase
-          .from('properties')
-          .select('*')
-          .order('updated_at', { ascending: true });
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setAuthLoading(false);
+      if (session) fetchProperties();
+    });
 
-        if (error) throw error;
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (session) fetchProperties();
+      else setProperties([]);
+    });
 
-        if (data && data.length > 0) {
-          // Parse JSON content from DB rows
-          const loadedProps = data.map(row => ({
-             ...row.content,
-             id: row.id // Ensure ID matches DB primary key
-          }));
-          setProperties(loadedProps);
-          setActivePropertyId(loadedProps[0].id);
-        } else {
-          // Initialize with default if DB is empty
-          const defaultProp: Property = {
-            id: "default",
-            name: "Główny Obiekt",
-            settings: deepClone(INITIAL_SETTINGS),
-            channels: deepClone(INITIAL_CHANNELS),
-            rooms: deepClone(INITIAL_ROOMS),
-            seasons: deepClone(INITIAL_SEASONS),
-            notes: "",
-          };
-          // Create initial row in DB
-          await supabase.from('properties').insert({ id: defaultProp.id, content: defaultProp });
-          setProperties([defaultProp]);
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Function to process loaded properties and update refs
+  const processLoadedProperties = (props: Property[]) => {
+    props.forEach(p => {
+      lastServerState.current[p.id] = JSON.stringify(p);
+    });
+    setProperties(props);
+  };
+
+  const fetchProperties = async () => {
+    setIsLoading(true);
+    setSyncStatus('idle');
+    setLoadError(null);
+    try {
+      const { data, error } = await supabase
+        .from('properties')
+        .select('*')
+        .order('updated_at', { ascending: true });
+
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        const loadedProps = data.map(row => ({
+           ...row.content,
+           id: row.id
+        }));
+        processLoadedProperties(loadedProps);
+        
+        if (!loadedProps.find(p => p.id === activePropertyId)) {
+            setActivePropertyId(loadedProps[0].id);
         }
-        setSyncStatus('synced');
-      } catch (err) {
-        console.error("Error fetching data:", err);
-        setSyncStatus('error');
-        // Fallback to empty/default local state just to show UI
+      } else {
         const defaultProp: Property = {
-            id: "default",
-            name: "Błąd połączenia (Dane Lokalne)",
-            settings: deepClone(INITIAL_SETTINGS),
-            channels: deepClone(INITIAL_CHANNELS),
-            rooms: deepClone(INITIAL_ROOMS),
-            seasons: deepClone(INITIAL_SEASONS),
-            notes: "Sprawdź konfigurację Supabase w utils/supabaseClient.ts",
-          };
-        setProperties([defaultProp]);
-      } finally {
-        setIsLoading(false);
+          id: "default",
+          name: "Główny Obiekt",
+          settings: deepClone(INITIAL_SETTINGS),
+          channels: deepClone(INITIAL_CHANNELS),
+          rooms: deepClone(INITIAL_ROOMS),
+          seasons: deepClone(INITIAL_SEASONS),
+          notes: "",
+        };
+        await supabase.from('properties').insert({ id: defaultProp.id, content: defaultProp });
+        processLoadedProperties([defaultProp]);
+        setActivePropertyId(defaultProp.id);
       }
-    };
+    } catch (err: any) {
+      console.error("Error fetching data:", err);
+      setSyncStatus('error');
+      setLoadError(err.message || JSON.stringify(err));
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-    fetchProperties();
+  // 1. Realtime Subscription (Only if logged in)
+  useEffect(() => {
+    if (!session) return;
 
-    // 2. Setup Realtime Subscription
     const channel = supabase
       .channel('schema-db-changes')
       .on(
         'postgres_changes',
         {
-          event: '*', // Listen to INSERT, UPDATE, DELETE
+          event: '*',
           schema: 'public',
           table: 'properties',
         },
         (payload) => {
-          console.log('Realtime change received:', payload);
-          isRemoteUpdate.current = true; // Flag to ignore next effect trigger
-
           if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
             const newContent = payload.new.content as Property;
             const newId = payload.new.id;
-            
+            lastServerState.current[newId] = JSON.stringify(newContent);
             setProperties(prev => {
               const exists = prev.find(p => p.id === newId);
               if (exists) {
@@ -125,11 +149,10 @@ const App: React.FC = () => {
               }
             });
           } else if (payload.eventType === 'DELETE') {
-             setProperties(prev => prev.filter(p => p.id !== payload.old.id));
+             const deletedId = payload.old.id;
+             delete lastServerState.current[deletedId];
+             setProperties(prev => prev.filter(p => p.id !== deletedId));
           }
-          
-          // Reset flag after render cycle
-          setTimeout(() => { isRemoteUpdate.current = false; }, 100);
         }
       )
       .subscribe();
@@ -137,28 +160,19 @@ const App: React.FC = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [session]);
 
-  // 3. Save Changes to Supabase (Debounced)
+  // 2. Save Changes
   useEffect(() => {
-    if (isLoading || isRemoteUpdate.current || properties.length === 0) return;
+    if (isLoading || properties.length === 0 || !session) return;
 
-    // Find the currently active property to save (or all modified ones)
-    // For simplicity in this architecture, we save the active property if it changed
-    // In a production app, we would track "dirty" states per property.
-    // Here we will use the debouncer to save the state of the *modified* property.
-    
-    // We actually need to save ALL properties that changed? 
-    // Since `updateActiveProperty` modifies the array, `properties` changes.
-    // We will save only the property that corresponds to `activePropertyId` to save bandwidth,
-    // assuming user only edits one at a time.
-    
-    // Logic: When properties change, identify which one changed? 
-    // Hard to diff deeply efficiently. 
-    // Solution: Just upsert the active property for now, as that's what user is editing.
-    
     const propToSave = properties.find(p => p.id === activePropertyId);
     if (!propToSave) return;
+
+    const currentJson = JSON.stringify(propToSave);
+    const lastKnownJson = lastServerState.current[propToSave.id];
+
+    if (currentJson === lastKnownJson) return;
 
     setSyncStatus('saving');
 
@@ -166,6 +180,8 @@ const App: React.FC = () => {
 
     saveTimeoutRef.current = setTimeout(async () => {
       try {
+        lastServerState.current[propToSave.id] = currentJson;
+
         const { error } = await supabase
           .from('properties')
           .upsert({ 
@@ -175,23 +191,28 @@ const App: React.FC = () => {
           });
 
         if (error) throw error;
+
         setSyncStatus('synced');
+        if (statusTimeoutRef.current) clearTimeout(statusTimeoutRef.current);
+        statusTimeoutRef.current = setTimeout(() => {
+            setSyncStatus('idle');
+        }, 3000);
+
       } catch (err) {
         console.error("Error saving to DB:", err);
+        lastServerState.current[propToSave.id] = lastKnownJson || ""; 
         setSyncStatus('error');
       }
-    }, 1000); // Wait 1 second after last keystroke before saving
+    }, 1000); 
 
     return () => {
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     };
-  }, [properties, activePropertyId]);
+  }, [properties, activePropertyId, session, isLoading]);
 
 
-  // Helper to get active property data safely
   const activeProperty = properties.find(p => p.id === activePropertyId) || properties[0];
 
-  // Helper to update active property
   const updateActiveProperty = (updates: Partial<Property>) => {
     setProperties(prev => prev.map(p => 
       p.id === activePropertyId ? { ...p, ...updates } : p
@@ -222,14 +243,13 @@ const App: React.FC = () => {
       notes: "",
     };
 
-    // Optimistic Update
     setProperties([...properties, newProperty]);
     setActivePropertyId(newId);
     setExpandedProperties(prev => new Set(prev).add(newId));
     setActiveTab("settings");
     setActiveSettingsTab("global");
-
-    // Immediate Save to DB
+    
+    lastServerState.current[newId] = JSON.stringify(newProperty);
     await supabase.from('properties').insert({ id: newId, content: newProperty });
   };
 
@@ -242,12 +262,11 @@ const App: React.FC = () => {
     newProperty.id = newId;
     newProperty.name = `${newProperty.name} (Kopia)`;
     
-    // Optimistic Update
     setProperties([...properties, newProperty]);
     setActivePropertyId(newId);
     setExpandedProperties(prev => new Set(prev).add(newId));
 
-    // Immediate Save
+    lastServerState.current[newId] = JSON.stringify(newProperty);
     await supabase.from('properties').insert({ id: newId, content: newProperty });
     alert(`Zduplikowano obiekt jako "${newProperty.name}"`);
   };
@@ -258,15 +277,14 @@ const App: React.FC = () => {
       return;
     }
     if (confirm("Czy na pewno chcesz usunąć ten obiekt? Ta operacja usunie go również z bazy danych dla wszystkich użytkowników.")) {
-      // Optimistic Delete
       const newProps = properties.filter(p => p.id !== id);
       setProperties(newProps);
+      delete lastServerState.current[id];
+
       if (id === activePropertyId) {
         setActivePropertyId(newProps[0].id);
         setSelectedRoomId(null);
       }
-
-      // DB Delete
       await supabase.from('properties').delete().eq('id', id);
     }
   };
@@ -293,11 +311,72 @@ const App: React.FC = () => {
     setActiveTab("dashboard");
     setIsSidebarOpen(false);
   };
+  
+  const handleManualSync = () => {
+      fetchProperties();
+  };
 
-  if (isLoading) {
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+  };
+
+  // --- Render Views ---
+
+  if (authLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-900 text-white gap-2">
+        <Loader2 className="animate-spin" /> Inicjalizacja...
+      </div>
+    );
+  }
+
+  if (!session) {
+    return <LoginScreen />;
+  }
+
+  if (loadError) {
+    return (
+      <div className="flex flex-col h-screen items-center justify-center bg-slate-50 text-slate-800 p-4">
+        <div className="bg-white p-6 rounded-lg shadow-lg max-w-lg w-full border border-red-200">
+           <div className="flex items-center gap-2 text-red-600 font-bold mb-4">
+             <CloudOff size={24} />
+             <h2>Błąd połączenia z bazą danych</h2>
+           </div>
+           <p className="mb-4 text-sm text-slate-600">
+             Nie udało się pobrać danych. Może to oznaczać, że tabela w Supabase nie istnieje.
+           </p>
+           <div className="bg-slate-100 p-3 rounded text-xs font-mono text-slate-700 overflow-x-auto mb-4">
+             {loadError}
+           </div>
+           
+           <h3 className="font-bold text-sm mb-2">Jak naprawić?</h3>
+           <p className="text-xs mb-3">1. Skopiuj poniższy kod SQL.<br/>2. Wejdź w Supabase -&gt; SQL Editor.<br/>3. Wklej i uruchom (Run).</p>
+           
+           <div className="relative group">
+              <button 
+                onClick={() => {
+                  const sql = `DROP TABLE IF EXISTS properties;\nCREATE TABLE properties (\n  id TEXT PRIMARY KEY,\n  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),\n  content JSONB NOT NULL\n);\nALTER PUBLICATION supabase_realtime ADD TABLE properties;\nALTER TABLE properties REPLICA IDENTITY FULL;\nALTER TABLE properties DISABLE ROW LEVEL SECURITY;`;
+                  navigator.clipboard.writeText(sql);
+                  alert("Skopiowano SQL do schowka!");
+                }}
+                className="flex items-center gap-2 bg-slate-800 text-white px-3 py-2 rounded hover:bg-slate-700 w-full justify-center"
+              >
+                <Copy size={16} /> Kopiuj kod SQL naprawczy
+              </button>
+           </div>
+           
+           <div className="mt-6 border-t pt-4 text-center">
+             <button onClick={() => window.location.reload()} className="text-blue-600 font-bold hover:underline">Spróbuj ponownie</button>
+           </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoading && !activeProperty) {
     return (
       <div className="flex h-screen items-center justify-center bg-slate-50 text-slate-500 gap-2">
-        <Loader2 className="animate-spin" /> Ładowanie danych z chmury...
+        <Loader2 className="animate-spin" /> Pobieranie danych...
       </div>
     );
   }
@@ -326,7 +405,10 @@ const App: React.FC = () => {
             className="w-full h-auto object-contain"
             style={{ maxHeight: '60px' }}
           />
-          <span className="text-sm font-bold tracking-tight text-slate-400 uppercase text-center">Cennik Twoje Pokoje</span>
+          <div className="text-center">
+             <span className="text-sm font-bold tracking-tight text-slate-400 uppercase">Cennik Twoje Pokoje</span>
+             <div className="text-xs text-slate-600 mt-1 truncate px-2">{session.user.email}</div>
+          </div>
         </div>
 
         <nav className="p-4 space-y-2 flex-1 overflow-y-auto">
@@ -485,17 +567,35 @@ const App: React.FC = () => {
           </div>
         </nav>
 
-        <div className="p-6 border-t border-slate-800">
+        <div className="p-6 border-t border-slate-800 space-y-3">
            {/* Sync Status Indicator */}
-          <div className={`flex items-center gap-2 text-xs mb-2 transition-colors ${
-             syncStatus === 'synced' ? 'text-green-400' : 
-             syncStatus === 'saving' ? 'text-yellow-400' : 
-             syncStatus === 'error' ? 'text-red-400' : 'text-slate-500'
-          }`}>
-            {syncStatus === 'synced' && <><CheckCircle2 size={12} /> <span>Zapisano w chmurze</span></>}
-            {syncStatus === 'saving' && <><Loader2 size={12} className="animate-spin" /> <span>Zapisywanie...</span></>}
-            {syncStatus === 'error' && <><CloudOff size={12} /> <span>Błąd zapisu</span></>}
+          <div className="flex items-center justify-between">
+             <div className={`flex items-center gap-2 text-xs transition-colors h-4 ${
+                syncStatus === 'synced' ? 'text-green-400' : 
+                syncStatus === 'saving' ? 'text-yellow-400' : 
+                syncStatus === 'error' ? 'text-red-400' : 'text-slate-500 opacity-0'
+             }`}>
+               {syncStatus === 'synced' && <><CheckCircle2 size={12} /> <span>Zapisano w chmurze</span></>}
+               {syncStatus === 'saving' && <><Loader2 size={12} className="animate-spin" /> <span>Zapisywanie...</span></>}
+               {syncStatus === 'error' && <><CloudOff size={12} /> <span>Błąd zapisu</span></>}
+             </div>
+             
+             <button 
+               onClick={handleManualSync}
+               className="text-slate-500 hover:text-white transition-colors p-1"
+               title="Wymuś synchronizację"
+             >
+               <RefreshCw size={12} className={isLoading ? "animate-spin" : ""} />
+             </button>
           </div>
+
+          <button 
+            onClick={handleLogout}
+            className="w-full flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded transition-colors"
+          >
+            <LogOut size={14} /> Wyloguj się
+          </button>
+          
           <div className="text-xs text-slate-500">
             <p>Wersja 1.4.5</p>
             <p className="mt-1">© 2025 Twoje Pokoje & Strony Jakubowe</p>
