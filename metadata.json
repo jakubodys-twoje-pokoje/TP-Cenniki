@@ -1,0 +1,5 @@
+{
+  "name": "RevMax Pricing Engine",
+  "description": "A comprehensive revenue management and pricing dashboard for short-term rentals, allowing calculation of direct prices and automated channel markups (OTA) based on seasonal configurations.",
+  "requestFramePermissions": []
+}
