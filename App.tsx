@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect } from "react";
-import { LayoutDashboard, Settings as SettingsIcon, Menu, BedDouble, Calendar, Share2, Globe, ChevronDown, ChevronRight, Building, Plus, Trash2, Bed } from "lucide-react";
+import { LayoutDashboard, Settings as SettingsIcon, Menu, BedDouble, Calendar, Share2, Globe, ChevronDown, ChevronRight, Building, Plus, Trash2, Bed, CheckCircle2, Copy } from "lucide-react";
 import SettingsPanel from "./components/SettingsPanel";
 import Dashboard from "./components/Dashboard";
 import {
@@ -10,6 +9,11 @@ import {
   INITIAL_SETTINGS,
 } from "./constants";
 import { Property, SettingsTab } from "./types";
+
+// Utility for deep cloning to ensure no reference sharing between properties
+function deepClone<T>(obj: T): T {
+  return JSON.parse(JSON.stringify(obj));
+}
 
 const App: React.FC = () => {
   // Application State
@@ -33,10 +37,10 @@ const App: React.FC = () => {
     return [{
       id: "default",
       name: "Główny Obiekt",
-      settings: INITIAL_SETTINGS,
-      channels: INITIAL_CHANNELS,
-      rooms: INITIAL_ROOMS,
-      seasons: INITIAL_SEASONS,
+      settings: deepClone(INITIAL_SETTINGS),
+      channels: deepClone(INITIAL_CHANNELS),
+      rooms: deepClone(INITIAL_ROOMS),
+      seasons: deepClone(INITIAL_SEASONS),
       notes: "",
     }];
   });
@@ -73,10 +77,11 @@ const App: React.FC = () => {
     const newProperty: Property = {
       id: newId,
       name: "Nowy Obiekt",
-      settings: INITIAL_SETTINGS,
-      channels: INITIAL_CHANNELS,
-      rooms: INITIAL_ROOMS,
-      seasons: INITIAL_SEASONS,
+      // CRITICAL: Deep clone initial constants to ensure new object is independent
+      settings: deepClone(INITIAL_SETTINGS),
+      channels: deepClone(INITIAL_CHANNELS),
+      rooms: deepClone(INITIAL_ROOMS),
+      seasons: deepClone(INITIAL_SEASONS),
       notes: "",
     };
     setProperties([...properties, newProperty]);
@@ -85,6 +90,23 @@ const App: React.FC = () => {
     setActiveTab("settings");
     setActiveSettingsTab("global"); // Go to global to rename
     setSelectedRoomId(null);
+  };
+
+  const handleDuplicateProperty = () => {
+    const currentProperty = properties.find(p => p.id === activePropertyId);
+    if (!currentProperty) return;
+
+    const newId = Date.now().toString();
+    // CRITICAL: Deep clone the current property to create a true copy
+    const newProperty: Property = deepClone(currentProperty);
+    
+    newProperty.id = newId;
+    newProperty.name = `${newProperty.name} (Kopia)`;
+    
+    setProperties([...properties, newProperty]);
+    setActivePropertyId(newId);
+    setExpandedProperties(prev => new Set(prev).add(newId));
+    alert(`Zduplikowano obiekt jako "${newProperty.name}"`);
   };
 
   const handleDeleteProperty = (id: string) => {
@@ -303,8 +325,12 @@ const App: React.FC = () => {
         </nav>
 
         <div className="p-6 border-t border-slate-800">
+          <div className="flex items-center gap-2 text-green-400 text-xs mb-2">
+            <CheckCircle2 size={12} />
+            <span>Zapisano pomyślnie</span>
+          </div>
           <div className="text-xs text-slate-500">
-            <p>Wersja 0.2.3</p>
+            <p>Wersja 0.2.4</p>
             <p className="mt-1">© 2024 Silnik Cenowy</p>
           </div>
         </div>
@@ -322,8 +348,10 @@ const App: React.FC = () => {
 
         {/* Content Area */}
         <div className="flex-1 overflow-hidden p-4 md:p-8">
+          {/* Key prop ensures components completely remount when switching properties, preventing data bleed */}
           {activeTab === "dashboard" ? (
             <Dashboard 
+              key={activeProperty.id} 
               rooms={activeProperty.rooms} 
               seasons={activeProperty.seasons} 
               channels={activeProperty.channels}
@@ -334,6 +362,7 @@ const App: React.FC = () => {
             />
           ) : (
             <SettingsPanel 
+              key={activeProperty.id}
               propertyName={activeProperty.name}
               onPropertyNameChange={(name) => updateActiveProperty({ name })}
               settings={activeProperty.settings}
@@ -347,6 +376,7 @@ const App: React.FC = () => {
               activeTab={activeSettingsTab}
               onTabChange={setActiveSettingsTab}
               onDeleteProperty={() => handleDeleteProperty(activePropertyId)}
+              onDuplicateProperty={handleDuplicateProperty}
             />
           )}
         </div>
