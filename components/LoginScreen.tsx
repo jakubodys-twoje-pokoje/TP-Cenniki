@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { supabase } from '../utils/supabaseClient';
-import { KeyRound, Mail, User, Loader2, ArrowRight, Sparkles } from 'lucide-react';
+import { KeyRound, Mail, User, Loader2, ArrowRight, Sparkles, AlertCircle } from 'lucide-react';
 
 const LoginScreen: React.FC = () => {
   const [username, setUsername] = useState('');
@@ -10,9 +10,12 @@ const LoginScreen: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   // Helper to map simple usernames to emails for Supabase
+  // Now handles both "Tyberiusz" and "tyberiusz@twojepokoje.pl"
   const getEmail = (user: string) => {
     const cleanUser = user.trim().toLowerCase();
-    // Default domain mapping
+    if (cleanUser.includes('@')) {
+      return cleanUser;
+    }
     return `${cleanUser}@twojepokoje.pl`;
   };
 
@@ -30,9 +33,14 @@ const LoginScreen: React.FC = () => {
       });
       if (error) throw error;
     } catch (err: any) {
-      setError(err.message === "Invalid login credentials" 
-        ? "Nieprawidłowa nazwa użytkownika lub hasło." 
-        : err.message);
+      console.error("Login error:", err);
+      if (err.message === "Invalid login credentials") {
+        setError("Nieprawidłowy login lub hasło. Upewnij się, że użytkownik został dodany w panelu Supabase.");
+      } else if (err.message.includes("Email not confirmed")) {
+        setError("Email nie został potwierdzony. Zaznacz 'Auto-Confirm User' w Supabase.");
+      } else {
+        setError(err.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -71,7 +79,7 @@ const LoginScreen: React.FC = () => {
 
           <form onSubmit={handleAuth} className="w-full space-y-5">
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider ml-1">Użytkownik</label>
+              <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider ml-1">Login lub Email</label>
               <div className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <User size={18} className="text-slate-400 group-focus-within:text-blue-400 transition-colors" />
@@ -105,8 +113,9 @@ const LoginScreen: React.FC = () => {
             </div>
 
             {error && (
-              <div className="p-3 rounded-lg bg-red-500/20 border border-red-500/50 text-red-200 text-sm text-center animate-pulse">
-                {error}
+              <div className="p-3 rounded-lg bg-red-500/20 border border-red-500/50 text-red-200 text-sm flex items-start gap-2">
+                <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
+                <span>{error}</span>
               </div>
             )}
             
