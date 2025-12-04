@@ -38,6 +38,7 @@ export interface Property {
   channels: Channel[];
   rooms: RoomType[];
   seasons: Season[];
+  notes?: string;
 }
 
 export interface PricingRow {

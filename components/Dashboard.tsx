@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { Channel, GlobalSettings, RoomType, Season } from "../types";
 import { generatePricingGrid } from "../utils/pricingEngine";
-import { AlertCircle, CheckCircle, TrendingUp, Users } from "lucide-react";
+import { AlertCircle, CheckCircle, TrendingUp, Users, StickyNote } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface DashboardProps {
@@ -10,6 +10,8 @@ interface DashboardProps {
   channels: Channel[];
   settings: GlobalSettings;
   selectedRoomId?: string | null;
+  notes: string;
+  onNotesChange: (notes: string) => void;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({
@@ -18,6 +20,8 @@ const Dashboard: React.FC<DashboardProps> = ({
   channels,
   settings,
   selectedRoomId,
+  notes,
+  onNotesChange,
 }) => {
   const [occupancyFilter, setOccupancyFilter] = useState<"MAX" | number>("MAX");
   const [activeView, setActiveView] = useState<"ALL" | string>("ALL"); // 'ALL' for Direct or Channel ID
@@ -221,7 +225,7 @@ const Dashboard: React.FC<DashboardProps> = ({
           </div>
 
           {/* Quick Logic Explainer */}
-           <div className="bg-slate-50 p-6 rounded-lg border border-slate-200 flex-1">
+           <div className="bg-slate-50 p-6 rounded-lg border border-slate-200">
               <h3 className="text-sm font-bold text-slate-800 mb-3 uppercase tracking-wider">Logika Obliczeń</h3>
               <div className="space-y-4 text-sm text-slate-600">
                 <div className="p-3 bg-white rounded border border-slate-200">
@@ -239,6 +243,21 @@ const Dashboard: React.FC<DashboardProps> = ({
                 </div>
               </div>
            </div>
+
+           {/* Notes Section */}
+          <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200 flex-1 flex flex-col">
+             <h3 className="text-lg font-bold text-slate-800 mb-3 flex items-center gap-2">
+               <StickyNote size={20} className="text-amber-500"/>
+               Notatki
+             </h3>
+             <textarea
+               className="flex-1 w-full min-h-[120px] p-3 border border-slate-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm text-slate-700 bg-amber-50/50 resize-none placeholder:text-slate-400"
+               placeholder="Wpisz ważne informacje dla tego obiektu (np. kody do drzwi, numery alarmowe, notatki o cenach)..."
+               value={notes}
+               onChange={(e) => onNotesChange(e.target.value)}
+             />
+             <p className="text-xs text-slate-400 mt-2 text-right">Zapisywane automatycznie</p>
+          </div>
 
         </div>
       </div>

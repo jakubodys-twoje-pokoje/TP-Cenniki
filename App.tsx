@@ -26,6 +26,7 @@ const App: React.FC = () => {
     channels: INITIAL_CHANNELS,
     rooms: INITIAL_ROOMS,
     seasons: INITIAL_SEASONS,
+    notes: "",
   }]);
   const [activePropertyId, setActivePropertyId] = useState<string>("default");
   
@@ -51,6 +52,7 @@ const App: React.FC = () => {
       channels: INITIAL_CHANNELS,
       rooms: INITIAL_ROOMS,
       seasons: INITIAL_SEASONS,
+      notes: "",
     };
     setProperties([...properties, newProperty]);
     setActivePropertyId(newId);
@@ -277,7 +279,7 @@ const App: React.FC = () => {
 
         <div className="p-6 border-t border-slate-800">
           <div className="text-xs text-slate-500">
-            <p>Wersja 0.2.1</p>
+            <p>Wersja 0.2.2</p>
             <p className="mt-1">© 2024 Silnik Cenowy</p>
           </div>
         </div>
@@ -302,6 +304,8 @@ const App: React.FC = () => {
               channels={activeProperty.channels}
               settings={activeProperty.settings}
               selectedRoomId={selectedRoomId}
+              notes={activeProperty.notes || ""}
+              onNotesChange={(n) => updateActiveProperty({ notes: n })}
             />
           ) : (
             <SettingsPanel 
