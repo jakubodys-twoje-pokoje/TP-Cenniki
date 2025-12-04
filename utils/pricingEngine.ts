@@ -1,3 +1,4 @@
+
 import { Channel, ChannelCalculation, GlobalSettings, PricingRow, RoomType, Season } from "../types";
 
 /**
@@ -33,7 +34,8 @@ export const calculateDirectPrice = (
 
 export const calculateChannelPrice = (
   directPrice: number,
-  channel: Channel
+  channel: Channel,
+  seasonId: string
 ): ChannelCalculation => {
   // We need: Net Income >= Direct Price
   // Net Income = List Price * (1 - TotalDiscount) * (1 - Commission)
@@ -42,10 +44,14 @@ export const calculateChannelPrice = (
   // This is a simplified waterfall model:
   // ListPrice -> Apply Discounts -> SoldPrice -> Apply Commission -> Net
 
+  // Fetch discounts for this specific season, or default to 0 if not set
+  const discounts = channel.seasonDiscounts[seasonId] || { mobile: 0, seasonal: 0, additional1: 0, additional2: 0 };
+
   const discountFactor = 
-    (1 - channel.mobileDiscountPct / 100) * 
-    (1 - channel.seasonalDiscountPct / 100) * 
-    (1 - channel.additionalDiscountPct / 100);
+    (1 - discounts.mobile / 100) * 
+    (1 - discounts.seasonal / 100) * 
+    (1 - discounts.additional1 / 100) *
+    (1 - discounts.additional2 / 100);
   
   const commissionFactor = 1 - (channel.commissionPct / 100);
   
@@ -55,7 +61,10 @@ export const calculateChannelPrice = (
   // DirectPrice = ListPrice * totalRetainedFactor
   // ListPrice = DirectPrice / totalRetainedFactor
   
-  const rawListPrice = directPrice / totalRetainedFactor;
+  // Guard against divide by zero if discounts/commissions are 100%
+  const safeFactor = Math.max(totalRetainedFactor, 0.01);
+
+  const rawListPrice = directPrice / safeFactor;
   const listPrice = roundPrice(rawListPrice);
 
   // Forward check to get actual estimated net
@@ -90,7 +99,8 @@ export const generatePricingGrid = (
       const channelCalculations: Record<string, ChannelCalculation> = {};
       
       channels.forEach(channel => {
-        channelCalculations[channel.id] = calculateChannelPrice(directPrice, channel);
+        // Pass season.id to calculation
+        channelCalculations[channel.id] = calculateChannelPrice(directPrice, channel, season.id);
       });
 
       grid.push({

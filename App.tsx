@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+
+import React, { useState, useEffect } from "react";
 import { LayoutDashboard, Settings as SettingsIcon, Menu, BedDouble, Calendar, Share2, Globe, ChevronDown, ChevronRight, Building, Plus, Trash2, Bed } from "lucide-react";
 import SettingsPanel from "./components/SettingsPanel";
 import Dashboard from "./components/Dashboard";
@@ -18,20 +19,44 @@ const App: React.FC = () => {
   const [isConfigExpanded, setIsConfigExpanded] = useState(true);
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
 
-  // Property / Template Management
-  const [properties, setProperties] = useState<Property[]>([{
-    id: "default",
-    name: "Główny Obiekt",
-    settings: INITIAL_SETTINGS,
-    channels: INITIAL_CHANNELS,
-    rooms: INITIAL_ROOMS,
-    seasons: INITIAL_SEASONS,
-    notes: "",
-  }]);
-  const [activePropertyId, setActivePropertyId] = useState<string>("default");
+  // Property / Template Management with Persistence
+  const [properties, setProperties] = useState<Property[]>(() => {
+    try {
+      const saved = localStorage.getItem("revmax_properties");
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error("Failed to load properties from localStorage", e);
+    }
+    // Default initial state if nothing in localStorage
+    return [{
+      id: "default",
+      name: "Główny Obiekt",
+      settings: INITIAL_SETTINGS,
+      channels: INITIAL_CHANNELS,
+      rooms: INITIAL_ROOMS,
+      seasons: INITIAL_SEASONS,
+      notes: "",
+    }];
+  });
+
+  const [activePropertyId, setActivePropertyId] = useState<string>(() => {
+    return localStorage.getItem("revmax_active_property_id") || "default";
+  });
   
   // Track which properties are expanded in the sidebar
   const [expandedProperties, setExpandedProperties] = useState<Set<string>>(new Set(["default"]));
+
+  // Persist properties whenever they change
+  useEffect(() => {
+    localStorage.setItem("revmax_properties", JSON.stringify(properties));
+  }, [properties]);
+
+  // Persist active property selection
+  useEffect(() => {
+    localStorage.setItem("revmax_active_property_id", activePropertyId);
+  }, [activePropertyId]);
 
   // Helper to get current active property data
   const activeProperty = properties.find(p => p.id === activePropertyId) || properties[0];
@@ -279,7 +304,7 @@ const App: React.FC = () => {
 
         <div className="p-6 border-t border-slate-800">
           <div className="text-xs text-slate-500">
-            <p>Wersja 0.2.2</p>
+            <p>Wersja 0.2.3</p>
             <p className="mt-1">© 2024 Silnik Cenowy</p>
           </div>
         </div>

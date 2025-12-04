@@ -1,5 +1,6 @@
+
 import React from "react";
-import { Channel, GlobalSettings, RoomType, Season, SettingsTab } from "../types";
+import { Channel, ChannelDiscountProfile, GlobalSettings, RoomType, Season, SettingsTab } from "../types";
 import { Plus, Trash2, X } from "lucide-react";
 
 interface SettingsPanelProps {
@@ -57,6 +58,31 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     );
   };
 
+  const updateChannelDiscount = (
+    channelId: string,
+    seasonId: string,
+    field: keyof ChannelDiscountProfile,
+    value: number
+  ) => {
+    setChannels(
+      channels.map((channel) => {
+        if (channel.id !== channelId) return channel;
+
+        const currentProfile = channel.seasonDiscounts[seasonId] || { mobile: 0, seasonal: 0, additional1: 0, additional2: 0 };
+        return {
+          ...channel,
+          seasonDiscounts: {
+            ...channel.seasonDiscounts,
+            [seasonId]: {
+              ...currentProfile,
+              [field]: value,
+            },
+          },
+        };
+      })
+    );
+  };
+
   const addRoom = () => {
     const newRoom: RoomType = {
       id: Date.now().toString(),
@@ -85,10 +111,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       id: Date.now().toString(),
       name: "Nowy Kanał",
       commissionPct: 15,
-      mobileDiscountPct: 0,
-      seasonalDiscountPct: 0,
-      additionalDiscountPct: 0,
       color: "#64748b",
+      seasonDiscounts: {},
     };
     setChannels([...channels, newChannel]);
   };
@@ -255,33 +279,88 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                <h3 className="text-lg font-medium">Kanały Sprzedaży (OTA)</h3>
                <button onClick={addChannel} className="flex items-center gap-1 text-sm bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700"><Plus size={16}/> Dodaj Kanał</button>
             </div>
-            <div className="space-y-4">
+            <div className="space-y-6">
               {channels.map((channel) => (
                 <div key={channel.id} className="border border-slate-200 rounded-md p-4 bg-white shadow-sm">
-                   <div className="flex justify-between items-start mb-2">
-                      <div className="flex-1 mr-4">
-                        <label className="block text-xs font-medium text-slate-500">Nazwa Kanału</label>
-                        <input type="text" value={channel.name} onChange={(e) => updateItem<Channel>(channel.id, "name", e.target.value, channels, setChannels)} className={`font-semibold text-lg w-full border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-white text-slate-900`} />
+                   {/* Channel Header */}
+                   <div className="flex justify-between items-start mb-4 pb-4 border-b border-slate-100">
+                      <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 mr-4">
+                        <div>
+                           <label className="block text-xs font-medium text-slate-500">Nazwa Kanału</label>
+                           <input type="text" value={channel.name} onChange={(e) => updateItem<Channel>(channel.id, "name", e.target.value, channels, setChannels)} className={`font-semibold text-lg w-full border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-white text-slate-900`} />
+                        </div>
+                        <div>
+                           <label className="block text-xs font-medium text-slate-500">Prowizja Podstawowa (%)</label>
+                           <input type="number" value={channel.commissionPct} onChange={(e) => updateItem<Channel>(channel.id, "commissionPct", Number(e.target.value), channels, setChannels)} className={inputClass} />
+                        </div>
                       </div>
                       <button onClick={() => deleteItem(channel.id, channels, setChannels)} className="text-slate-400 hover:text-red-500"><Trash2 size={16}/></button>
                    </div>
                    
-                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div>
-                        <label className="block text-xs font-medium text-slate-500">Prowizja %</label>
-                        <input type="number" value={channel.commissionPct} onChange={(e) => updateItem<Channel>(channel.id, "commissionPct", Number(e.target.value), channels, setChannels)} className={inputClass} />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-slate-500">Zniżka Mobilna %</label>
-                        <input type="number" value={channel.mobileDiscountPct} onChange={(e) => updateItem<Channel>(channel.id, "mobileDiscountPct", Number(e.target.value), channels, setChannels)} className={inputClass} />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-slate-500">Zniżka Sezonowa %</label>
-                        <input type="number" value={channel.seasonalDiscountPct} onChange={(e) => updateItem<Channel>(channel.id, "seasonalDiscountPct", Number(e.target.value), channels, setChannels)} className={inputClass} />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-slate-500">Dodatkowa Zniżka %</label>
-                        <input type="number" value={channel.additionalDiscountPct} onChange={(e) => updateItem<Channel>(channel.id, "additionalDiscountPct", Number(e.target.value), channels, setChannels)} className={inputClass} />
+                   {/* Seasonal Discounts Table */}
+                   <div className="bg-slate-50 rounded-md p-3">
+                      <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Konfiguracja Zniżek Sezonowych</h4>
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-slate-200 text-sm">
+                           <thead>
+                              <tr className="text-xs text-slate-500 text-left">
+                                 <th className="py-2 pr-2 font-medium">Sezon</th>
+                                 <th className="py-2 px-2 font-medium">Mobilna %</th>
+                                 <th className="py-2 px-2 font-medium">Sezonowa %</th>
+                                 <th className="py-2 px-2 font-medium">Dodatkowa 1 %</th>
+                                 <th className="py-2 pl-2 font-medium">Dodatkowa 2 %</th>
+                              </tr>
+                           </thead>
+                           <tbody className="divide-y divide-slate-200">
+                              {seasons.map((season) => {
+                                 const discounts = channel.seasonDiscounts[season.id] || { mobile: 0, seasonal: 0, additional1: 0, additional2: 0 };
+                                 return (
+                                    <tr key={season.id}>
+                                       <td className="py-2 pr-2 font-medium text-slate-700">{season.name}</td>
+                                       <td className="py-2 px-2">
+                                          <input 
+                                             type="number" 
+                                             min="0" max="100" 
+                                             className={`${inputClass} mt-0 py-1 text-center`} 
+                                             value={discounts.mobile}
+                                             onChange={(e) => updateChannelDiscount(channel.id, season.id, 'mobile', Number(e.target.value))}
+                                          />
+                                       </td>
+                                       <td className="py-2 px-2">
+                                          <input 
+                                             type="number" 
+                                             min="0" max="100" 
+                                             className={`${inputClass} mt-0 py-1 text-center`} 
+                                             value={discounts.seasonal}
+                                             onChange={(e) => updateChannelDiscount(channel.id, season.id, 'seasonal', Number(e.target.value))}
+                                          />
+                                       </td>
+                                       <td className="py-2 px-2">
+                                          <input 
+                                             type="number" 
+                                             min="0" max="100" 
+                                             className={`${inputClass} mt-0 py-1 text-center`} 
+                                             value={discounts.additional1}
+                                             onChange={(e) => updateChannelDiscount(channel.id, season.id, 'additional1', Number(e.target.value))}
+                                          />
+                                       </td>
+                                       <td className="py-2 pl-2">
+                                          <input 
+                                             type="number" 
+                                             min="0" max="100" 
+                                             className={`${inputClass} mt-0 py-1 text-center`} 
+                                             value={discounts.additional2}
+                                             onChange={(e) => updateChannelDiscount(channel.id, season.id, 'additional2', Number(e.target.value))}
+                                          />
+                                       </td>
+                                    </tr>
+                                 );
+                              })}
+                              {seasons.length === 0 && (
+                                 <tr><td colSpan={5} className="py-4 text-center text-slate-400 italic">Brak zdefiniowanych sezonów. Dodaj sezony w zakładce "Sezony".</td></tr>
+                              )}
+                           </tbody>
+                        </table>
                       </div>
                    </div>
                 </div>

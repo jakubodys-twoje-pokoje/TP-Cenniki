@@ -1,45 +1,45 @@
+
 import { Channel, GlobalSettings, RoomType, Season } from "./types";
 
 export const INITIAL_SETTINGS: GlobalSettings = {
   defaultObp: 30,
 };
 
+// Helper to create default discount map for initial seasons
+const defaultDiscounts = (mobile: number = 0, seasonal: number = 0, additional1: number = 0, additional2: number = 0) => ({
+  "s1": { mobile, seasonal, additional1, additional2 },
+  "s2": { mobile, seasonal, additional1, additional2 },
+  "s3": { mobile, seasonal, additional1, additional2 },
+});
+
 export const INITIAL_CHANNELS: Channel[] = [
   {
     id: "booking",
     name: "Booking.com",
     commissionPct: 20,
-    mobileDiscountPct: 10,
-    seasonalDiscountPct: 0,
-    additionalDiscountPct: 0,
     color: "#003580",
+    seasonDiscounts: defaultDiscounts(10, 0, 0, 0), // 10% mobile default
   },
   {
     id: "airbnb",
     name: "Airbnb",
     commissionPct: 16,
-    mobileDiscountPct: 0,
-    seasonalDiscountPct: 0,
-    additionalDiscountPct: 0,
     color: "#FF5A5F",
+    seasonDiscounts: defaultDiscounts(0, 0, 0, 0),
   },
   {
     id: "noclegi",
     name: "Noclegi.pl",
     commissionPct: 12,
-    mobileDiscountPct: 0,
-    seasonalDiscountPct: 0,
-    additionalDiscountPct: 0,
     color: "#34D399",
+    seasonDiscounts: defaultDiscounts(0, 0, 0, 0),
   },
   {
     id: "noclegowo",
     name: "Noclegowo",
     commissionPct: 10,
-    mobileDiscountPct: 0,
-    seasonalDiscountPct: 0,
-    additionalDiscountPct: 0,
     color: "#FBBF24",
+    seasonDiscounts: defaultDiscounts(0, 0, 0, 0),
   },
 ];
 

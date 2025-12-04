@@ -1,13 +1,20 @@
+
 export type SettingsTab = "global" | "rooms" | "seasons" | "channels";
+
+export interface ChannelDiscountProfile {
+  mobile: number;
+  seasonal: number;
+  additional1: number; // Renamed from additional
+  additional2: number; // New second additional discount
+}
 
 export interface Channel {
   id: string;
   name: string;
   commissionPct: number; // 0-100
-  mobileDiscountPct: number; // 0-100
-  seasonalDiscountPct: number; // 0-100
-  additionalDiscountPct: number; // 0-100
   color: string;
+  // Key is season.id, value is the discount profile
+  seasonDiscounts: Record<string, ChannelDiscountProfile>;
 }
 
 export interface RoomType {
