@@ -4,12 +4,10 @@ import { supabase } from '../utils/supabaseClient';
 import { KeyRound, Mail, User, Loader2, ArrowRight, Sparkles } from 'lucide-react';
 
 const LoginScreen: React.FC = () => {
-  const [isLogin, setIsLogin] = useState(true);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
 
   // Helper to map simple usernames to emails for Supabase
   const getEmail = (user: string) => {
@@ -22,26 +20,15 @@ const LoginScreen: React.FC = () => {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    setMessage(null);
 
     const email = getEmail(username);
 
     try {
-      if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-        });
-        if (error) throw error;
-        setMessage("Konto zostało utworzone! Możesz się teraz zalogować.");
-        setIsLogin(true);
-      }
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (error) throw error;
     } catch (err: any) {
       setError(err.message === "Invalid login credentials" 
         ? "Nieprawidłowa nazwa użytkownika lub hasło." 
@@ -76,12 +63,10 @@ const LoginScreen: React.FC = () => {
           </div>
 
           <h2 className="text-3xl font-bold text-white mb-2 tracking-tight text-center">
-            {isLogin ? 'Witaj ponownie' : 'Utwórz konto'}
+            Witaj ponownie
           </h2>
           <p className="text-slate-400 text-sm mb-8 text-center max-w-xs">
-            {isLogin 
-              ? 'Zaloguj się, aby zarządzać cenami i dostępnością.' 
-              : 'Skonfiguruj dostęp dla nowego administratora.'}
+            Zaloguj się, aby zarządzać cenami i dostępnością.
           </p>
 
           <form onSubmit={handleAuth} className="w-full space-y-5">
@@ -125,12 +110,6 @@ const LoginScreen: React.FC = () => {
               </div>
             )}
             
-            {message && (
-              <div className="p-3 rounded-lg bg-green-500/20 border border-green-500/50 text-green-200 text-sm text-center">
-                {message}
-              </div>
-            )}
-
             <button
               type="submit"
               disabled={loading}
@@ -140,29 +119,12 @@ const LoginScreen: React.FC = () => {
                 <Loader2 className="animate-spin h-5 w-5" />
               ) : (
                 <>
-                  {isLogin ? 'Zaloguj się' : 'Zarejestruj się'}
+                  Zaloguj się
                   <ArrowRight size={18} className="ml-2" />
                 </>
               )}
             </button>
           </form>
-
-          <div className="mt-8 pt-6 border-t border-white/10 w-full text-center">
-            <button
-              onClick={() => {
-                setIsLogin(!isLogin);
-                setError(null);
-                setMessage(null);
-              }}
-              className="text-sm text-slate-400 hover:text-white transition-colors"
-            >
-              {isLogin ? (
-                <>Nie masz konta? <span className="text-blue-400 hover:underline">Zarejestruj się</span></>
-              ) : (
-                <>Masz już konto? <span className="text-blue-400 hover:underline">Zaloguj się</span></>
-              )}
-            </button>
-          </div>
         </div>
       </div>
       
