@@ -62,13 +62,19 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     channelId: string,
     seasonId: string,
     field: keyof ChannelDiscountProfile,
-    value: number
+    value: number | boolean
   ) => {
     setChannels(
       channels.map((channel) => {
         if (channel.id !== channelId) return channel;
 
-        const currentProfile = channel.seasonDiscounts[seasonId] || { mobile: 0, seasonal: 0, additional1: 0, additional2: 0 };
+        const currentProfile = channel.seasonDiscounts[seasonId] || { 
+          mobile: 0, mobileEnabled: true, 
+          seasonal: 0, seasonalEnabled: true,
+          additional1: 0, additional1Enabled: true,
+          additional2: 0, additional2Enabled: true
+        };
+        
         return {
           ...channel,
           seasonDiscounts: {
@@ -124,7 +130,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     channels: "Kanały"
   };
 
-  const inputClass = "mt-1 block w-full rounded-md border border-slate-300 bg-white text-slate-900 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2";
+  const inputClass = "block w-full rounded-md border border-slate-300 bg-white text-slate-900 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2";
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-slate-200 h-full flex flex-col">
@@ -313,46 +319,44 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                            </thead>
                            <tbody className="divide-y divide-slate-200">
                               {seasons.map((season) => {
-                                 const discounts = channel.seasonDiscounts[season.id] || { mobile: 0, seasonal: 0, additional1: 0, additional2: 0 };
+                                 const discounts = channel.seasonDiscounts[season.id] || { 
+                                   mobile: 0, mobileEnabled: true,
+                                   seasonal: 0, seasonalEnabled: true,
+                                   additional1: 0, additional1Enabled: true,
+                                   additional2: 0, additional2Enabled: true
+                                 };
+                                 
+                                 const renderDiscountCell = (field: 'mobile' | 'seasonal' | 'additional1' | 'additional2') => {
+                                    const enabledField = `${field}Enabled` as keyof ChannelDiscountProfile;
+                                    const isEnabled = discounts[enabledField] as boolean ?? true;
+                                    
+                                    return (
+                                       <div className="flex items-center gap-2">
+                                          <input 
+                                             type="checkbox"
+                                             checked={isEnabled}
+                                             onChange={(e) => updateChannelDiscount(channel.id, season.id, enabledField, e.target.checked)}
+                                             className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                          />
+                                          <input 
+                                             type="number" 
+                                             min="0" max="100" 
+                                             className={`${inputClass} mt-0 py-1 text-center ${!isEnabled ? 'bg-slate-100 text-slate-400' : ''}`}
+                                             value={discounts[field] as number}
+                                             disabled={!isEnabled}
+                                             onChange={(e) => updateChannelDiscount(channel.id, season.id, field, Number(e.target.value))}
+                                          />
+                                       </div>
+                                    );
+                                 };
+
                                  return (
                                     <tr key={season.id}>
-                                       <td className="py-2 pr-2 font-medium text-slate-700">{season.name}</td>
-                                       <td className="py-2 px-2">
-                                          <input 
-                                             type="number" 
-                                             min="0" max="100" 
-                                             className={`${inputClass} mt-0 py-1 text-center`} 
-                                             value={discounts.mobile}
-                                             onChange={(e) => updateChannelDiscount(channel.id, season.id, 'mobile', Number(e.target.value))}
-                                          />
-                                       </td>
-                                       <td className="py-2 px-2">
-                                          <input 
-                                             type="number" 
-                                             min="0" max="100" 
-                                             className={`${inputClass} mt-0 py-1 text-center`} 
-                                             value={discounts.seasonal}
-                                             onChange={(e) => updateChannelDiscount(channel.id, season.id, 'seasonal', Number(e.target.value))}
-                                          />
-                                       </td>
-                                       <td className="py-2 px-2">
-                                          <input 
-                                             type="number" 
-                                             min="0" max="100" 
-                                             className={`${inputClass} mt-0 py-1 text-center`} 
-                                             value={discounts.additional1}
-                                             onChange={(e) => updateChannelDiscount(channel.id, season.id, 'additional1', Number(e.target.value))}
-                                          />
-                                       </td>
-                                       <td className="py-2 pl-2">
-                                          <input 
-                                             type="number" 
-                                             min="0" max="100" 
-                                             className={`${inputClass} mt-0 py-1 text-center`} 
-                                             value={discounts.additional2}
-                                             onChange={(e) => updateChannelDiscount(channel.id, season.id, 'additional2', Number(e.target.value))}
-                                          />
-                                       </td>
+                                       <td className="py-2 pr-2 font-medium text-slate-700 w-32">{season.name}</td>
+                                       <td className="py-2 px-2">{renderDiscountCell('mobile')}</td>
+                                       <td className="py-2 px-2">{renderDiscountCell('seasonal')}</td>
+                                       <td className="py-2 px-2">{renderDiscountCell('additional1')}</td>
+                                       <td className="py-2 pl-2">{renderDiscountCell('additional2')}</td>
                                     </tr>
                                  );
                               })}

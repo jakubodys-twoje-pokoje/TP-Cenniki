@@ -3,9 +3,13 @@ export type SettingsTab = "global" | "rooms" | "seasons" | "channels";
 
 export interface ChannelDiscountProfile {
   mobile: number;
+  mobileEnabled: boolean;
   seasonal: number;
+  seasonalEnabled: boolean;
   additional1: number; // Renamed from additional
+  additional1Enabled: boolean;
   additional2: number; // New second additional discount
+  additional2Enabled: boolean;
 }
 
 export interface Channel {

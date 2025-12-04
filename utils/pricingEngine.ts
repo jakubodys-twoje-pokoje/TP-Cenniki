@@ -44,14 +44,23 @@ export const calculateChannelPrice = (
   // This is a simplified waterfall model:
   // ListPrice -> Apply Discounts -> SoldPrice -> Apply Commission -> Net
 
-  // Fetch discounts for this specific season, or default to 0 if not set
-  const discounts = channel.seasonDiscounts[seasonId] || { mobile: 0, seasonal: 0, additional1: 0, additional2: 0 };
+  // Fetch discounts for this specific season
+  // Use 'any' type cast momentarily if migrated data structure is missing fields, 
+  // but strictly we expect the interface. We'll default enabled to true if undefined for backward compatibility.
+  const discounts = channel.seasonDiscounts[seasonId] || { 
+    mobile: 0, mobileEnabled: true,
+    seasonal: 0, seasonalEnabled: true,
+    additional1: 0, additional1Enabled: true,
+    additional2: 0, additional2Enabled: true
+  };
+
+  const getDisc = (val: number, enabled: boolean | undefined) => (enabled ?? true) ? val : 0;
 
   const discountFactor = 
-    (1 - discounts.mobile / 100) * 
-    (1 - discounts.seasonal / 100) * 
-    (1 - discounts.additional1 / 100) *
-    (1 - discounts.additional2 / 100);
+    (1 - getDisc(discounts.mobile, discounts.mobileEnabled) / 100) * 
+    (1 - getDisc(discounts.seasonal, discounts.seasonalEnabled) / 100) * 
+    (1 - getDisc(discounts.additional1, discounts.additional1Enabled) / 100) *
+    (1 - getDisc(discounts.additional2, discounts.additional2Enabled) / 100);
   
   const commissionFactor = 1 - (channel.commissionPct / 100);
   

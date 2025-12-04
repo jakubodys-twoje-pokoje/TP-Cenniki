@@ -7,9 +7,24 @@ export const INITIAL_SETTINGS: GlobalSettings = {
 
 // Helper to create default discount map for initial seasons
 const defaultDiscounts = (mobile: number = 0, seasonal: number = 0, additional1: number = 0, additional2: number = 0) => ({
-  "s1": { mobile, seasonal, additional1, additional2 },
-  "s2": { mobile, seasonal, additional1, additional2 },
-  "s3": { mobile, seasonal, additional1, additional2 },
+  "s1": { 
+    mobile, mobileEnabled: true, 
+    seasonal, seasonalEnabled: true,
+    additional1, additional1Enabled: true,
+    additional2, additional2Enabled: true 
+  },
+  "s2": { 
+    mobile, mobileEnabled: true, 
+    seasonal, seasonalEnabled: true,
+    additional1, additional1Enabled: true,
+    additional2, additional2Enabled: true 
+  },
+  "s3": { 
+    mobile, mobileEnabled: true, 
+    seasonal, seasonalEnabled: true,
+    additional1, additional1Enabled: true,
+    additional2, additional2Enabled: true 
+  },
 });
 
 export const INITIAL_CHANNELS: Channel[] = [
