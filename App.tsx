@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect } from "react";
-import { LayoutDashboard, Settings as SettingsIcon, Menu, BedDouble, Calendar, Share2, Globe, ChevronDown, ChevronRight, Building, Plus, Trash2, Bed, CheckCircle2, Copy } from "lucide-react";
+import { LayoutDashboard, Settings as SettingsIcon, Menu, BedDouble, Calendar, Share2, Cog, ChevronDown, ChevronRight, Building, Plus, Trash2, Bed, CheckCircle2, Copy } from "lucide-react";
 import SettingsPanel from "./components/SettingsPanel";
 import Dashboard from "./components/Dashboard";
 import {
@@ -8,7 +9,7 @@ import {
   INITIAL_SEASONS,
   INITIAL_SETTINGS,
 } from "./constants";
-import { Property, SettingsTab } from "./types";
+import { Property, RoomType, SettingsTab } from "./types";
 
 // Utility for deep cloning to ensure no reference sharing between properties
 function deepClone<T>(obj: T): T {
@@ -70,6 +71,13 @@ const App: React.FC = () => {
     setProperties(prev => prev.map(p => 
       p.id === activePropertyId ? { ...p, ...updates } : p
     ));
+  };
+
+  const handleRoomUpdate = (roomId: string, updates: Partial<RoomType>) => {
+    const updatedRooms = activeProperty.rooms.map(r => 
+      r.id === roomId ? { ...r, ...updates } : r
+    );
+    updateActiveProperty({ rooms: updatedRooms });
   };
 
   const handleAddProperty = () => {
@@ -249,8 +257,8 @@ const App: React.FC = () => {
                       : "text-slate-400 hover:bg-slate-800/50 hover:text-white"
                   }`}
                 >
-                  <Globe size={16} />
-                  <span>Globalne</span>
+                  <Cog size={16} />
+                  <span>Ogólne</span>
                 </button>
               </div>
             )}
@@ -364,6 +372,7 @@ const App: React.FC = () => {
               selectedRoomId={selectedRoomId}
               notes={activeProperty.notes || ""}
               onNotesChange={(n) => updateActiveProperty({ notes: n })}
+              onRoomUpdate={handleRoomUpdate}
             />
           ) : (
             <SettingsPanel 

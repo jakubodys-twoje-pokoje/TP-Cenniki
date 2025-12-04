@@ -3,11 +3,10 @@ import { Channel, ChannelCalculation, GlobalSettings, PricingRow, RoomType, Seas
 
 /**
  * rounds a price to a psychological price point (e.g. ends in 0, 5, or 9)
- * For this engine, we will simply round to nearest integer to keep it clean,
- * or nearest 5 if needed. Let's stick to nearest integer for precision checking.
+ * For this engine, we will simply round to nearest integer to keep it clean.
  */
 const roundPrice = (price: number): number => {
-  return Math.ceil(price);
+  return Math.round(price);
 };
 
 export const calculateDirectPrice = (
@@ -16,10 +15,14 @@ export const calculateDirectPrice = (
   occupancy: number,
   globalSettings: GlobalSettings
 ): number => {
-  // 1. Base Peak Price * Season Multiplier
-  let price = room.basePricePeak * season.multiplier;
+  // 1. Determine Base Price
+  // Use specific season base price if available, otherwise global peak
+  const basePrice = room.seasonBasePrices?.[season.id] ?? room.basePricePeak;
 
-  // 2. OBP Adjustment (Occupancy Based Pricing)
+  // 2. Base Price * Season Multiplier
+  let price = basePrice * season.multiplier;
+
+  // 3. OBP Adjustment (Occupancy Based Pricing)
   // If season enables OBP, subtract discount for missing persons
   if (season.obpEnabled) {
     const missingPeople = room.maxOccupancy - occupancy;
@@ -29,7 +32,9 @@ export const calculateDirectPrice = (
   }
 
   // Prevent negative or zero prices (sanity check)
-  return Math.max(price, 50); // Minimum 50 currency units
+  const finalPrice = Math.max(price, 50); // Minimum 50 currency units
+  
+  return roundPrice(finalPrice);
 };
 
 export const calculateChannelPrice = (
@@ -45,8 +50,6 @@ export const calculateChannelPrice = (
   // ListPrice -> Apply Discounts -> SoldPrice -> Apply Commission -> Net
 
   // Fetch discounts for this specific season
-  // Use 'any' type cast momentarily if migrated data structure is missing fields, 
-  // but strictly we expect the interface. We'll default enabled to true if undefined for backward compatibility.
   const discounts = channel.seasonDiscounts[seasonId] || { 
     mobile: 0, mobileEnabled: true,
     seasonal: 0, seasonalEnabled: true,
@@ -83,9 +86,9 @@ export const calculateChannelPrice = (
 
   return {
     listPrice,
-    estimatedNet,
-    commission: commissionAmount,
-    isProfitable: estimatedNet >= directPrice - 1, // Allow 1 unit margin of error for rounding
+    estimatedNet: roundPrice(estimatedNet),
+    commission: roundPrice(commissionAmount),
+    isProfitable: roundPrice(estimatedNet) >= directPrice - 1, // Allow 1 unit margin of error for rounding
   };
 };
 
@@ -126,10 +129,14 @@ export const generatePricingGrid = (
         channelCalculations[channel.id] = calculateChannelPrice(directPrice, channel, season.id);
       });
 
+      // Determine which base price to show
+      const activeBasePrice = room.seasonBasePrices?.[season.id] ?? room.basePricePeak;
+
       grid.push({
         roomId: room.id,
         seasonId: season.id,
         roomName: room.name,
+        basePrice: activeBasePrice, 
         seasonName: season.name,
         occupancy: targetOccupancy,
         maxOccupancy: room.maxOccupancy,

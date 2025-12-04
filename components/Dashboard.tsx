@@ -13,6 +13,7 @@ interface DashboardProps {
   selectedRoomId?: string | null;
   notes: string;
   onNotesChange: (notes: string) => void;
+  onRoomUpdate: (roomId: string, updates: Partial<RoomType>) => void;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({
@@ -23,6 +24,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   selectedRoomId,
   notes,
   onNotesChange,
+  onRoomUpdate,
 }) => {
   const [occupancyFilter, setOccupancyFilter] = useState<"MAX" | number>("MAX");
   const [occupancyOverrides, setOccupancyOverrides] = useState<Record<string, number>>({});
@@ -63,6 +65,16 @@ const Dashboard: React.FC<DashboardProps> = ({
       ...prev,
       [key]: val
     }));
+  };
+
+  const handleBasePriceChange = (roomId: string, seasonId: string, newValue: number) => {
+    const room = rooms.find(r => r.id === roomId);
+    if (!room) return;
+
+    const currentMap = room.seasonBasePrices || {};
+    const updatedMap = { ...currentMap, [seasonId]: newValue };
+    
+    onRoomUpdate(roomId, { seasonBasePrices: updatedMap });
   };
 
   const occupancyOptions = [1, 2, 3, 4, 5, 6, 7];
@@ -142,13 +154,14 @@ const Dashboard: React.FC<DashboardProps> = ({
               <thead className="bg-slate-50 sticky top-0 z-10 shadow-sm">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Typ Pokoju</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider w-28">Cena Bazowa</th>
                   <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Sezon</th>
                   <th className="px-4 py-3 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Os.</th>
-                  <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider bg-blue-50">Cena Bezp.</th>
+                  <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider bg-blue-50">CENA DIRECT</th>
                   
                   {activeView !== "ALL" && (
                      <>
-                      <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider bg-orange-50">Cena na Liście</th>
+                      <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider bg-orange-50">CENA W OTA</th>
                       <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Prowizja</th>
                       <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider bg-green-50">Przychód Netto</th>
                       <th className="px-4 py-3 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
@@ -165,6 +178,14 @@ const Dashboard: React.FC<DashboardProps> = ({
                     return (
                       <tr key={`${row.roomId}-${row.seasonId}`} className="hover:bg-slate-50 transition-colors">
                         <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-slate-900">{row.roomName}</td>
+                        <td className="px-4 py-3 whitespace-nowrap text-sm">
+                           <input 
+                             type="number" 
+                             value={row.basePrice} 
+                             onChange={(e) => handleBasePriceChange(row.roomId, row.seasonId, Number(e.target.value))}
+                             className="w-20 px-2 py-1 text-sm border border-slate-300 rounded focus:ring-blue-500 focus:border-blue-500 bg-white text-slate-900"
+                           />
+                        </td>
                         <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-500">{row.seasonName}</td>
                         <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-500 text-center">
                           <div className="relative inline-block group z-0">
@@ -220,7 +241,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                   })
                 ) : (
                    <tr>
-                     <td colSpan={activeView === "ALL" ? 4 : 8} className="px-4 py-8 text-center text-slate-500">
+                     <td colSpan={activeView === "ALL" ? 5 : 9} className="px-4 py-8 text-center text-slate-500">
                        Brak danych do wyświetlenia. Sprawdź filtry lub konfigurację.
                      </td>
                    </tr>

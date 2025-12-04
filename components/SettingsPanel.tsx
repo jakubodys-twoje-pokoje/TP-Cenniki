@@ -1,3 +1,4 @@
+
 import React from "react";
 import { Channel, ChannelDiscountProfile, GlobalSettings, RoomType, Season, SettingsTab } from "../types";
 import { Plus, Trash2, X, Copy } from "lucide-react";
@@ -125,7 +126,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   };
 
   const tabLabels: Record<SettingsTab, string> = {
-    global: "Globalne",
+    global: "Ogólne",
     rooms: "Pokoje",
     seasons: "Sezony",
     channels: "Kanały"
@@ -174,22 +175,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
               />
             </div>
 
-            <div className="bg-blue-50 p-4 rounded-md border border-blue-100">
-              <h3 className="font-semibold text-blue-900 mb-2">Polityka Cenowa OBP (Zależna od obłożenia)</h3>
-              <p className="text-sm text-blue-700 mb-4">
-                Globalna kwota zniżki za każde puste łóżko przy niepełnym obłożeniu pokoju.
-              </p>
-              <label className="block text-sm font-medium text-slate-700">
-                Domyślna Zniżka (PLN)
-              </label>
-              <input
-                type="number"
-                value={settings.defaultObp}
-                onChange={(e) => handleObpChange(e.target.value)}
-                className={`max-w-xs ${inputClass}`}
-              />
-            </div>
-            
              <div className="bg-indigo-50 p-4 rounded-md border border-indigo-100 mt-6">
               <h3 className="font-semibold text-indigo-900 mb-2">Szablony i Kopiowanie</h3>
               <p className="text-sm text-indigo-700 mb-4">
@@ -222,34 +207,53 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
         {/* Rooms Tab */}
         {activeTab === "rooms" && (
-          <div className="space-y-4">
-            <div className="flex justify-between items-center">
-               <h3 className="text-lg font-medium">Typy Pokoi (Kwatery)</h3>
-               <button onClick={addRoom} className="flex items-center gap-1 text-sm bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700"><Plus size={16}/> Dodaj Pokój</button>
+          <div className="space-y-6">
+             {/* OBP moved here */}
+            <div className="bg-blue-50 p-4 rounded-md border border-blue-100">
+              <h3 className="font-semibold text-blue-900 mb-2">Polityka Cenowa OBP (Zależna od obłożenia)</h3>
+              <p className="text-sm text-blue-700 mb-4">
+                Globalna kwota zniżki za każde puste łóżko przy niepełnym obłożeniu pokoju.
+              </p>
+              <label className="block text-sm font-medium text-slate-700">
+                Domyślna Zniżka (PLN)
+              </label>
+              <input
+                type="number"
+                value={settings.defaultObp}
+                onChange={(e) => handleObpChange(e.target.value)}
+                className={`max-w-xs ${inputClass}`}
+              />
             </div>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-200">
-                <thead>
-                  <tr className="bg-slate-50">
-                    <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase">Nazwa</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase">Maks. Osób</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase">Ilość</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase">Cena Bazowa (Szczyt)</th>
-                    <th className="px-3 py-2"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200">
-                  {rooms.map((room) => (
-                    <tr key={room.id}>
-                      <td className="px-3 py-2"><input type="text" value={room.name} onChange={(e) => updateItem<RoomType>(room.id, "name", e.target.value, rooms, setRooms)} className={`w-full ${inputClass}`} /></td>
-                      <td className="px-3 py-2"><input type="number" value={room.maxOccupancy} onChange={(e) => updateItem<RoomType>(room.id, "maxOccupancy", Number(e.target.value), rooms, setRooms)} className={`w-20 ${inputClass}`} /></td>
-                      <td className="px-3 py-2"><input type="number" value={room.quantity} onChange={(e) => updateItem<RoomType>(room.id, "quantity", Number(e.target.value), rooms, setRooms)} className={`w-20 ${inputClass}`} /></td>
-                      <td className="px-3 py-2"><input type="number" value={room.basePricePeak} onChange={(e) => updateItem<RoomType>(room.id, "basePricePeak", Number(e.target.value), rooms, setRooms)} className={`w-32 ${inputClass}`} /></td>
-                      <td className="px-3 py-2 text-right"><button onClick={() => deleteItem(room.id, rooms, setRooms)} className="text-red-500 hover:text-red-700"><Trash2 size={16}/></button></td>
+
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                 <h3 className="text-lg font-medium">Typy Pokoi (Kwatery)</h3>
+                 <button onClick={addRoom} className="flex items-center gap-1 text-sm bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700"><Plus size={16}/> Dodaj Pokój</button>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-slate-200">
+                  <thead>
+                    <tr className="bg-slate-50">
+                      <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase">Nazwa</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase">Maks. Osób</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase">Ilość</th>
+                      {/* Base Price Column Removed */}
+                      <th className="px-3 py-2"></th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {rooms.map((room) => (
+                      <tr key={room.id}>
+                        <td className="px-3 py-2"><input type="text" value={room.name} onChange={(e) => updateItem<RoomType>(room.id, "name", e.target.value, rooms, setRooms)} className={`w-full ${inputClass}`} /></td>
+                        <td className="px-3 py-2"><input type="number" value={room.maxOccupancy} onChange={(e) => updateItem<RoomType>(room.id, "maxOccupancy", Number(e.target.value), rooms, setRooms)} className={`w-20 ${inputClass}`} /></td>
+                        <td className="px-3 py-2"><input type="number" value={room.quantity} onChange={(e) => updateItem<RoomType>(room.id, "quantity", Number(e.target.value), rooms, setRooms)} className={`w-20 ${inputClass}`} /></td>
+                        {/* Base Price Input Removed */}
+                        <td className="px-3 py-2 text-right"><button onClick={() => deleteItem(room.id, rooms, setRooms)} className="text-red-500 hover:text-red-700"><Trash2 size={16}/></button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}
