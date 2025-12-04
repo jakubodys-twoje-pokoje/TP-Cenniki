@@ -37,6 +37,8 @@ const Dashboard: React.FC<DashboardProps> = ({
     });
   }, [seasons, pricingGrid]);
 
+  const occupancyOptions = [1, 2, 3, 4, 5, 6, 7];
+
   return (
     <div className="h-full flex flex-col space-y-6">
       
@@ -47,25 +49,23 @@ const Dashboard: React.FC<DashboardProps> = ({
           <p className="text-sm text-slate-500">Analiza cen bezpośrednich i narzutów kanałów OTA</p>
         </div>
         
-        <div className="flex items-center gap-3">
-           <div className="flex items-center gap-2 bg-slate-100 rounded-lg p-1">
+        <div className="flex items-center gap-3 overflow-x-auto max-w-full pb-1">
+           <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
+              {occupancyOptions.map(num => (
+                <button 
+                  key={num}
+                  onClick={() => setOccupancyFilter(num)}
+                  className={`px-3 py-1.5 text-sm rounded-md transition-all whitespace-nowrap ${occupancyFilter === num ? 'bg-white shadow text-blue-600 font-medium' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                  {num} Os.
+                </button>
+              ))}
+              <div className="w-px h-6 bg-slate-300 mx-1"></div>
               <button 
                 onClick={() => setOccupancyFilter("MAX")}
-                className={`px-3 py-1.5 text-sm rounded-md transition-all ${occupancyFilter === "MAX" ? 'bg-white shadow text-blue-600 font-medium' : 'text-slate-500 hover:text-slate-700'}`}
+                className={`px-3 py-1.5 text-sm rounded-md transition-all whitespace-nowrap ${occupancyFilter === "MAX" ? 'bg-white shadow text-blue-600 font-medium' : 'text-slate-500 hover:text-slate-700'}`}
               >
-                Maks. Osób
-              </button>
-              <button 
-                onClick={() => setOccupancyFilter(2)}
-                className={`px-3 py-1.5 text-sm rounded-md transition-all ${occupancyFilter === 2 ? 'bg-white shadow text-blue-600 font-medium' : 'text-slate-500 hover:text-slate-700'}`}
-              >
-                2 Os.
-              </button>
-               <button 
-                onClick={() => setOccupancyFilter(1)}
-                className={`px-3 py-1.5 text-sm rounded-md transition-all ${occupancyFilter === 1 ? 'bg-white shadow text-blue-600 font-medium' : 'text-slate-500 hover:text-slate-700'}`}
-              >
-                1 Os.
+                Maks.
               </button>
            </div>
         </div>

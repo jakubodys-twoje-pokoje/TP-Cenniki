@@ -1,8 +1,10 @@
-import React, { useState } from "react";
-import { Channel, GlobalSettings, RoomType, Season } from "../types";
+import React from "react";
+import { Channel, GlobalSettings, RoomType, Season, SettingsTab } from "../types";
 import { Plus, Trash2, X } from "lucide-react";
 
 interface SettingsPanelProps {
+  propertyName: string;
+  onPropertyNameChange: (name: string) => void;
   settings: GlobalSettings;
   setSettings: (s: GlobalSettings) => void;
   channels: Channel[];
@@ -11,9 +13,14 @@ interface SettingsPanelProps {
   setRooms: (r: RoomType[]) => void;
   seasons: Season[];
   setSeasons: (s: Season[]) => void;
+  activeTab: SettingsTab;
+  onTabChange: (tab: SettingsTab) => void;
+  onDeleteProperty: () => void;
 }
 
 const SettingsPanel: React.FC<SettingsPanelProps> = ({
+  propertyName,
+  onPropertyNameChange,
   settings,
   setSettings,
   channels,
@@ -22,9 +29,10 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   setRooms,
   seasons,
   setSeasons,
+  activeTab,
+  onTabChange,
+  onDeleteProperty,
 }) => {
-  const [activeTab, setActiveTab] = useState<"global" | "rooms" | "seasons" | "channels">("global");
-
   // Handlers for Global
   const handleObpChange = (val: string) => setSettings({ ...settings, defaultObp: Number(val) });
 
@@ -85,7 +93,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     setChannels([...channels, newChannel]);
   };
 
-  const tabLabels = {
+  const tabLabels: Record<SettingsTab, string> = {
     global: "Globalne",
     rooms: "Pokoje",
     seasons: "Sezony",
@@ -102,12 +110,12 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-slate-200 bg-slate-50">
+      <div className="flex border-b border-slate-200 bg-slate-50 overflow-x-auto">
         {(["global", "rooms", "seasons", "channels"] as const).map((tab) => (
           <button
             key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-4 py-3 text-sm font-medium capitalize transition-colors ${
+            onClick={() => onTabChange(tab)}
+            className={`px-4 py-3 text-sm font-medium capitalize transition-colors whitespace-nowrap ${
               activeTab === tab
                 ? "bg-white text-blue-600 border-b-2 border-blue-600"
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
@@ -122,6 +130,19 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
         {/* Global Tab */}
         {activeTab === "global" && (
           <div className="space-y-6">
+            <div className="bg-slate-50 p-4 rounded-md border border-slate-200">
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Nazwa Obiektu
+              </label>
+              <input
+                type="text"
+                value={propertyName}
+                onChange={(e) => onPropertyNameChange(e.target.value)}
+                className={inputClass}
+                placeholder="np. Apartament Centrum"
+              />
+            </div>
+
             <div className="bg-blue-50 p-4 rounded-md border border-blue-100">
               <h3 className="font-semibold text-blue-900 mb-2">Polityka Cenowa OBP (Zależna od obłożenia)</h3>
               <p className="text-sm text-blue-700 mb-4">
@@ -136,6 +157,20 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 onChange={(e) => handleObpChange(e.target.value)}
                 className={`max-w-xs ${inputClass}`}
               />
+            </div>
+
+            <div className="bg-red-50 p-4 rounded-md border border-red-100 mt-6">
+              <h3 className="font-semibold text-red-900 mb-2">Strefa Niebezpieczna</h3>
+              <p className="text-sm text-red-700 mb-4">
+                Usunięcie tego obiektu jest nieodwracalne. 
+              </p>
+              <button
+                onClick={onDeleteProperty}
+                className="flex items-center gap-2 bg-white border border-red-300 text-red-600 px-4 py-2 rounded shadow-sm hover:bg-red-100 transition-colors"
+              >
+                <Trash2 size={16} />
+                Usuń ten obiekt
+              </button>
             </div>
           </div>
         )}

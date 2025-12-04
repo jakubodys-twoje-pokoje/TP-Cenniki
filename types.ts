@@ -1,3 +1,5 @@
+export type SettingsTab = "global" | "rooms" | "seasons" | "channels";
+
 export interface Channel {
   id: string;
   name: string;
@@ -27,6 +29,15 @@ export interface Season {
 
 export interface GlobalSettings {
   defaultObp: number; // Price reduction per person
+}
+
+export interface Property {
+  id: string;
+  name: string;
+  settings: GlobalSettings;
+  channels: Channel[];
+  rooms: RoomType[];
+  seasons: Season[];
 }
 
 export interface PricingRow {
