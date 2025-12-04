@@ -162,9 +162,14 @@ const App: React.FC = () => {
         fixed inset-y-0 left-0 z-30 w-64 bg-slate-900 text-white transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0
         ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
-        <div className="p-6 border-b border-slate-700 flex items-center gap-2">
-          <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center font-bold text-white">R</div>
-          <span className="text-xl font-bold tracking-tight">RevMax</span>
+        <div className="p-6 border-b border-slate-700 flex flex-col gap-4">
+          <img 
+            src="https://twojepokoje.com.pl/wp-content/uploads/2024/02/Twoje_pokoje_logo_full.webp" 
+            alt="Twoje Pokoje Logo" 
+            className="w-full h-auto object-contain"
+            style={{ maxHeight: '60px' }}
+          />
+          <span className="text-sm font-bold tracking-tight text-slate-400 uppercase text-center">Cennik Twoje Pokoje</span>
         </div>
 
         <nav className="p-4 space-y-2 flex-1 overflow-y-auto">
@@ -330,8 +335,8 @@ const App: React.FC = () => {
             <span>Zapisano pomyślnie</span>
           </div>
           <div className="text-xs text-slate-500">
-            <p>Wersja 0.2.4</p>
-            <p className="mt-1">© 2024 Silnik Cenowy</p>
+            <p>Wersja 1.4.5</p>
+            <p className="mt-1">© 2025 Twoje Pokoje & Strony Jakubowe</p>
           </div>
         </div>
       </aside>
