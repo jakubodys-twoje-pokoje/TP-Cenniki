@@ -1,7 +1,8 @@
+
 import React, { useMemo, useState } from "react";
 import { Channel, GlobalSettings, RoomType, Season } from "../types";
 import { generatePricingGrid } from "../utils/pricingEngine";
-import { AlertCircle, CheckCircle, TrendingUp, Users, StickyNote } from "lucide-react";
+import { AlertCircle, CheckCircle, TrendingUp, Users, StickyNote, ChevronDown } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface DashboardProps {
@@ -24,6 +25,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   onNotesChange,
 }) => {
   const [occupancyFilter, setOccupancyFilter] = useState<"MAX" | number>("MAX");
+  const [occupancyOverrides, setOccupancyOverrides] = useState<Record<string, number>>({});
   const [activeView, setActiveView] = useState<"ALL" | string>("ALL"); // 'ALL' for Direct or Channel ID
 
   const pricingGrid = useMemo(() => {
@@ -32,8 +34,8 @@ const Dashboard: React.FC<DashboardProps> = ({
       ? rooms.filter(r => r.id === selectedRoomId)
       : rooms;
 
-    return generatePricingGrid(activeRooms, seasons, channels, settings, occupancyFilter);
-  }, [rooms, seasons, channels, settings, occupancyFilter, selectedRoomId]);
+    return generatePricingGrid(activeRooms, seasons, channels, settings, occupancyFilter, occupancyOverrides);
+  }, [rooms, seasons, channels, settings, occupancyFilter, selectedRoomId, occupancyOverrides]);
 
   // Transform data for charts
   const chartData = useMemo(() => {
@@ -49,6 +51,18 @@ const Dashboard: React.FC<DashboardProps> = ({
       };
     });
   }, [seasons, pricingGrid]);
+
+  const handleGlobalFilterChange = (val: "MAX" | number) => {
+    setOccupancyFilter(val);
+    setOccupancyOverrides({}); // Reset specific overrides when global filter is used
+  };
+
+  const handleOverrideChange = (roomId: string, val: number) => {
+    setOccupancyOverrides(prev => ({
+      ...prev,
+      [roomId]: val
+    }));
+  };
 
   const occupancyOptions = [1, 2, 3, 4, 5, 6, 7];
   
@@ -79,16 +93,16 @@ const Dashboard: React.FC<DashboardProps> = ({
               {occupancyOptions.map(num => (
                 <button 
                   key={num}
-                  onClick={() => setOccupancyFilter(num)}
-                  className={`px-3 py-1.5 text-sm rounded-md transition-all whitespace-nowrap ${occupancyFilter === num ? 'bg-white shadow text-blue-600 font-medium' : 'text-slate-500 hover:text-slate-700'}`}
+                  onClick={() => handleGlobalFilterChange(num)}
+                  className={`px-3 py-1.5 text-sm rounded-md transition-all whitespace-nowrap ${occupancyFilter === num && Object.keys(occupancyOverrides).length === 0 ? 'bg-white shadow text-blue-600 font-medium' : 'text-slate-500 hover:text-slate-700'}`}
                 >
                   {num} Os.
                 </button>
               ))}
               <div className="w-px h-6 bg-slate-300 mx-1"></div>
               <button 
-                onClick={() => setOccupancyFilter("MAX")}
-                className={`px-3 py-1.5 text-sm rounded-md transition-all whitespace-nowrap ${occupancyFilter === "MAX" ? 'bg-white shadow text-blue-600 font-medium' : 'text-slate-500 hover:text-slate-700'}`}
+                onClick={() => handleGlobalFilterChange("MAX")}
+                className={`px-3 py-1.5 text-sm rounded-md transition-all whitespace-nowrap ${occupancyFilter === "MAX" && Object.keys(occupancyOverrides).length === 0 ? 'bg-white shadow text-blue-600 font-medium' : 'text-slate-500 hover:text-slate-700'}`}
               >
                 Maks.
               </button>
@@ -145,15 +159,33 @@ const Dashboard: React.FC<DashboardProps> = ({
                 {pricingGrid.length > 0 ? (
                   pricingGrid.map((row, idx) => {
                     const channelData = activeView !== "ALL" ? row.channelCalculations[activeView] : null;
+                    const maxForRoom = row.maxOccupancy;
                     
                     return (
-                      <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                      <tr key={`${row.roomId}-${row.seasonId}`} className="hover:bg-slate-50 transition-colors">
                         <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-slate-900">{row.roomName}</td>
                         <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-500">{row.seasonName}</td>
                         <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-500 text-center">
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-800">
-                            {row.occupancy} <Users size={10} className="ml-1"/>
-                          </span>
+                          <div className="relative inline-block group z-0">
+                            <div className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-md text-xs font-bold bg-white text-slate-900 shadow-sm border border-slate-300 group-hover:border-blue-500 transition-all cursor-pointer min-w-[5rem]">
+                              <span className="flex items-center gap-1">
+                                {row.occupancy} <Users size={12} className="text-slate-600"/>
+                              </span>
+                              <ChevronDown size={14} className="text-slate-400 group-hover:text-blue-500"/>
+                            </div>
+                            {/* Ghost Select: Invisible select on top of the badge to handle interaction naturally on all devices */}
+                            <select
+                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer text-slate-900 bg-white"
+                              value={row.occupancy}
+                              onChange={(e) => handleOverrideChange(row.roomId, Number(e.target.value))}
+                            >
+                              {Array.from({ length: maxForRoom }, (_, i) => i + 1).map((num) => (
+                                <option key={num} value={num} className="bg-white text-slate-900">
+                                  {num} os.
+                                </option>
+                              ))}
+                            </select>
+                          </div>
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap text-sm font-bold text-blue-700 text-right bg-blue-50/50">
                           {row.directPrice} PLN

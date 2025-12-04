@@ -53,9 +53,12 @@ export interface Property {
 }
 
 export interface PricingRow {
+  roomId: string;
+  seasonId: string;
   roomName: string;
   seasonName: string;
   occupancy: number;
+  maxOccupancy: number;
   directPrice: number;
   channelCalculations: Record<string, ChannelCalculation>;
 }

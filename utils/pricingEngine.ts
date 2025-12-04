@@ -94,14 +94,26 @@ export const generatePricingGrid = (
   seasons: Season[],
   channels: Channel[],
   settings: GlobalSettings,
-  occupancyFilter: number | "MAX"
+  occupancyFilter: number | "MAX",
+  overrides: Record<string, number> = {}
 ): PricingRow[] => {
   const grid: PricingRow[] = [];
 
   rooms.forEach((room) => {
     seasons.forEach((season) => {
       // Determine occupancy to calculate for
-      const targetOccupancy = occupancyFilter === "MAX" ? room.maxOccupancy : Math.min(occupancyFilter, room.maxOccupancy);
+      // 1. Check override for this room
+      // 2. Check global filter
+      let targetOccupancy = room.maxOccupancy;
+      
+      if (overrides[room.id] !== undefined) {
+        targetOccupancy = overrides[room.id];
+      } else if (occupancyFilter !== "MAX") {
+        targetOccupancy = Math.min(occupancyFilter, room.maxOccupancy);
+      }
+      
+      // Ensure target doesn't exceed max (sanity check)
+      targetOccupancy = Math.min(targetOccupancy, room.maxOccupancy);
       
       const directPrice = calculateDirectPrice(room, season, targetOccupancy, settings);
       
@@ -113,9 +125,12 @@ export const generatePricingGrid = (
       });
 
       grid.push({
+        roomId: room.id,
+        seasonId: season.id,
         roomName: room.name,
         seasonName: season.name,
         occupancy: targetOccupancy,
+        maxOccupancy: room.maxOccupancy,
         directPrice,
         channelCalculations,
       });
