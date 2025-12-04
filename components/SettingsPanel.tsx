@@ -1,7 +1,7 @@
 
-import React from "react";
+import React, { useState } from "react";
 import { Channel, ChannelDiscountProfile, GlobalSettings, RoomType, Season, SettingsTab } from "../types";
-import { Plus, Trash2, X, Copy } from "lucide-react";
+import { Plus, Trash2, X, Copy, GripVertical } from "lucide-react";
 
 interface SettingsPanelProps {
   propertyName: string;
@@ -36,8 +36,12 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   onDeleteProperty,
   onDuplicateProperty,
 }) => {
+  // Drag and Drop State
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [draggedListType, setDraggedListType] = useState<string | null>(null);
+
   // Handlers for Global
-  const handleObpChange = (val: string) => setSettings({ ...settings, defaultObp: Number(val) });
+  // defaultObp removed
 
   // Generic Handlers for Arrays
   const deleteItem = <T extends { id: string }>(
@@ -74,7 +78,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
           mobile: 0, mobileEnabled: true, 
           seasonal: 0, seasonalEnabled: true,
           additional1: 0, additional1Enabled: true,
-          additional2: 0, additional2Enabled: true
+          additional2: 0, additional2Enabled: true,
+          obpAmount: 30, obpEnabled: true
         };
         
         return {
@@ -90,6 +95,34 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       })
     );
   };
+
+  // Sort Handlers
+  const handleDragStart = (index: number, listType: string) => {
+    setDraggedIndex(index);
+    setDraggedListType(listType);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault(); // Necessary to allow dropping
+  };
+
+  const handleDrop = <T,>(
+    index: number,
+    list: T[],
+    setList: (l: T[]) => void,
+    listType: string
+  ) => {
+    if (draggedIndex === null || draggedIndex === index || draggedListType !== listType) return;
+    
+    const newList = [...list];
+    const [movedItem] = newList.splice(draggedIndex, 1);
+    newList.splice(index, 0, movedItem);
+    
+    setList(newList);
+    setDraggedIndex(null);
+    setDraggedListType(null);
+  };
+
 
   const addRoom = () => {
     const newRoom: RoomType = {
@@ -109,7 +142,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       startDate: new Date().toISOString().split('T')[0],
       endDate: new Date().toISOString().split('T')[0],
       multiplier: 1.0,
-      obpEnabled: true,
     };
     setSeasons([...seasons, newSeason]);
   };
@@ -208,23 +240,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
         {/* Rooms Tab */}
         {activeTab === "rooms" && (
           <div className="space-y-6">
-             {/* OBP moved here */}
-            <div className="bg-blue-50 p-4 rounded-md border border-blue-100">
-              <h3 className="font-semibold text-blue-900 mb-2">Polityka Cenowa OBP (Zależna od obłożenia)</h3>
-              <p className="text-sm text-blue-700 mb-4">
-                Globalna kwota zniżki za każde puste łóżko przy niepełnym obłożeniu pokoju.
-              </p>
-              <label className="block text-sm font-medium text-slate-700">
-                Domyślna Zniżka (PLN)
-              </label>
-              <input
-                type="number"
-                value={settings.defaultObp}
-                onChange={(e) => handleObpChange(e.target.value)}
-                className={`max-w-xs ${inputClass}`}
-              />
-            </div>
-
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                  <h3 className="text-lg font-medium">Typy Pokoi (Kwatery)</h3>
@@ -234,20 +249,27 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 <table className="min-w-full divide-y divide-slate-200">
                   <thead>
                     <tr className="bg-slate-50">
+                      <th className="px-3 py-2 text-center w-10"></th>
                       <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase">Nazwa</th>
                       <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase">Maks. Osób</th>
                       <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase">Ilość</th>
-                      {/* Base Price Column Removed */}
                       <th className="px-3 py-2"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
-                    {rooms.map((room) => (
-                      <tr key={room.id}>
+                    {rooms.map((room, index) => (
+                      <tr 
+                        key={room.id}
+                        draggable
+                        onDragStart={() => handleDragStart(index, 'rooms')}
+                        onDragOver={handleDragOver}
+                        onDrop={() => handleDrop(index, rooms, setRooms, 'rooms')}
+                        className={`bg-white ${draggedListType === 'rooms' && draggedIndex === index ? 'opacity-50' : ''}`}
+                      >
+                        <td className="px-3 py-2 text-center text-slate-400 cursor-grab active:cursor-grabbing"><GripVertical size={16} /></td>
                         <td className="px-3 py-2"><input type="text" value={room.name} onChange={(e) => updateItem<RoomType>(room.id, "name", e.target.value, rooms, setRooms)} className={`w-full ${inputClass}`} /></td>
                         <td className="px-3 py-2"><input type="number" value={room.maxOccupancy} onChange={(e) => updateItem<RoomType>(room.id, "maxOccupancy", Number(e.target.value), rooms, setRooms)} className={`w-20 ${inputClass}`} /></td>
                         <td className="px-3 py-2"><input type="number" value={room.quantity} onChange={(e) => updateItem<RoomType>(room.id, "quantity", Number(e.target.value), rooms, setRooms)} className={`w-20 ${inputClass}`} /></td>
-                        {/* Base Price Input Removed */}
                         <td className="px-3 py-2 text-right"><button onClick={() => deleteItem(room.id, rooms, setRooms)} className="text-red-500 hover:text-red-700"><Trash2 size={16}/></button></td>
                       </tr>
                     ))}
@@ -265,10 +287,18 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                <h3 className="text-lg font-medium">Reguły Sezonowe</h3>
                <button onClick={addSeason} className="flex items-center gap-1 text-sm bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700"><Plus size={16}/> Dodaj Sezon</button>
             </div>
-            {seasons.map((season) => (
-              <div key={season.id} className="border border-slate-200 rounded-md p-4 bg-slate-50 relative group">
+            {seasons.map((season, index) => (
+              <div 
+                key={season.id} 
+                draggable
+                onDragStart={() => handleDragStart(index, 'seasons')}
+                onDragOver={handleDragOver}
+                onDrop={() => handleDrop(index, seasons, setSeasons, 'seasons')}
+                className={`border border-slate-200 rounded-md p-4 bg-slate-50 relative group ${draggedListType === 'seasons' && draggedIndex === index ? 'opacity-50' : ''}`}
+              >
+                <div className="absolute top-2 left-2 cursor-grab active:cursor-grabbing text-slate-400"><GripVertical size={16}/></div>
                 <button onClick={() => deleteItem(season.id, seasons, setSeasons)} className="absolute top-2 right-2 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><X size={16}/></button>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pl-6">
                   <div>
                     <label className="block text-xs font-medium text-slate-500">Nazwa Sezonu</label>
                     <input type="text" value={season.name} onChange={(e) => updateItem<Season>(season.id, "name", e.target.value, seasons, setSeasons)} className={inputClass} />
@@ -286,12 +316,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     <input type="date" value={season.endDate} onChange={(e) => updateItem<Season>(season.id, "endDate", e.target.value, seasons, setSeasons)} className={inputClass} />
                   </div>
                 </div>
-                <div className="mt-3">
-                  <label className="flex items-center gap-2 text-sm text-slate-700">
-                    <input type="checkbox" checked={season.obpEnabled} onChange={(e) => updateItem<Season>(season.id, "obpEnabled", e.target.checked, seasons, setSeasons)} className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 bg-white" />
-                    Włącz OBP (Zniżka za mniejsze obłożenie)
-                  </label>
-                </div>
               </div>
             ))}
           </div>
@@ -305,10 +329,18 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                <button onClick={addChannel} className="flex items-center gap-1 text-sm bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700"><Plus size={16}/> Dodaj Kanał</button>
             </div>
             <div className="space-y-6">
-              {channels.map((channel) => (
-                <div key={channel.id} className="border border-slate-200 rounded-md p-4 bg-white shadow-sm">
+              {channels.map((channel, index) => (
+                <div 
+                  key={channel.id} 
+                  draggable
+                  onDragStart={() => handleDragStart(index, 'channels')}
+                  onDragOver={handleDragOver}
+                  onDrop={() => handleDrop(index, channels, setChannels, 'channels')}
+                  className={`border border-slate-200 rounded-md p-4 bg-white shadow-sm ${draggedListType === 'channels' && draggedIndex === index ? 'opacity-50' : ''}`}
+                >
                    {/* Channel Header */}
-                   <div className="flex justify-between items-start mb-4 pb-4 border-b border-slate-100">
+                   <div className="flex justify-between items-start mb-4 pb-4 border-b border-slate-100 relative pl-6">
+                      <div className="absolute top-0 left-0 text-slate-400 cursor-grab active:cursor-grabbing"><GripVertical size={20}/></div>
                       <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 mr-4">
                         <div>
                            <label className="block text-xs font-medium text-slate-500">Nazwa Kanału</label>
@@ -324,16 +356,17 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                    
                    {/* Seasonal Discounts Table */}
                    <div className="bg-slate-50 rounded-md p-3">
-                      <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Konfiguracja Zniżek Sezonowych</h4>
+                      <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Konfiguracja Zniżek Sezonowych i OBP</h4>
                       <div className="overflow-x-auto">
                         <table className="min-w-full divide-y divide-slate-200 text-sm">
                            <thead>
                               <tr className="text-xs text-slate-500 text-left">
                                  <th className="py-2 pr-2 font-medium">Sezon</th>
-                                 <th className="py-2 px-2 font-medium">Mobilna %</th>
-                                 <th className="py-2 px-2 font-medium">Sezonowa %</th>
-                                 <th className="py-2 px-2 font-medium">Dodatkowa 1 %</th>
-                                 <th className="py-2 pl-2 font-medium">Dodatkowa 2 %</th>
+                                 <th className="py-2 px-2 font-medium" title="Zniżka dla urz. mobilnych">Mobile %</th>
+                                 <th className="py-2 px-2 font-medium" title="Zniżka sezonowa">Sezon %</th>
+                                 <th className="py-2 px-2 font-medium" title="Zniżka dodatkowa 1">Dod. 1 %</th>
+                                 <th className="py-2 px-2 font-medium" title="Zniżka dodatkowa 2">Dod. 2 %</th>
+                                 <th className="py-2 pl-2 font-medium bg-blue-50/50" title="Occupancy Based Pricing: Kwota odliczana za każdą brakującą osobę">OBP (PLN)</th>
                               </tr>
                            </thead>
                            <tbody className="divide-y divide-slate-200">
@@ -342,10 +375,12 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                                    mobile: 0, mobileEnabled: true,
                                    seasonal: 0, seasonalEnabled: true,
                                    additional1: 0, additional1Enabled: true,
-                                   additional2: 0, additional2Enabled: true
+                                   additional2: 0, additional2Enabled: true,
+                                   obpAmount: 30, obpEnabled: true
                                  };
                                  
-                                 const renderDiscountCell = (field: 'mobile' | 'seasonal' | 'additional1' | 'additional2') => {
+                                 const renderDiscountCell = (field: keyof ChannelDiscountProfile, label: string) => {
+                                    // Logic to determine enabled field key based on naming convention
                                     const enabledField = `${field}Enabled` as keyof ChannelDiscountProfile;
                                     const isEnabled = discounts[enabledField] as boolean ?? true;
                                     
@@ -355,11 +390,13 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                                              type="checkbox"
                                              checked={isEnabled}
                                              onChange={(e) => updateChannelDiscount(channel.id, season.id, enabledField, e.target.checked)}
-                                             className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                             className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                             title={`Włącz/Wyłącz ${label}`}
                                           />
                                           <input 
                                              type="number" 
-                                             min="0" max="100" 
+                                             min="0" 
+                                             max={field.includes('obp') ? undefined : 100}
                                              className={`${inputClass} mt-0 py-1 text-center ${!isEnabled ? 'bg-slate-100 text-slate-400' : ''}`}
                                              value={discounts[field] as number}
                                              disabled={!isEnabled}
@@ -372,15 +409,16 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                                  return (
                                     <tr key={season.id}>
                                        <td className="py-2 pr-2 font-medium text-slate-700 w-32">{season.name}</td>
-                                       <td className="py-2 px-2">{renderDiscountCell('mobile')}</td>
-                                       <td className="py-2 px-2">{renderDiscountCell('seasonal')}</td>
-                                       <td className="py-2 px-2">{renderDiscountCell('additional1')}</td>
-                                       <td className="py-2 pl-2">{renderDiscountCell('additional2')}</td>
+                                       <td className="py-2 px-2">{renderDiscountCell('mobile', 'zniżkę mobilną')}</td>
+                                       <td className="py-2 px-2">{renderDiscountCell('seasonal', 'zniżkę sezonową')}</td>
+                                       <td className="py-2 px-2">{renderDiscountCell('additional1', 'zniżkę dodatkową 1')}</td>
+                                       <td className="py-2 px-2">{renderDiscountCell('additional2', 'zniżkę dodatkową 2')}</td>
+                                       <td className="py-2 pl-2 bg-blue-50/30">{renderDiscountCell('obpAmount', 'OBP')}</td>
                                     </tr>
                                  );
                               })}
                               {seasons.length === 0 && (
-                                 <tr><td colSpan={5} className="py-4 text-center text-slate-400 italic">Brak zdefiniowanych sezonów. Dodaj sezony w zakładce "Sezony".</td></tr>
+                                 <tr><td colSpan={6} className="py-4 text-center text-slate-400 italic">Brak zdefiniowanych sezonów. Dodaj sezony w zakładce "Sezony".</td></tr>
                               )}
                            </tbody>
                         </table>

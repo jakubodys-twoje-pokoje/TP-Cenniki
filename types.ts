@@ -6,10 +6,12 @@ export interface ChannelDiscountProfile {
   mobileEnabled: boolean;
   seasonal: number;
   seasonalEnabled: boolean;
-  additional1: number; // Renamed from additional
+  additional1: number; 
   additional1Enabled: boolean;
-  additional2: number; // New second additional discount
+  additional2: number; 
   additional2Enabled: boolean;
+  obpAmount: number; // NEW: OBP specific to channel/season
+  obpEnabled: boolean; // NEW
 }
 
 export interface Channel {
@@ -38,11 +40,11 @@ export interface Season {
   startDate: string;
   endDate: string;
   multiplier: number;
-  obpEnabled: boolean; // Occupancy Based Pricing
+  // obpEnabled removed from here
 }
 
 export interface GlobalSettings {
-  defaultObp: number; // Price reduction per person
+  // defaultObp removed from here
 }
 
 export interface Property {
@@ -59,7 +61,7 @@ export interface PricingRow {
   roomId: string;
   seasonId: string;
   roomName: string;
-  basePrice: number; // Added for display in Dashboard
+  basePrice: number;
   seasonName: string;
   occupancy: number;
   maxOccupancy: number;
@@ -71,5 +73,5 @@ export interface ChannelCalculation {
   listPrice: number;
   estimatedNet: number;
   commission: number;
-  isProfitable: boolean; // net >= direct
+  isProfitable: boolean; // net >= targetNet (direct adjusted by OBP)
 }

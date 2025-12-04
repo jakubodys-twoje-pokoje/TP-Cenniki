@@ -284,7 +284,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               <div className="space-y-4 text-sm text-slate-600">
                 <div className="p-3 bg-white rounded border border-slate-200">
                   <div className="font-semibold text-blue-700 mb-1">Cena Bezpośrednia</div>
-                  <code>Baza × MnożnikSezonu {settings.defaultObp > 0 ? `- (BrakująceOs × OBP)` : ''}</code>
+                  <code>Baza × MnożnikSezonu</code>
                 </div>
                  <div className="p-3 bg-white rounded border border-slate-200">
                   <div className="font-semibold text-orange-700 mb-1">Cena w Kanale (OTA)</div>

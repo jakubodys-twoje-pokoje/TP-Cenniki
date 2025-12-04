@@ -2,7 +2,7 @@
 import { Channel, GlobalSettings, RoomType, Season } from "./types";
 
 export const INITIAL_SETTINGS: GlobalSettings = {
-  defaultObp: 30,
+  // defaultObp removed
 };
 
 // Helper to create default discount map for initial seasons
@@ -11,19 +11,22 @@ const defaultDiscounts = (mobile: number = 0, seasonal: number = 0, additional1:
     mobile, mobileEnabled: true, 
     seasonal, seasonalEnabled: true,
     additional1, additional1Enabled: true,
-    additional2, additional2Enabled: true 
+    additional2, additional2Enabled: true,
+    obpAmount: 30, obpEnabled: true 
   },
   "s2": { 
     mobile, mobileEnabled: true, 
     seasonal, seasonalEnabled: true,
     additional1, additional1Enabled: true,
-    additional2, additional2Enabled: true 
+    additional2, additional2Enabled: true,
+    obpAmount: 30, obpEnabled: true 
   },
   "s3": { 
     mobile, mobileEnabled: true, 
     seasonal, seasonalEnabled: true,
     additional1, additional1Enabled: true,
-    additional2, additional2Enabled: true 
+    additional2, additional2Enabled: true,
+    obpAmount: 30, obpEnabled: false // Disabled for Majówka by default example
   },
 });
 
@@ -71,7 +74,6 @@ export const INITIAL_SEASONS: Season[] = [
     startDate: "2024-07-01",
     endDate: "2024-08-31",
     multiplier: 1.0,
-    obpEnabled: true,
   },
   {
     id: "s2",
@@ -79,7 +81,6 @@ export const INITIAL_SEASONS: Season[] = [
     startDate: "2024-06-01",
     endDate: "2024-06-30",
     multiplier: 0.85,
-    obpEnabled: true,
   },
   {
     id: "s3",
@@ -87,6 +88,5 @@ export const INITIAL_SEASONS: Season[] = [
     startDate: "2024-05-01",
     endDate: "2024-05-05",
     multiplier: 1.1,
-    obpEnabled: false,
   },
 ];

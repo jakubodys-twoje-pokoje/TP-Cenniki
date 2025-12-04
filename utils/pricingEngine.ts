@@ -11,9 +11,7 @@ const roundPrice = (price: number): number => {
 
 export const calculateDirectPrice = (
   room: RoomType,
-  season: Season,
-  occupancy: number,
-  globalSettings: GlobalSettings
+  season: Season
 ): number => {
   // 1. Determine Base Price
   // Use specific season base price if available, otherwise global peak
@@ -22,15 +20,8 @@ export const calculateDirectPrice = (
   // 2. Base Price * Season Multiplier
   let price = basePrice * season.multiplier;
 
-  // 3. OBP Adjustment (Occupancy Based Pricing)
-  // If season enables OBP, subtract discount for missing persons
-  if (season.obpEnabled) {
-    const missingPeople = room.maxOccupancy - occupancy;
-    if (missingPeople > 0) {
-      price = price - (missingPeople * globalSettings.defaultObp);
-    }
-  }
-
+  // Direct Price is now strictly the Standard Rate (Max Occupancy), unadjusted by Global OBP
+  
   // Prevent negative or zero prices (sanity check)
   const finalPrice = Math.max(price, 50); // Minimum 50 currency units
   
@@ -40,22 +31,36 @@ export const calculateDirectPrice = (
 export const calculateChannelPrice = (
   directPrice: number,
   channel: Channel,
-  seasonId: string
+  seasonId: string,
+  occupancy: number,
+  maxOccupancy: number
 ): ChannelCalculation => {
-  // We need: Net Income >= Direct Price
-  // Net Income = List Price * (1 - TotalDiscount) * (1 - Commission)
-  // Note: Usually commission is on the sold price.
-  // Sold Price = List Price * (1 - MobileDisc) * (1 - SeasonalDisc) ...
-  // This is a simplified waterfall model:
-  // ListPrice -> Apply Discounts -> SoldPrice -> Apply Commission -> Net
-
   // Fetch discounts for this specific season
   const discounts = channel.seasonDiscounts[seasonId] || { 
     mobile: 0, mobileEnabled: true,
     seasonal: 0, seasonalEnabled: true,
     additional1: 0, additional1Enabled: true,
-    additional2: 0, additional2Enabled: true
+    additional2: 0, additional2Enabled: true,
+    obpAmount: 30, obpEnabled: true
   };
+
+  // Determine Target Net Price
+  // If OBP is enabled for this channel/season, the Target Net should be lower if occupancy < max
+  let targetNetPrice = directPrice;
+  
+  if (discounts.obpEnabled) {
+    const missingPeople = maxOccupancy - occupancy;
+    if (missingPeople > 0) {
+      targetNetPrice = targetNetPrice - (missingPeople * discounts.obpAmount);
+    }
+  }
+  
+  // Sanity check target net
+  targetNetPrice = Math.max(targetNetPrice, 1);
+
+  // We need: Net Income >= TargetNetPrice
+  // Net Income = List Price * (1 - TotalDiscount) * (1 - Commission)
+  // ListPrice = TargetNetPrice / (TotalDiscountFactor * CommissionFactor)
 
   const getDisc = (val: number, enabled: boolean | undefined) => (enabled ?? true) ? val : 0;
 
@@ -70,13 +75,9 @@ export const calculateChannelPrice = (
   const totalRetainedFactor = discountFactor * commissionFactor;
 
   // Reverse Calculate List Price
-  // DirectPrice = ListPrice * totalRetainedFactor
-  // ListPrice = DirectPrice / totalRetainedFactor
-  
-  // Guard against divide by zero if discounts/commissions are 100%
   const safeFactor = Math.max(totalRetainedFactor, 0.01);
 
-  const rawListPrice = directPrice / safeFactor;
+  const rawListPrice = targetNetPrice / safeFactor;
   const listPrice = roundPrice(rawListPrice);
 
   // Forward check to get actual estimated net
@@ -88,7 +89,8 @@ export const calculateChannelPrice = (
     listPrice,
     estimatedNet: roundPrice(estimatedNet),
     commission: roundPrice(commissionAmount),
-    isProfitable: roundPrice(estimatedNet) >= directPrice - 1, // Allow 1 unit margin of error for rounding
+    // Profitable if we meet the target net (which includes the OBP reduction)
+    isProfitable: roundPrice(estimatedNet) >= roundPrice(targetNetPrice) - 1, // Allow 1 unit margin of error
   };
 };
 
@@ -105,8 +107,6 @@ export const generatePricingGrid = (
   rooms.forEach((room) => {
     seasons.forEach((season) => {
       // Determine occupancy to calculate for
-      // 1. Check override for this specific row (Room + Season)
-      // 2. Check global filter
       let targetOccupancy = room.maxOccupancy;
       
       const overrideKey = `${room.id}-${season.id}`;
@@ -120,13 +120,20 @@ export const generatePricingGrid = (
       // Ensure target doesn't exceed max (sanity check)
       targetOccupancy = Math.min(targetOccupancy, room.maxOccupancy);
       
-      const directPrice = calculateDirectPrice(room, season, targetOccupancy, settings);
+      // Direct Price is now Base * Mult (Flat rate for room)
+      const directPrice = calculateDirectPrice(room, season);
       
       const channelCalculations: Record<string, ChannelCalculation> = {};
       
       channels.forEach(channel => {
-        // Pass season.id to calculation
-        channelCalculations[channel.id] = calculateChannelPrice(directPrice, channel, season.id);
+        // Pass occupancy data to allow channel-specific OBP logic
+        channelCalculations[channel.id] = calculateChannelPrice(
+          directPrice, 
+          channel, 
+          season.id, 
+          targetOccupancy, 
+          room.maxOccupancy
+        );
       });
 
       // Determine which base price to show
