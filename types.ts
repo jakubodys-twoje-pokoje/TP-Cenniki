@@ -10,8 +10,7 @@ export interface ChannelDiscountProfile {
   additional1Enabled: boolean;
   additional2: number; 
   additional2Enabled: boolean;
-  obpAmount: number; // NEW: OBP specific to channel/season
-  obpEnabled: boolean; // NEW
+  // OBP removed from here, moved to GlobalSettings
 }
 
 export interface Channel {
@@ -40,11 +39,11 @@ export interface Season {
   startDate: string;
   endDate: string;
   multiplier: number;
-  // obpEnabled removed from here
 }
 
 export interface GlobalSettings {
-  // defaultObp removed from here
+  // Key is season.id, value is OBP config
+  seasonalObp: Record<string, { amount: number; enabled: boolean }>;
 }
 
 export interface Property {
@@ -73,5 +72,5 @@ export interface ChannelCalculation {
   listPrice: number;
   estimatedNet: number;
   commission: number;
-  isProfitable: boolean; // net >= targetNet (direct adjusted by OBP)
+  isProfitable: boolean; // net >= directPrice
 }

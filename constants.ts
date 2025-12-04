@@ -2,7 +2,11 @@
 import { Channel, GlobalSettings, RoomType, Season } from "./types";
 
 export const INITIAL_SETTINGS: GlobalSettings = {
-  // defaultObp removed
+  seasonalObp: {
+    "s1": { amount: 30, enabled: true },
+    "s2": { amount: 30, enabled: true },
+    "s3": { amount: 30, enabled: false }, // Disabled for Majówka by default example
+  }
 };
 
 // Helper to create default discount map for initial seasons
@@ -12,21 +16,18 @@ const defaultDiscounts = (mobile: number = 0, seasonal: number = 0, additional1:
     seasonal, seasonalEnabled: true,
     additional1, additional1Enabled: true,
     additional2, additional2Enabled: true,
-    obpAmount: 30, obpEnabled: true 
   },
   "s2": { 
     mobile, mobileEnabled: true, 
     seasonal, seasonalEnabled: true,
     additional1, additional1Enabled: true,
     additional2, additional2Enabled: true,
-    obpAmount: 30, obpEnabled: true 
   },
   "s3": { 
     mobile, mobileEnabled: true, 
     seasonal, seasonalEnabled: true,
     additional1, additional1Enabled: true,
     additional2, additional2Enabled: true,
-    obpAmount: 30, obpEnabled: false // Disabled for Majówka by default example
   },
 });
 

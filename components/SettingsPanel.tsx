@@ -40,9 +40,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [draggedListType, setDraggedListType] = useState<string | null>(null);
 
-  // Handlers for Global
-  // defaultObp removed
-
   // Generic Handlers for Arrays
   const deleteItem = <T extends { id: string }>(
     id: string,
@@ -79,7 +76,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
           seasonal: 0, seasonalEnabled: true,
           additional1: 0, additional1Enabled: true,
           additional2: 0, additional2Enabled: true,
-          obpAmount: 30, obpEnabled: true
         };
         
         return {
@@ -94,6 +90,17 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
         };
       })
     );
+  };
+
+  const updateSeasonalObp = (seasonId: string, field: 'amount' | 'enabled', value: number | boolean) => {
+    const current = settings.seasonalObp?.[seasonId] || { amount: 30, enabled: true };
+    setSettings({
+      ...settings,
+      seasonalObp: {
+        ...settings.seasonalObp,
+        [seasonId]: { ...current, [field]: value }
+      }
+    });
   };
 
   // Sort Handlers
@@ -136,13 +143,24 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   };
 
   const addSeason = () => {
+    const newId = Date.now().toString();
     const newSeason: Season = {
-      id: Date.now().toString(),
+      id: newId,
       name: "Nowy Sezon",
       startDate: new Date().toISOString().split('T')[0],
       endDate: new Date().toISOString().split('T')[0],
       multiplier: 1.0,
     };
+    
+    // Auto-init OBP for new season
+    setSettings({
+      ...settings,
+      seasonalObp: {
+        ...settings.seasonalObp,
+        [newId]: { amount: 30, enabled: true }
+      }
+    });
+    
     setSeasons([...seasons, newSeason]);
   };
 
@@ -240,6 +258,45 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
         {/* Rooms Tab */}
         {activeTab === "rooms" && (
           <div className="space-y-6">
+            
+            {/* OBP Configuration Section */}
+            <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-5">
+              <h3 className="text-sm font-bold text-indigo-900 mb-1">Polityka Cenowa OBP (Occupancy Based Pricing)</h3>
+              <p className="text-xs text-indigo-600 mb-4">Określ kwotę zniżki (PLN) za każdą brakującą osobę w pokoju. Ustawienia dla każdego sezonu oddzielnie.</p>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {seasons.map((season) => {
+                  const obp = settings.seasonalObp?.[season.id] || { amount: 30, enabled: true };
+                  return (
+                    <div key={season.id} className="bg-white p-3 rounded-md border border-indigo-200 shadow-sm">
+                       <div className="text-xs font-semibold text-indigo-800 mb-2 truncate" title={season.name}>{season.name}</div>
+                       <div className="space-y-2">
+                          <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                            <input 
+                              type="checkbox"
+                              checked={obp.enabled}
+                              onChange={(e) => updateSeasonalObp(season.id, 'enabled', e.target.checked)}
+                              className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                            />
+                            <span>Aktywne</span>
+                          </label>
+                          <div className="flex items-center gap-2">
+                             <input 
+                               type="number"
+                               value={obp.amount}
+                               disabled={!obp.enabled}
+                               onChange={(e) => updateSeasonalObp(season.id, 'amount', Number(e.target.value))}
+                               className={`${inputClass} py-1 px-2 text-right disabled:bg-slate-100 disabled:text-slate-400`}
+                             />
+                             <span className="text-xs text-slate-500">PLN/os.</span>
+                          </div>
+                       </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                  <h3 className="text-lg font-medium">Typy Pokoi (Kwatery)</h3>
@@ -356,7 +413,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                    
                    {/* Seasonal Discounts Table */}
                    <div className="bg-slate-50 rounded-md p-3">
-                      <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Konfiguracja Zniżek Sezonowych i OBP</h4>
+                      <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Konfiguracja Zniżek Sezonowych</h4>
                       <div className="overflow-x-auto">
                         <table className="min-w-full divide-y divide-slate-200 text-sm">
                            <thead>
@@ -366,7 +423,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                                  <th className="py-2 px-2 font-medium" title="Zniżka sezonowa">Sezon %</th>
                                  <th className="py-2 px-2 font-medium" title="Zniżka dodatkowa 1">Dod. 1 %</th>
                                  <th className="py-2 px-2 font-medium" title="Zniżka dodatkowa 2">Dod. 2 %</th>
-                                 <th className="py-2 pl-2 font-medium bg-blue-50/50" title="Occupancy Based Pricing: Kwota odliczana za każdą brakującą osobę">OBP (PLN)</th>
                               </tr>
                            </thead>
                            <tbody className="divide-y divide-slate-200">
@@ -376,7 +432,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                                    seasonal: 0, seasonalEnabled: true,
                                    additional1: 0, additional1Enabled: true,
                                    additional2: 0, additional2Enabled: true,
-                                   obpAmount: 30, obpEnabled: true
                                  };
                                  
                                  const renderDiscountCell = (field: keyof ChannelDiscountProfile, label: string) => {
@@ -396,7 +451,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                                           <input 
                                              type="number" 
                                              min="0" 
-                                             max={field.includes('obp') ? undefined : 100}
+                                             max={100}
                                              className={`${inputClass} mt-0 py-1 text-center ${!isEnabled ? 'bg-slate-100 text-slate-400' : ''}`}
                                              value={discounts[field] as number}
                                              disabled={!isEnabled}
@@ -413,12 +468,11 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                                        <td className="py-2 px-2">{renderDiscountCell('seasonal', 'zniżkę sezonową')}</td>
                                        <td className="py-2 px-2">{renderDiscountCell('additional1', 'zniżkę dodatkową 1')}</td>
                                        <td className="py-2 px-2">{renderDiscountCell('additional2', 'zniżkę dodatkową 2')}</td>
-                                       <td className="py-2 pl-2 bg-blue-50/30">{renderDiscountCell('obpAmount', 'OBP')}</td>
                                     </tr>
                                  );
                               })}
                               {seasons.length === 0 && (
-                                 <tr><td colSpan={6} className="py-4 text-center text-slate-400 italic">Brak zdefiniowanych sezonów. Dodaj sezony w zakładce "Sezony".</td></tr>
+                                 <tr><td colSpan={5} className="py-4 text-center text-slate-400 italic">Brak zdefiniowanych sezonów. Dodaj sezony w zakładce "Sezony".</td></tr>
                               )}
                            </tbody>
                         </table>

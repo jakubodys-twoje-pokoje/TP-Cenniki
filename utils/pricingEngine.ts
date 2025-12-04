@@ -11,7 +11,9 @@ const roundPrice = (price: number): number => {
 
 export const calculateDirectPrice = (
   room: RoomType,
-  season: Season
+  season: Season,
+  occupancy: number,
+  settings: GlobalSettings
 ): number => {
   // 1. Determine Base Price
   // Use specific season base price if available, otherwise global peak
@@ -20,8 +22,17 @@ export const calculateDirectPrice = (
   // 2. Base Price * Season Multiplier
   let price = basePrice * season.multiplier;
 
-  // Direct Price is now strictly the Standard Rate (Max Occupancy), unadjusted by Global OBP
+  // 3. Apply Seasonal OBP (Global/Season Setting)
+  // If enabled for this season, subtract Amount for each missing person
+  const obpConfig = settings.seasonalObp?.[season.id] ?? { amount: 30, enabled: true };
   
+  if (obpConfig.enabled) {
+    const missingPeople = room.maxOccupancy - occupancy;
+    if (missingPeople > 0) {
+      price = price - (missingPeople * obpConfig.amount);
+    }
+  }
+
   // Prevent negative or zero prices (sanity check)
   const finalPrice = Math.max(price, 50); // Minimum 50 currency units
   
@@ -31,9 +42,7 @@ export const calculateDirectPrice = (
 export const calculateChannelPrice = (
   directPrice: number,
   channel: Channel,
-  seasonId: string,
-  occupancy: number,
-  maxOccupancy: number
+  seasonId: string
 ): ChannelCalculation => {
   // Fetch discounts for this specific season
   const discounts = channel.seasonDiscounts[seasonId] || { 
@@ -41,19 +50,10 @@ export const calculateChannelPrice = (
     seasonal: 0, seasonalEnabled: true,
     additional1: 0, additional1Enabled: true,
     additional2: 0, additional2Enabled: true,
-    obpAmount: 30, obpEnabled: true
   };
 
-  // Determine Target Net Price
-  // If OBP is enabled for this channel/season, the Target Net should be lower if occupancy < max
+  // Target Net Price is simply the Direct Price (which is already adjusted for OBP)
   let targetNetPrice = directPrice;
-  
-  if (discounts.obpEnabled) {
-    const missingPeople = maxOccupancy - occupancy;
-    if (missingPeople > 0) {
-      targetNetPrice = targetNetPrice - (missingPeople * discounts.obpAmount);
-    }
-  }
   
   // Sanity check target net
   targetNetPrice = Math.max(targetNetPrice, 1);
@@ -89,7 +89,7 @@ export const calculateChannelPrice = (
     listPrice,
     estimatedNet: roundPrice(estimatedNet),
     commission: roundPrice(commissionAmount),
-    // Profitable if we meet the target net (which includes the OBP reduction)
+    // Profitable if we meet the target net
     isProfitable: roundPrice(estimatedNet) >= roundPrice(targetNetPrice) - 1, // Allow 1 unit margin of error
   };
 };
@@ -120,19 +120,16 @@ export const generatePricingGrid = (
       // Ensure target doesn't exceed max (sanity check)
       targetOccupancy = Math.min(targetOccupancy, room.maxOccupancy);
       
-      // Direct Price is now Base * Mult (Flat rate for room)
-      const directPrice = calculateDirectPrice(room, season);
+      // Direct Price (Calculated with OBP)
+      const directPrice = calculateDirectPrice(room, season, targetOccupancy, settings);
       
       const channelCalculations: Record<string, ChannelCalculation> = {};
       
       channels.forEach(channel => {
-        // Pass occupancy data to allow channel-specific OBP logic
         channelCalculations[channel.id] = calculateChannelPrice(
           directPrice, 
           channel, 
-          season.id, 
-          targetOccupancy, 
-          room.maxOccupancy
+          season.id
         );
       });
 
