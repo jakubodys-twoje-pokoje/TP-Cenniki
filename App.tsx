@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { LayoutDashboard, Settings as SettingsIcon, Menu, BedDouble, Calendar, Share2, Globe, ChevronDown, ChevronRight, Building, Plus, Trash2 } from "lucide-react";
+import { LayoutDashboard, Settings as SettingsIcon, Menu, BedDouble, Calendar, Share2, Globe, ChevronDown, ChevronRight, Building, Plus, Trash2, Bed } from "lucide-react";
 import SettingsPanel from "./components/SettingsPanel";
 import Dashboard from "./components/Dashboard";
 import {
@@ -16,6 +16,7 @@ const App: React.FC = () => {
   const [activeSettingsTab, setActiveSettingsTab] = useState<SettingsTab>("rooms"); // Default to rooms
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isConfigExpanded, setIsConfigExpanded] = useState(true);
+  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
 
   // Property / Template Management
   const [properties, setProperties] = useState<Property[]>([{
@@ -27,6 +28,9 @@ const App: React.FC = () => {
     seasons: INITIAL_SEASONS,
   }]);
   const [activePropertyId, setActivePropertyId] = useState<string>("default");
+  
+  // Track which properties are expanded in the sidebar
+  const [expandedProperties, setExpandedProperties] = useState<Set<string>>(new Set(["default"]));
 
   // Helper to get current active property data
   const activeProperty = properties.find(p => p.id === activePropertyId) || properties[0];
@@ -50,8 +54,10 @@ const App: React.FC = () => {
     };
     setProperties([...properties, newProperty]);
     setActivePropertyId(newId);
+    setExpandedProperties(prev => new Set(prev).add(newId)); // Auto expand new
     setActiveTab("settings");
     setActiveSettingsTab("global"); // Go to global to rename
+    setSelectedRoomId(null);
   };
 
   const handleDeleteProperty = (id: string) => {
@@ -64,6 +70,7 @@ const App: React.FC = () => {
       setProperties(newProps);
       if (id === activePropertyId) {
         setActivePropertyId(newProps[0].id);
+        setSelectedRoomId(null);
       }
     }
   };
@@ -72,6 +79,23 @@ const App: React.FC = () => {
     setActiveTab("settings");
     setActiveSettingsTab(tab);
     setIsSidebarOpen(false); // Close sidebar on mobile after selection
+  };
+
+  const togglePropertyExpansion = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    setExpandedProperties(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleRoomClick = (propertyId: string, roomId: string) => {
+    setActivePropertyId(propertyId);
+    setSelectedRoomId(roomId);
+    setActiveTab("dashboard");
+    setIsSidebarOpen(false);
   };
 
   return (
@@ -96,9 +120,9 @@ const App: React.FC = () => {
 
         <nav className="p-4 space-y-2 flex-1 overflow-y-auto">
           <button
-            onClick={() => { setActiveTab("dashboard"); setIsSidebarOpen(false); }}
+            onClick={() => { setActiveTab("dashboard"); setSelectedRoomId(null); setIsSidebarOpen(false); }}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-              activeTab === "dashboard"
+              activeTab === "dashboard" && selectedRoomId === null
                 ? "bg-blue-600 text-white"
                 : "text-slate-400 hover:bg-slate-800 hover:text-white"
             }`}
@@ -187,31 +211,66 @@ const App: React.FC = () => {
                 </button>
              </div>
              <div className="space-y-1 px-2">
-                {properties.map(p => (
-                   <div 
-                      key={p.id}
-                      onClick={() => setActivePropertyId(p.id)}
-                      className={`group flex items-center justify-between px-3 py-2 text-sm rounded-lg cursor-pointer transition-colors ${
-                         activePropertyId === p.id 
-                           ? "bg-slate-800 text-white" 
-                           : "text-slate-400 hover:bg-slate-800/50 hover:text-white"
-                      }`}
-                   >
-                      <div className="flex items-center gap-2 truncate flex-1">
-                         <Building size={14} className="flex-shrink-0" />
-                         <span className="truncate">{p.name}</span>
-                      </div>
-                      {properties.length > 1 && (
-                        <button 
-                           onClick={(e) => { e.stopPropagation(); handleDeleteProperty(p.id); }}
-                           className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-red-400 p-1 transition-opacity"
-                           title="Usuń obiekt"
-                        >
-                           <Trash2 size={12} />
-                        </button>
-                      )}
+                {properties.map(p => {
+                  const isExpanded = expandedProperties.has(p.id);
+                  const isActive = activePropertyId === p.id;
+                  
+                  return (
+                   <div key={p.id} className="mb-1">
+                     <div 
+                        className={`group flex items-center justify-between px-3 py-2 text-sm rounded-lg cursor-pointer transition-colors ${
+                           isActive 
+                             ? "bg-slate-800 text-white" 
+                             : "text-slate-400 hover:bg-slate-800/50 hover:text-white"
+                        }`}
+                        onClick={() => { setActivePropertyId(p.id); setSelectedRoomId(null); setActiveTab("dashboard"); }}
+                     >
+                        <div className="flex items-center gap-2 truncate flex-1">
+                           <button 
+                            onClick={(e) => togglePropertyExpansion(e, p.id)}
+                            className="p-0.5 rounded hover:bg-slate-600 text-slate-400 hover:text-white"
+                           >
+                              {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                           </button>
+                           <Building size={14} className="flex-shrink-0" />
+                           <span className="truncate">{p.name}</span>
+                        </div>
+                        {properties.length > 1 && (
+                          <button 
+                             onClick={(e) => { e.stopPropagation(); handleDeleteProperty(p.id); }}
+                             className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-red-400 p-1 transition-opacity"
+                             title="Usuń obiekt"
+                          >
+                             <Trash2 size={12} />
+                          </button>
+                        )}
+                     </div>
+                     
+                     {/* Nested Room List */}
+                     {isExpanded && (
+                       <div className="ml-2 pl-4 border-l border-slate-800 space-y-1 mt-1">
+                          {p.rooms.map(room => (
+                            <button
+                              key={room.id}
+                              onClick={() => handleRoomClick(p.id, room.id)}
+                              className={`w-full flex items-center gap-2 px-2 py-1.5 text-xs rounded text-left transition-colors ${
+                                isActive && activeTab === 'dashboard' && selectedRoomId === room.id
+                                ? "text-blue-300 font-medium bg-slate-800/50" 
+                                : "text-slate-500 hover:text-slate-300 hover:bg-slate-800/30"
+                              }`}
+                            >
+                              <Bed size={12} />
+                              <span className="truncate">{room.name}</span>
+                            </button>
+                          ))}
+                          {p.rooms.length === 0 && (
+                            <div className="px-2 py-1 text-xs text-slate-600 italic">Brak pokoi</div>
+                          )}
+                       </div>
+                     )}
                    </div>
-                ))}
+                  );
+                })}
              </div>
           </div>
         </nav>
@@ -242,6 +301,7 @@ const App: React.FC = () => {
               seasons={activeProperty.seasons} 
               channels={activeProperty.channels}
               settings={activeProperty.settings}
+              selectedRoomId={selectedRoomId}
             />
           ) : (
             <SettingsPanel 

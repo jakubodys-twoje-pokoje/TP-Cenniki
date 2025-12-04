@@ -9,6 +9,7 @@ interface DashboardProps {
   seasons: Season[];
   channels: Channel[];
   settings: GlobalSettings;
+  selectedRoomId?: string | null;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({
@@ -16,20 +17,28 @@ const Dashboard: React.FC<DashboardProps> = ({
   seasons,
   channels,
   settings,
+  selectedRoomId,
 }) => {
   const [occupancyFilter, setOccupancyFilter] = useState<"MAX" | number>("MAX");
   const [activeView, setActiveView] = useState<"ALL" | string>("ALL"); // 'ALL' for Direct or Channel ID
 
   const pricingGrid = useMemo(() => {
-    return generatePricingGrid(rooms, seasons, channels, settings, occupancyFilter);
-  }, [rooms, seasons, channels, settings, occupancyFilter]);
+    // Filter rooms based on selection
+    const activeRooms = selectedRoomId 
+      ? rooms.filter(r => r.id === selectedRoomId)
+      : rooms;
+
+    return generatePricingGrid(activeRooms, seasons, channels, settings, occupancyFilter);
+  }, [rooms, seasons, channels, settings, occupancyFilter, selectedRoomId]);
 
   // Transform data for charts
   const chartData = useMemo(() => {
     // Show avg direct price per season
     return seasons.map(s => {
       const seasonRows = pricingGrid.filter(r => r.seasonName === s.name);
-      const avgDirect = seasonRows.reduce((acc, r) => acc + r.directPrice, 0) / (seasonRows.length || 1);
+      const avgDirect = seasonRows.length > 0 
+        ? seasonRows.reduce((acc, r) => acc + r.directPrice, 0) / seasonRows.length
+        : 0;
       return {
         name: s.name,
         avgDirect: Math.round(avgDirect),
@@ -38,6 +47,11 @@ const Dashboard: React.FC<DashboardProps> = ({
   }, [seasons, pricingGrid]);
 
   const occupancyOptions = [1, 2, 3, 4, 5, 6, 7];
+  
+  const selectedRoomName = useMemo(() => {
+    if (!selectedRoomId) return null;
+    return rooms.find(r => r.id === selectedRoomId)?.name;
+  }, [rooms, selectedRoomId]);
 
   return (
     <div className="h-full flex flex-col space-y-6">
@@ -45,7 +59,14 @@ const Dashboard: React.FC<DashboardProps> = ({
       {/* Top Controls */}
       <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 flex flex-wrap gap-4 justify-between items-center">
         <div>
-          <h2 className="text-xl font-bold text-slate-800">Panel Cenowy</h2>
+          <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+            Panel Cenowy
+            {selectedRoomName && (
+               <span className="text-sm font-medium text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                 {selectedRoomName}
+               </span>
+            )}
+          </h2>
           <p className="text-sm text-slate-500">Analiza cen bezpośrednich i narzutów kanałów OTA</p>
         </div>
         
@@ -117,48 +138,56 @@ const Dashboard: React.FC<DashboardProps> = ({
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-slate-200">
-                {pricingGrid.map((row, idx) => {
-                  const channelData = activeView !== "ALL" ? row.channelCalculations[activeView] : null;
-                  
-                  return (
-                    <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-slate-900">{row.roomName}</td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-500">{row.seasonName}</td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-500 text-center">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-800">
-                          {row.occupancy} <Users size={10} className="ml-1"/>
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm font-bold text-blue-700 text-right bg-blue-50/50">
-                        {row.directPrice} PLN
-                      </td>
-                      
-                      {channelData && (
-                        <>
-                          <td className="px-4 py-3 whitespace-nowrap text-sm font-bold text-orange-700 text-right bg-orange-50/50">
-                            {channelData.listPrice} PLN
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-500 text-right">
-                             -{Math.round(channelData.commission)}
-                          </td>
-                          <td className={`px-4 py-3 whitespace-nowrap text-sm font-bold text-right bg-green-50/50 ${channelData.estimatedNet < row.directPrice ? 'text-red-600' : 'text-green-700'}`}>
-                            {Math.round(channelData.estimatedNet)} PLN
-                          </td>
-                           <td className="px-4 py-3 whitespace-nowrap text-center">
-                             {channelData.isProfitable ? (
-                               <CheckCircle size={18} className="text-green-500 inline" />
-                             ) : (
-                               <div className="group relative inline">
-                                <AlertCircle size={18} className="text-red-500 inline cursor-help" />
-                                <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block bg-slate-800 text-white text-xs p-1 rounded whitespace-nowrap">Netto &lt; Bezp.</span>
-                               </div>
-                             )}
-                          </td>
-                        </>
-                      )}
-                    </tr>
-                  );
-                })}
+                {pricingGrid.length > 0 ? (
+                  pricingGrid.map((row, idx) => {
+                    const channelData = activeView !== "ALL" ? row.channelCalculations[activeView] : null;
+                    
+                    return (
+                      <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-slate-900">{row.roomName}</td>
+                        <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-500">{row.seasonName}</td>
+                        <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-500 text-center">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-800">
+                            {row.occupancy} <Users size={10} className="ml-1"/>
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap text-sm font-bold text-blue-700 text-right bg-blue-50/50">
+                          {row.directPrice} PLN
+                        </td>
+                        
+                        {channelData && (
+                          <>
+                            <td className="px-4 py-3 whitespace-nowrap text-sm font-bold text-orange-700 text-right bg-orange-50/50">
+                              {channelData.listPrice} PLN
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-500 text-right">
+                               -{Math.round(channelData.commission)}
+                            </td>
+                            <td className={`px-4 py-3 whitespace-nowrap text-sm font-bold text-right bg-green-50/50 ${channelData.estimatedNet < row.directPrice ? 'text-red-600' : 'text-green-700'}`}>
+                              {Math.round(channelData.estimatedNet)} PLN
+                            </td>
+                             <td className="px-4 py-3 whitespace-nowrap text-center">
+                               {channelData.isProfitable ? (
+                                 <CheckCircle size={18} className="text-green-500 inline" />
+                               ) : (
+                                 <div className="group relative inline">
+                                  <AlertCircle size={18} className="text-red-500 inline cursor-help" />
+                                  <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block bg-slate-800 text-white text-xs p-1 rounded whitespace-nowrap">Netto &lt; Bezp.</span>
+                                 </div>
+                               )}
+                            </td>
+                          </>
+                        )}
+                      </tr>
+                    );
+                  })
+                ) : (
+                   <tr>
+                     <td colSpan={activeView === "ALL" ? 4 : 8} className="px-4 py-8 text-center text-slate-500">
+                       Brak danych do wyświetlenia. Sprawdź filtry lub konfigurację.
+                     </td>
+                   </tr>
+                )}
               </tbody>
             </table>
           </div>
