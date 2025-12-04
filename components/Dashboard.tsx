@@ -57,10 +57,11 @@ const Dashboard: React.FC<DashboardProps> = ({
     setOccupancyOverrides({}); // Reset specific overrides when global filter is used
   };
 
-  const handleOverrideChange = (roomId: string, val: number) => {
+  const handleOverrideChange = (roomId: string, seasonId: string, val: number) => {
+    const key = `${roomId}-${seasonId}`;
     setOccupancyOverrides(prev => ({
       ...prev,
-      [roomId]: val
+      [key]: val
     }));
   };
 
@@ -177,7 +178,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                             <select
                               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer text-slate-900 bg-white"
                               value={row.occupancy}
-                              onChange={(e) => handleOverrideChange(row.roomId, Number(e.target.value))}
+                              onChange={(e) => handleOverrideChange(row.roomId, row.seasonId, Number(e.target.value))}
                             >
                               {Array.from({ length: maxForRoom }, (_, i) => i + 1).map((num) => (
                                 <option key={num} value={num} className="bg-white text-slate-900">

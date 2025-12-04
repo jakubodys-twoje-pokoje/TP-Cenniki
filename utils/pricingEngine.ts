@@ -102,12 +102,14 @@ export const generatePricingGrid = (
   rooms.forEach((room) => {
     seasons.forEach((season) => {
       // Determine occupancy to calculate for
-      // 1. Check override for this room
+      // 1. Check override for this specific row (Room + Season)
       // 2. Check global filter
       let targetOccupancy = room.maxOccupancy;
       
-      if (overrides[room.id] !== undefined) {
-        targetOccupancy = overrides[room.id];
+      const overrideKey = `${room.id}-${season.id}`;
+      
+      if (overrides[overrideKey] !== undefined) {
+        targetOccupancy = overrides[overrideKey];
       } else if (occupancyFilter !== "MAX") {
         targetOccupancy = Math.min(occupancyFilter, room.maxOccupancy);
       }
