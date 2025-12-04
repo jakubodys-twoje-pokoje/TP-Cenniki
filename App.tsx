@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect } from "react";
-import { LayoutDashboard, Settings as SettingsIcon, Menu, BedDouble, Calendar, Share2, Cog, ChevronDown, ChevronRight, Building, Plus, Trash2, Bed, CheckCircle2, Copy } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { LayoutDashboard, Settings as SettingsIcon, Menu, BedDouble, Calendar, Share2, Cog, ChevronDown, ChevronRight, Building, Plus, Trash2, Bed, CheckCircle2, Copy, Cloud, CloudOff, Loader2 } from "lucide-react";
 import SettingsPanel from "./components/SettingsPanel";
 import Dashboard from "./components/Dashboard";
 import {
@@ -10,8 +10,9 @@ import {
   INITIAL_SETTINGS,
 } from "./constants";
 import { Property, RoomType, SettingsTab } from "./types";
+import { supabase } from "./utils/supabaseClient";
 
-// Utility for deep cloning to ensure no reference sharing between properties
+// Utility for deep cloning
 function deepClone<T>(obj: T): T {
   return JSON.parse(JSON.stringify(obj));
 }
@@ -19,51 +20,175 @@ function deepClone<T>(obj: T): T {
 const App: React.FC = () => {
   // Application State
   const [activeTab, setActiveTab] = useState<"dashboard" | "settings">("dashboard");
-  const [activeSettingsTab, setActiveSettingsTab] = useState<SettingsTab>("rooms"); // Default to rooms
+  const [activeSettingsTab, setActiveSettingsTab] = useState<SettingsTab>("rooms");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isConfigExpanded, setIsConfigExpanded] = useState(true);
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
 
-  // Property / Template Management with Persistence
-  const [properties, setProperties] = useState<Property[]>(() => {
-    try {
-      const saved = localStorage.getItem("revmax_properties");
-      if (saved) {
-        return JSON.parse(saved);
-      }
-    } catch (e) {
-      console.error("Failed to load properties from localStorage", e);
-    }
-    // Default initial state if nothing in localStorage
-    return [{
-      id: "default",
-      name: "Główny Obiekt",
-      settings: deepClone(INITIAL_SETTINGS),
-      channels: deepClone(INITIAL_CHANNELS),
-      rooms: deepClone(INITIAL_ROOMS),
-      seasons: deepClone(INITIAL_SEASONS),
-      notes: "",
-    }];
-  });
+  // Sync Status State
+  const [syncStatus, setSyncStatus] = useState<'synced' | 'saving' | 'error' | 'offline'>('synced');
+  const [isLoading, setIsLoading] = useState(true);
 
-  const [activePropertyId, setActivePropertyId] = useState<string>(() => {
-    return localStorage.getItem("revmax_active_property_id") || "default";
-  });
+  // Property Data
+  const [properties, setProperties] = useState<Property[]>([]);
+  const [activePropertyId, setActivePropertyId] = useState<string>("default");
   
-  // Track which properties are expanded in the sidebar
+  // Track expanded sidebar items
   const [expandedProperties, setExpandedProperties] = useState<Set<string>>(new Set(["default"]));
 
-  // Persist properties whenever they change
-  useEffect(() => {
-    localStorage.setItem("revmax_properties", JSON.stringify(properties));
-  }, [properties]);
+  // Ref to prevent saving triggered by realtime updates
+  const isRemoteUpdate = useRef(false);
+  // Ref for debouncing save
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Persist active property selection
+  // 1. Initial Load from Supabase
   useEffect(() => {
-    localStorage.setItem("revmax_active_property_id", activePropertyId);
-  }, [activePropertyId]);
+    const fetchProperties = async () => {
+      setIsLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('properties')
+          .select('*')
+          .order('updated_at', { ascending: true });
 
-  // Helper to get current active property data
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          // Parse JSON content from DB rows
+          const loadedProps = data.map(row => ({
+             ...row.content,
+             id: row.id // Ensure ID matches DB primary key
+          }));
+          setProperties(loadedProps);
+          setActivePropertyId(loadedProps[0].id);
+        } else {
+          // Initialize with default if DB is empty
+          const defaultProp: Property = {
+            id: "default",
+            name: "Główny Obiekt",
+            settings: deepClone(INITIAL_SETTINGS),
+            channels: deepClone(INITIAL_CHANNELS),
+            rooms: deepClone(INITIAL_ROOMS),
+            seasons: deepClone(INITIAL_SEASONS),
+            notes: "",
+          };
+          // Create initial row in DB
+          await supabase.from('properties').insert({ id: defaultProp.id, content: defaultProp });
+          setProperties([defaultProp]);
+        }
+        setSyncStatus('synced');
+      } catch (err) {
+        console.error("Error fetching data:", err);
+        setSyncStatus('error');
+        // Fallback to empty/default local state just to show UI
+        const defaultProp: Property = {
+            id: "default",
+            name: "Błąd połączenia (Dane Lokalne)",
+            settings: deepClone(INITIAL_SETTINGS),
+            channels: deepClone(INITIAL_CHANNELS),
+            rooms: deepClone(INITIAL_ROOMS),
+            seasons: deepClone(INITIAL_SEASONS),
+            notes: "Sprawdź konfigurację Supabase w utils/supabaseClient.ts",
+          };
+        setProperties([defaultProp]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchProperties();
+
+    // 2. Setup Realtime Subscription
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen to INSERT, UPDATE, DELETE
+          schema: 'public',
+          table: 'properties',
+        },
+        (payload) => {
+          console.log('Realtime change received:', payload);
+          isRemoteUpdate.current = true; // Flag to ignore next effect trigger
+
+          if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
+            const newContent = payload.new.content as Property;
+            const newId = payload.new.id;
+            
+            setProperties(prev => {
+              const exists = prev.find(p => p.id === newId);
+              if (exists) {
+                return prev.map(p => p.id === newId ? { ...newContent, id: newId } : p);
+              } else {
+                return [...prev, { ...newContent, id: newId }];
+              }
+            });
+          } else if (payload.eventType === 'DELETE') {
+             setProperties(prev => prev.filter(p => p.id !== payload.old.id));
+          }
+          
+          // Reset flag after render cycle
+          setTimeout(() => { isRemoteUpdate.current = false; }, 100);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  // 3. Save Changes to Supabase (Debounced)
+  useEffect(() => {
+    if (isLoading || isRemoteUpdate.current || properties.length === 0) return;
+
+    // Find the currently active property to save (or all modified ones)
+    // For simplicity in this architecture, we save the active property if it changed
+    // In a production app, we would track "dirty" states per property.
+    // Here we will use the debouncer to save the state of the *modified* property.
+    
+    // We actually need to save ALL properties that changed? 
+    // Since `updateActiveProperty` modifies the array, `properties` changes.
+    // We will save only the property that corresponds to `activePropertyId` to save bandwidth,
+    // assuming user only edits one at a time.
+    
+    // Logic: When properties change, identify which one changed? 
+    // Hard to diff deeply efficiently. 
+    // Solution: Just upsert the active property for now, as that's what user is editing.
+    
+    const propToSave = properties.find(p => p.id === activePropertyId);
+    if (!propToSave) return;
+
+    setSyncStatus('saving');
+
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+
+    saveTimeoutRef.current = setTimeout(async () => {
+      try {
+        const { error } = await supabase
+          .from('properties')
+          .upsert({ 
+            id: propToSave.id, 
+            content: propToSave,
+            updated_at: new Date().toISOString()
+          });
+
+        if (error) throw error;
+        setSyncStatus('synced');
+      } catch (err) {
+        console.error("Error saving to DB:", err);
+        setSyncStatus('error');
+      }
+    }, 1000); // Wait 1 second after last keystroke before saving
+
+    return () => {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
+  }, [properties, activePropertyId]);
+
+
+  // Helper to get active property data safely
   const activeProperty = properties.find(p => p.id === activePropertyId) || properties[0];
 
   // Helper to update active property
@@ -74,6 +199,7 @@ const App: React.FC = () => {
   };
 
   const handleRoomUpdate = (roomId: string, updates: Partial<RoomType>) => {
+    if (!activeProperty) return;
     const updatedRooms = activeProperty.rooms.map(r => 
       r.id === roomId ? { ...r, ...updates } : r
     );
@@ -84,62 +210,71 @@ const App: React.FC = () => {
     updateActiveProperty({ rooms: reorderedRooms });
   };
 
-  const handleAddProperty = () => {
+  const handleAddProperty = async () => {
     const newId = Date.now().toString();
     const newProperty: Property = {
       id: newId,
       name: "Nowy Obiekt",
-      // CRITICAL: Deep clone initial constants to ensure new object is independent
       settings: deepClone(INITIAL_SETTINGS),
       channels: deepClone(INITIAL_CHANNELS),
       rooms: deepClone(INITIAL_ROOMS),
       seasons: deepClone(INITIAL_SEASONS),
       notes: "",
     };
+
+    // Optimistic Update
     setProperties([...properties, newProperty]);
     setActivePropertyId(newId);
-    setExpandedProperties(prev => new Set(prev).add(newId)); // Auto expand new
+    setExpandedProperties(prev => new Set(prev).add(newId));
     setActiveTab("settings");
-    setActiveSettingsTab("global"); // Go to global to rename
-    setSelectedRoomId(null);
+    setActiveSettingsTab("global");
+
+    // Immediate Save to DB
+    await supabase.from('properties').insert({ id: newId, content: newProperty });
   };
 
-  const handleDuplicateProperty = () => {
-    const currentProperty = properties.find(p => p.id === activePropertyId);
-    if (!currentProperty) return;
+  const handleDuplicateProperty = async () => {
+    if (!activeProperty) return;
 
     const newId = Date.now().toString();
-    // CRITICAL: Deep clone the current property to create a true copy
-    const newProperty: Property = deepClone(currentProperty);
+    const newProperty: Property = deepClone(activeProperty);
     
     newProperty.id = newId;
     newProperty.name = `${newProperty.name} (Kopia)`;
     
+    // Optimistic Update
     setProperties([...properties, newProperty]);
     setActivePropertyId(newId);
     setExpandedProperties(prev => new Set(prev).add(newId));
+
+    // Immediate Save
+    await supabase.from('properties').insert({ id: newId, content: newProperty });
     alert(`Zduplikowano obiekt jako "${newProperty.name}"`);
   };
 
-  const handleDeleteProperty = (id: string) => {
+  const handleDeleteProperty = async (id: string) => {
     if (properties.length <= 1) {
       alert("Musisz zachować przynajmniej jeden obiekt.");
       return;
     }
-    if (confirm("Czy na pewno chcesz usunąć ten obiekt?")) {
+    if (confirm("Czy na pewno chcesz usunąć ten obiekt? Ta operacja usunie go również z bazy danych dla wszystkich użytkowników.")) {
+      // Optimistic Delete
       const newProps = properties.filter(p => p.id !== id);
       setProperties(newProps);
       if (id === activePropertyId) {
         setActivePropertyId(newProps[0].id);
         setSelectedRoomId(null);
       }
+
+      // DB Delete
+      await supabase.from('properties').delete().eq('id', id);
     }
   };
 
   const handleSettingsNav = (tab: SettingsTab) => {
     setActiveTab("settings");
     setActiveSettingsTab(tab);
-    setIsSidebarOpen(false); // Close sidebar on mobile after selection
+    setIsSidebarOpen(false);
   };
 
   const togglePropertyExpansion = (e: React.MouseEvent, id: string) => {
@@ -158,6 +293,16 @@ const App: React.FC = () => {
     setActiveTab("dashboard");
     setIsSidebarOpen(false);
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-50 text-slate-500 gap-2">
+        <Loader2 className="animate-spin" /> Ładowanie danych z chmury...
+      </div>
+    );
+  }
+
+  if (!activeProperty) return <div>Brak danych.</div>;
 
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden">
@@ -203,7 +348,7 @@ const App: React.FC = () => {
               onClick={() => setIsConfigExpanded(!isConfigExpanded)}
               className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-colors ${
                 activeTab === "settings"
-                  ? "text-white" // Keep distinct from active selection
+                  ? "text-white"
                   : "text-slate-400 hover:bg-slate-800 hover:text-white"
               }`}
             >
@@ -268,7 +413,7 @@ const App: React.FC = () => {
             )}
           </div>
 
-          {/* Properties / Templates Section */}
+          {/* Properties Section */}
           <div className="mt-6">
              <div className="flex items-center justify-between mb-2 px-4">
                 <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Twoje Obiekty</span>
@@ -312,7 +457,6 @@ const App: React.FC = () => {
                         )}
                      </div>
                      
-                     {/* Nested Room List */}
                      {isExpanded && (
                        <div className="ml-2 pl-4 border-l border-slate-800 space-y-1 mt-1">
                           {p.rooms.map(room => (
@@ -342,9 +486,15 @@ const App: React.FC = () => {
         </nav>
 
         <div className="p-6 border-t border-slate-800">
-          <div className="flex items-center gap-2 text-green-400 text-xs mb-2">
-            <CheckCircle2 size={12} />
-            <span>Zapisano pomyślnie</span>
+           {/* Sync Status Indicator */}
+          <div className={`flex items-center gap-2 text-xs mb-2 transition-colors ${
+             syncStatus === 'synced' ? 'text-green-400' : 
+             syncStatus === 'saving' ? 'text-yellow-400' : 
+             syncStatus === 'error' ? 'text-red-400' : 'text-slate-500'
+          }`}>
+            {syncStatus === 'synced' && <><CheckCircle2 size={12} /> <span>Zapisano w chmurze</span></>}
+            {syncStatus === 'saving' && <><Loader2 size={12} className="animate-spin" /> <span>Zapisywanie...</span></>}
+            {syncStatus === 'error' && <><CloudOff size={12} /> <span>Błąd zapisu</span></>}
           </div>
           <div className="text-xs text-slate-500">
             <p>Wersja 1.4.5</p>
@@ -365,7 +515,6 @@ const App: React.FC = () => {
 
         {/* Content Area */}
         <div className="flex-1 overflow-hidden p-4 md:p-8">
-          {/* Key prop ensures components completely remount when switching properties, preventing data bleed */}
           {activeTab === "dashboard" ? (
             <Dashboard 
               key={activeProperty.id} 
