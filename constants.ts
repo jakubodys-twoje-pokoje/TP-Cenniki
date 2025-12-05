@@ -1,45 +1,39 @@
-
 import { Channel, GlobalSettings, RoomType, Season } from "./types";
 
 export const INITIAL_SETTINGS: GlobalSettings = {
   seasonalObp: {
     "s1": { amount: 30, enabled: true },
     "s2": { amount: 30, enabled: true },
-    "s3": { amount: 30, enabled: false }, // Disabled for Majówka by default example
+    "s3": { amount: 30, enabled: false }, 
+    "s4": { amount: 30, enabled: true }, 
+    "s5": { amount: 30, enabled: true },
   }
 };
 
 // Helper to create default discount map for initial seasons
-// Now supports 5 specific discount types
 const defaultDiscounts = (
   mobile: number = 0, 
   genius: number = 0, 
   seasonal: number = 0, 
   firstMinute: number = 0, 
   lastMinute: number = 0
-) => ({
-  "s1": { 
+) => {
+  const defaults = { 
     mobile, mobileEnabled: true, 
     genius, geniusEnabled: true,
     seasonal, seasonalEnabled: true,
     firstMinute, firstMinuteEnabled: true,
     lastMinute, lastMinuteEnabled: true,
-  },
-  "s2": { 
-    mobile, mobileEnabled: true, 
-    genius, geniusEnabled: true,
-    seasonal, seasonalEnabled: true,
-    firstMinute, firstMinuteEnabled: true,
-    lastMinute, lastMinuteEnabled: true,
-  },
-  "s3": { 
-    mobile, mobileEnabled: true, 
-    genius, geniusEnabled: true,
-    seasonal, seasonalEnabled: true,
-    firstMinute, firstMinuteEnabled: true,
-    lastMinute, lastMinuteEnabled: true,
-  },
-});
+  };
+  
+  return {
+    "s1": defaults, // Majówka
+    "s2": defaults, // Czerwiec
+    "s3": defaults, // Open'er (High demand, maybe different?)
+    "s4": defaults, // Wysoki Sezon
+    "s5": defaults, // Festiwal Sopot
+  };
+};
 
 export const INITIAL_CHANNELS: Channel[] = [
   {
@@ -81,23 +75,37 @@ export const INITIAL_ROOMS: RoomType[] = [
 export const INITIAL_SEASONS: Season[] = [
   {
     id: "s1",
-    name: "Szczyt",
-    startDate: "2024-07-01",
-    endDate: "2024-08-31",
-    multiplier: 1.0,
-  },
-  {
-    id: "s2",
-    name: "Przed szczytem",
-    startDate: "2024-06-01",
-    endDate: "2024-06-30",
-    multiplier: 0.85,
-  },
-  {
-    id: "s3",
     name: "Majówka",
     startDate: "2024-05-01",
     endDate: "2024-05-05",
     multiplier: 1.1,
   },
+  {
+    id: "s2",
+    name: "Czerwiec",
+    startDate: "2024-06-01",
+    endDate: "2024-06-25",
+    multiplier: 0.85,
+  },
+  {
+    id: "s3",
+    name: "Open'er",
+    startDate: "2024-06-26",
+    endDate: "2024-07-02",
+    multiplier: 1.3, // High demand
+  },
+  {
+    id: "s4",
+    name: "Wysoki Sezon",
+    startDate: "2024-07-03",
+    endDate: "2024-08-17",
+    multiplier: 1.0,
+  },
+  {
+    id: "s5",
+    name: "Festiwal",
+    startDate: "2024-08-18",
+    endDate: "2024-08-31",
+    multiplier: 1.2, // High demand
+  }
 ];

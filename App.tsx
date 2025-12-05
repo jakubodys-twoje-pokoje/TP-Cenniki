@@ -262,16 +262,16 @@ const App: React.FC = () => {
   };
 
 
-  // 3. Auto-Refresh Occupancy (30 min interval)
+  // 3. Auto-Refresh Occupancy (1 HOUR interval)
   useEffect(() => {
     if (!session || isLoading || !activePropertyId) return;
 
     const checkAndFetchOccupancy = async () => {
       const now = Date.now();
-      const thirtyMinutes = 30 * 60 * 1000;
+      const oneHour = 60 * 60 * 1000; // 60 minutes
       const prop = properties.find(p => p.id === activePropertyId);
 
-      if (prop && prop.oid && (now - lastOccupancyFetch > thirtyMinutes) && !isOccupancyRefreshing) {
+      if (prop && prop.oid && (now - lastOccupancyFetch > oneHour) && !isOccupancyRefreshing) {
         setIsOccupancyRefreshing(true);
         try {
           await syncPropertyOccupancy(activePropertyId);
@@ -285,7 +285,8 @@ const App: React.FC = () => {
     };
 
     checkAndFetchOccupancy();
-    const intervalId = setInterval(checkAndFetchOccupancy, 60000); 
+    // Check every 5 minutes to see if an hour has passed
+    const intervalId = setInterval(checkAndFetchOccupancy, 300000); 
     return () => clearInterval(intervalId);
   }, [session, activePropertyId, properties, lastOccupancyFetch, isOccupancyRefreshing, isLoading]);
 
