@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect, useRef } from "react";
-import { LayoutDashboard, Settings as SettingsIcon, Menu, BedDouble, Calendar, Share2, Cog, ChevronDown, ChevronRight, Building, Plus, Trash2, Bed, CheckCircle2, Copy, Cloud, CloudOff, Loader2, RefreshCw, LogOut } from "lucide-react";
+import { LayoutDashboard, Settings as SettingsIcon, Menu, BedDouble, Calendar, Share2, Cog, ChevronDown, ChevronRight, Building, Plus, Trash2, Bed, CheckCircle2, Copy, Cloud, CloudOff, Loader2, RefreshCw, LogOut, Download, X } from "lucide-react";
 import SettingsPanel from "./components/SettingsPanel";
 import Dashboard from "./components/Dashboard";
 import LoginScreen from "./components/LoginScreen";
@@ -12,7 +11,7 @@ import {
 } from "./constants";
 import { Property, RoomType, SettingsTab } from "./types";
 import { supabase } from "./utils/supabaseClient";
-import { fetchSeasonOccupancyMap } from "./utils/hotresApi";
+import { fetchSeasonOccupancyMap, fetchHotresRooms } from "./utils/hotresApi";
 
 // Utility for deep cloning
 function deepClone<T>(obj: T): T {
@@ -30,6 +29,12 @@ const App: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isConfigExpanded, setIsConfigExpanded] = useState(true);
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
+
+  // Add Property Modal State
+  const [showAddPropertyModal, setShowAddPropertyModal] = useState(false);
+  const [addPropertyMode, setAddPropertyMode] = useState<'manual' | 'import'>('manual');
+  const [importOid, setImportOid] = useState("");
+  const [isImporting, setIsImporting] = useState(false);
 
   // Sync Status State
   const [syncStatus, setSyncStatus] = useState<'idle' | 'synced' | 'saving' | 'error' | 'offline'>('idle');
@@ -316,18 +321,48 @@ const App: React.FC = () => {
     updateActiveProperty({ rooms: reorderedRooms });
   };
 
-  const handleAddProperty = async () => {
+  const handleCreateProperty = async () => {
     const newId = Date.now().toString();
-    const newProperty: Property = {
-      id: newId,
-      name: "Nowy Obiekt",
-      oid: "",
-      settings: deepClone(INITIAL_SETTINGS),
-      channels: deepClone(INITIAL_CHANNELS),
-      rooms: deepClone(INITIAL_ROOMS),
-      seasons: deepClone(INITIAL_SEASONS),
-      notes: "",
-    };
+    let newProperty: Property;
+
+    if (addPropertyMode === 'import') {
+      if (!importOid) {
+        alert("Wpisz numer OID.");
+        return;
+      }
+      setIsImporting(true);
+      try {
+        const importedRooms = await fetchHotresRooms(importOid);
+        
+        newProperty = {
+          id: newId,
+          name: `Obiekt ${importOid}`, // User can rename later
+          oid: importOid,
+          settings: deepClone(INITIAL_SETTINGS),
+          channels: deepClone(INITIAL_CHANNELS),
+          rooms: importedRooms,
+          seasons: deepClone(INITIAL_SEASONS),
+          notes: `Zaimportowano z Hotres OID: ${importOid}`,
+        };
+      } catch (e: any) {
+        alert("Błąd importu: " + e.message);
+        setIsImporting(false);
+        return;
+      }
+      setIsImporting(false);
+    } else {
+      // Manual Mode
+      newProperty = {
+        id: newId,
+        name: "Nowy Obiekt",
+        oid: "",
+        settings: deepClone(INITIAL_SETTINGS),
+        channels: deepClone(INITIAL_CHANNELS),
+        rooms: deepClone(INITIAL_ROOMS),
+        seasons: deepClone(INITIAL_SEASONS),
+        notes: "",
+      };
+    }
 
     setProperties([...properties, newProperty]);
     setActivePropertyId(newId);
@@ -337,6 +372,11 @@ const App: React.FC = () => {
     
     lastServerState.current[newId] = JSON.stringify(newProperty);
     await supabase.from('properties').insert({ id: newId, content: newProperty });
+    
+    // Close modal and reset
+    setShowAddPropertyModal(false);
+    setImportOid("");
+    setAddPropertyMode('manual');
   };
 
   const handleDuplicateProperty = async () => {
@@ -587,7 +627,7 @@ const App: React.FC = () => {
                 <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Twoje Obiekty</span>
                 <div className="flex gap-1">
                    {isOccupancyRefreshing && <Loader2 size={12} className="text-slate-500 animate-spin" title="Odświeżanie obłożenia..." />}
-                   <button onClick={handleAddProperty} className="text-blue-400 hover:text-blue-300 transition-colors p-1" title="Dodaj obiekt">
+                   <button onClick={() => setShowAddPropertyModal(true)} className="text-blue-400 hover:text-blue-300 transition-colors p-1" title="Dodaj obiekt">
                      <Plus size={16} />
                    </button>
                 </div>
@@ -742,6 +782,98 @@ const App: React.FC = () => {
           )}
         </div>
       </main>
+
+      {/* Add Property Modal */}
+      {showAddPropertyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200">
+            <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center">
+              <h3 className="text-lg font-bold text-slate-800">Dodaj Nowy Obiekt</h3>
+              <button 
+                onClick={() => setShowAddPropertyModal(false)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="p-6">
+              <div className="flex gap-4 mb-6">
+                <button
+                  onClick={() => setAddPropertyMode('manual')}
+                  className={`flex-1 py-3 px-4 rounded-lg border-2 text-sm font-semibold transition-all ${
+                    addPropertyMode === 'manual'
+                      ? 'border-blue-600 bg-blue-50 text-blue-700'
+                      : 'border-slate-100 bg-white text-slate-500 hover:border-slate-200'
+                  }`}
+                >
+                  <div className="flex flex-col items-center gap-2">
+                    <Plus size={24} />
+                    <span>Ręcznie</span>
+                  </div>
+                </button>
+                <button
+                  onClick={() => setAddPropertyMode('import')}
+                  className={`flex-1 py-3 px-4 rounded-lg border-2 text-sm font-semibold transition-all ${
+                    addPropertyMode === 'import'
+                      ? 'border-blue-600 bg-blue-50 text-blue-700'
+                      : 'border-slate-100 bg-white text-slate-500 hover:border-slate-200'
+                  }`}
+                >
+                  <div className="flex flex-col items-center gap-2">
+                    <Download size={24} />
+                    <span>Import Hotres</span>
+                  </div>
+                </button>
+              </div>
+
+              {addPropertyMode === 'import' ? (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Podaj numer OID z Hotres
+                    </label>
+                    <input
+                      type="text"
+                      value={importOid}
+                      onChange={(e) => setImportOid(e.target.value)}
+                      placeholder="np. 4268"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    />
+                    <p className="text-xs text-slate-500 mt-1">
+                      Pobierzemy listę pokoi, ich nazwy oraz automatycznie wyliczymy maksymalne obłożenie.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-slate-600 bg-slate-50 p-3 rounded-md border border-slate-100">
+                  Utworzymy pusty obiekt z domyślnymi ustawieniami. Będziesz mógł dodać pokoje ręcznie w panelu konfiguracji.
+                </p>
+              )}
+            </div>
+
+            <div className="bg-slate-50 px-6 py-4 border-t border-slate-200 flex justify-end gap-3">
+              <button
+                onClick={() => setShowAddPropertyModal(false)}
+                className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-md transition-colors"
+              >
+                Anuluj
+              </button>
+              <button
+                onClick={handleCreateProperty}
+                disabled={isImporting}
+                className="px-4 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-md shadow-sm transition-all flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+              >
+                {isImporting ? (
+                  <><Loader2 size={16} className="animate-spin"/> Importowanie...</>
+                ) : (
+                  <>Utwórz Obiekt</>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,3 +1,4 @@
+import { RoomType } from "../types";
 
 interface HotresDay {
   date: string;
@@ -10,7 +11,17 @@ interface HotresResponseItem {
   dates: HotresDay[];
 }
 
+interface HotresRoomResponse {
+  type_id: number;
+  code: string; // Used as name
+  single: string; // "0" or "1" etc
+  double: string;
+  sofa: string;
+  sofa_single: string;
+}
+
 const BASE_URL = "https://panel.hotres.pl/api_availability";
+const ROOMS_URL = "https://panel.hotres.pl/api_rooms";
 const USER = "admin@twojepokoje.com.pl";
 const PASS = "Admin123@@";
 
@@ -83,5 +94,43 @@ export const fetchSeasonOccupancyMap = async (
     console.error("Hotres Bulk Fetch Error:", error);
     // Return empty map on error to not crash entire app flow
     return {};
+  }
+};
+
+// Fetches Rooms definition from Hotres and maps to App's RoomType
+export const fetchHotresRooms = async (oid: string): Promise<RoomType[]> => {
+  if (!oid) throw new Error("Brak OID");
+
+  const url = `${ROOMS_URL}?user=${encodeURIComponent(USER)}&password=${encodeURIComponent(PASS)}&oid=${oid}`;
+
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Błąd API: ${response.status}`);
+
+    const data: HotresRoomResponse[] = await response.json();
+    if (!Array.isArray(data)) throw new Error("Nieprawidłowy format danych z Hotres (oczekiwano tablicy)");
+
+    return data.map((item, index) => {
+      // Calculate Max Occupancy based on logic:
+      // single * 1 + double * 2 + sofa * 2 + sofa_single * 1
+      const single = parseInt(item.single) || 0;
+      const double = parseInt(item.double) || 0;
+      const sofa = parseInt(item.sofa) || 0;
+      const sofaSingle = parseInt(item.sofa_single) || 0;
+
+      const maxOccupancy = (single * 1) + (double * 2) + (sofa * 2) + (sofaSingle * 1);
+
+      return {
+        id: Date.now().toString() + index, // Generate temporary unique ID
+        name: item.code || `Pokój ${item.type_id}`, // "code - nazwa pokoju"
+        maxOccupancy: maxOccupancy > 0 ? maxOccupancy : 2, // Default to 2 if calc fails
+        tid: item.type_id.toString(),
+        basePricePeak: 300, // Default base price
+      };
+    });
+
+  } catch (error) {
+    console.error("Hotres Rooms Fetch Error:", error);
+    throw error;
   }
 };
