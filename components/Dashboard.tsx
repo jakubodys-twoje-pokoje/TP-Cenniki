@@ -104,6 +104,13 @@ const Dashboard: React.FC<DashboardProps> = ({
     const currentMap = room.seasonBasePrices || {};
     onRoomUpdate(roomId, { seasonBasePrices: { ...currentMap, [seasonId]: newValue } });
   };
+
+  const handleCommentChange = (roomId: string, seasonId: string, newValue: string) => {
+    const room = rooms.find(r => r.id === roomId);
+    if (!room) return;
+    const currentComments = room.seasonComments || {};
+    onRoomUpdate(roomId, { seasonComments: { ...currentComments, [seasonId]: newValue } });
+  };
   
   const toggleRowExpansion = (roomId: string, seasonId: string) => {
     const key = `${roomId}-${seasonId}`;
@@ -239,6 +246,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                   <th className="px-2 py-3 w-8 bg-slate-50"></th>
                   <th className="px-3 py-3 text-left font-bold text-slate-500 uppercase tracking-wider">Pokój</th>
                   <th className="px-3 py-3 text-left font-bold text-slate-500 uppercase tracking-wider">Sezon</th>
+                  <th className="px-3 py-3 text-left font-bold text-slate-500 uppercase tracking-wider w-40">Komentarz</th>
                   <th className="px-3 py-3 text-center font-bold text-slate-500 uppercase tracking-wider w-24">Baza (PLN)</th>
                   <th className="px-3 py-3 text-center font-bold text-slate-500 uppercase tracking-wider w-20">Os.</th>
                   <th className="px-3 py-3 text-right font-bold text-slate-500 uppercase tracking-wider bg-blue-50/50 text-blue-700">Direct</th>
@@ -290,6 +298,15 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 <td className="px-3 py-3 align-middle text-slate-600">
                                    <span className="text-xs font-semibold">{row.seasonName}</span>
                                 </td>
+                                <td className="px-3 py-3 align-middle">
+                                   <input
+                                      type="text"
+                                      value={row.comment || ""}
+                                      onChange={(e) => handleCommentChange(room.id, row.seasonId, e.target.value)}
+                                      placeholder="Uwagi..."
+                                      className="w-full px-2 py-1 text-xs border border-transparent hover:border-slate-200 focus:border-blue-500 focus:bg-white bg-transparent rounded transition-all placeholder:text-slate-300"
+                                   />
+                                </td>
                                 <td className="px-3 py-3 align-middle text-center">
                                    <input 
                                       type="number" 
@@ -336,7 +353,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                              {/* EXPANDED DETAILS */}
                              {isExpanded && (
                                <tr>
-                                 <td colSpan={activeView === "ALL" ? 7 : 15} className="bg-slate-50 p-3 shadow-inner">
+                                 <td colSpan={activeView === "ALL" ? 8 : 16} className="bg-slate-50 p-3 shadow-inner">
                                    <div className="ml-12 border border-slate-200 rounded-md bg-white overflow-hidden max-w-4xl">
                                      <div className="px-3 py-2 bg-slate-100 text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
                                        Szczegóły obłożenia ({room.name} - {row.seasonName})

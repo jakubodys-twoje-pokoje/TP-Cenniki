@@ -32,6 +32,8 @@ export interface RoomType {
   // Key is season.id, value is the specific base price for that season.
   // If not present, falls back to basePricePeak.
   seasonBasePrices?: Record<string, number>; 
+  // Key is season.id, value is a specific comment string
+  seasonComments?: Record<string, string>;
 }
 
 export interface Season {
@@ -66,6 +68,7 @@ export interface PricingRow {
   occupancy: number;
   maxOccupancy: number;
   directPrice: number;
+  comment?: string;
   channelCalculations: Record<string, ChannelCalculation>;
 }
 

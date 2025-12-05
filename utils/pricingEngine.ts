@@ -100,9 +100,6 @@ export const calculateChannelPrice = (
   const estimatedNet = soldPrice - commissionAmount;
 
   // Calculate Breakdown Values (Approximated based on list price cascade for display)
-  // Note: OTAs usually stack discounts on the *reduced* price, or base price. 
-  // Here we calculate the "Value lost" at each step for display purposes.
-  // Ideally this matches the OTA logic. Assuming cascading:
   
   const mobileVal = listPrice * mobilePct;
   const geniusVal = (listPrice - mobileVal) * geniusPct;
@@ -167,6 +164,8 @@ export const generatePricingGrid = (
 
       // Determine which base price to show
       const activeBasePrice = room.seasonBasePrices?.[season.id] ?? room.basePricePeak;
+      // Determine active comment
+      const activeComment = room.seasonComments?.[season.id] ?? "";
 
       grid.push({
         roomId: room.id,
@@ -177,6 +176,7 @@ export const generatePricingGrid = (
         occupancy: targetOccupancy,
         maxOccupancy: room.maxOccupancy,
         directPrice,
+        comment: activeComment,
         channelCalculations,
       });
     });
