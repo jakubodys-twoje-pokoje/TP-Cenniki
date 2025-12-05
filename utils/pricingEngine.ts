@@ -166,6 +166,8 @@ export const generatePricingGrid = (
       const activeBasePrice = room.seasonBasePrices?.[season.id] ?? room.basePricePeak;
       // Determine active comment
       const activeComment = room.seasonComments?.[season.id] ?? "";
+      // Determine active occupancy rate
+      const activeOccupancy = room.seasonOccupancy?.[season.id];
 
       grid.push({
         roomId: room.id,
@@ -177,6 +179,7 @@ export const generatePricingGrid = (
         maxOccupancy: room.maxOccupancy,
         directPrice,
         comment: activeComment,
+        occupancyRate: activeOccupancy,
         channelCalculations,
       });
     });

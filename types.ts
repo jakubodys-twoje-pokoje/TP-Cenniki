@@ -34,6 +34,8 @@ export interface RoomType {
   seasonBasePrices?: Record<string, number>; 
   // Key is season.id, value is a specific comment string
   seasonComments?: Record<string, string>;
+  // Key is season.id, value is the calculated occupancy percentage (0-100)
+  seasonOccupancy?: Record<string, number>;
 }
 
 export interface Season {
@@ -70,6 +72,7 @@ export interface PricingRow {
   maxOccupancy: number;
   directPrice: number;
   comment?: string;
+  occupancyRate?: number; // Cached occupancy percentage
   channelCalculations: Record<string, ChannelCalculation>;
 }
 

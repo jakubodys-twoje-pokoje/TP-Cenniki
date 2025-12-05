@@ -228,6 +228,17 @@ const App: React.FC = () => {
     updateActiveProperty({ rooms: updatedRooms });
   };
 
+  const handleOccupancyUpdate = (roomId: string, seasonId: string, rate: number) => {
+    if (!activeProperty) return;
+    const room = activeProperty.rooms.find(r => r.id === roomId);
+    if (!room) return;
+
+    const currentOccupancy = room.seasonOccupancy || {};
+    const updatedOccupancy = { ...currentOccupancy, [seasonId]: rate };
+
+    handleRoomUpdate(roomId, { seasonOccupancy: updatedOccupancy });
+  };
+
   const handleReorderRooms = (reorderedRooms: RoomType[]) => {
     updateActiveProperty({ rooms: reorderedRooms });
   };
@@ -624,10 +635,12 @@ const App: React.FC = () => {
               seasons={activeProperty.seasons} 
               channels={activeProperty.channels}
               settings={activeProperty.settings}
+              propertyOid={activeProperty.oid || ""}
               selectedRoomId={selectedRoomId}
               notes={activeProperty.notes || ""}
               onNotesChange={(n) => updateActiveProperty({ notes: n })}
               onRoomUpdate={handleRoomUpdate}
+              onOccupancyUpdate={handleOccupancyUpdate}
               onReorderRooms={handleReorderRooms}
             />
           ) : (

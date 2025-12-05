@@ -2,18 +2,21 @@
 import React, { useMemo, useState } from "react";
 import { Channel, GlobalSettings, RoomType, Season } from "../types";
 import { generatePricingGrid, calculateDirectPrice, calculateChannelPrice } from "../utils/pricingEngine";
-import { TrendingUp, Users, StickyNote, ChevronDown, ChevronRight, GripVertical, Columns } from "lucide-react";
+import { TrendingUp, Users, StickyNote, ChevronDown, ChevronRight, GripVertical, Columns, RefreshCw, Loader2, AlertCircle } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { fetchHotresOccupancy } from "../utils/hotresApi";
 
 interface DashboardProps {
   rooms: RoomType[];
   seasons: Season[];
   channels: Channel[];
   settings: GlobalSettings;
+  propertyOid: string;
   selectedRoomId?: string | null;
   notes: string;
   onNotesChange: (notes: string) => void;
   onRoomUpdate: (roomId: string, updates: Partial<RoomType>) => void;
+  onOccupancyUpdate: (roomId: string, seasonId: string, rate: number) => void;
   onReorderRooms: (rooms: RoomType[]) => void;
 }
 
@@ -31,14 +34,15 @@ const Dashboard: React.FC<DashboardProps> = ({
   seasons,
   channels,
   settings,
+  propertyOid,
   selectedRoomId,
   notes,
   onNotesChange,
   onRoomUpdate,
+  onOccupancyUpdate,
   onReorderRooms,
 }) => {
   const [occupancyFilter, setOccupancyFilter] = useState<"MAX" | number>("MAX");
-  // occupancyOverrides removed in favor of expansion view
   const [activeView, setActiveView] = useState<"ALL" | string>("ALL");
   
   // Drag and drop state
@@ -46,6 +50,9 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   // Expanded Rows State (Set of "roomId-seasonId")
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+
+  // Loading state for occupancy fetching: "roomId-seasonId"
+  const [occupancyLoading, setOccupancyLoading] = useState<Set<string>>(new Set());
 
   // Column Visibility State
   const [columnVisibility, setColumnVisibility] = useState<ColumnVisibility>({
@@ -112,6 +119,37 @@ const Dashboard: React.FC<DashboardProps> = ({
     onRoomUpdate(roomId, { seasonComments: { ...currentComments, [seasonId]: newValue } });
   };
   
+  const handleFetchOccupancy = async (roomId: string, seasonId: string) => {
+    const room = rooms.find(r => r.id === roomId);
+    const season = seasons.find(s => s.id === seasonId);
+    
+    if (!room || !season || !propertyOid) {
+       alert("Brak konfiguracji (OID lub TID) lub danych sezonu.");
+       return;
+    }
+
+    if (!room.tid) {
+      alert("Brak TID dla pokoju. Ustaw go w konfiguracji.");
+      return;
+    }
+
+    const key = `${roomId}-${seasonId}`;
+    setOccupancyLoading(prev => new Set(prev).add(key));
+
+    try {
+      const rate = await fetchHotresOccupancy(propertyOid, room.tid, season.startDate, season.endDate);
+      onOccupancyUpdate(roomId, seasonId, rate);
+    } catch (err: any) {
+      alert(`Błąd pobierania obłożenia: ${err.message}`);
+    } finally {
+      setOccupancyLoading(prev => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+    }
+  };
+
   const toggleRowExpansion = (roomId: string, seasonId: string) => {
     const key = `${roomId}-${seasonId}`;
     setExpandedRows(prev => {
@@ -246,6 +284,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                   <th className="px-2 py-3 w-8 bg-slate-50"></th>
                   <th className="px-3 py-3 text-left font-bold text-slate-500 uppercase tracking-wider">Pokój</th>
                   <th className="px-3 py-3 text-left font-bold text-slate-500 uppercase tracking-wider">Sezon</th>
+                  <th className="px-3 py-3 text-center font-bold text-slate-500 uppercase tracking-wider w-28">OBŁOŻENIE</th>
                   <th className="px-3 py-3 text-left font-bold text-slate-500 uppercase tracking-wider w-40">Komentarz</th>
                   <th className="px-3 py-3 text-center font-bold text-slate-500 uppercase tracking-wider w-24">Baza (PLN)</th>
                   <th className="px-3 py-3 text-center font-bold text-slate-500 uppercase tracking-wider w-20">Os.</th>
@@ -281,6 +320,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                         const channelData = activeView !== "ALL" ? row.channelCalculations[activeView] : null;
                         const rowKey = `${row.roomId}-${row.seasonId}`;
                         const isExpanded = expandedRows.has(rowKey);
+                        const isLoading = occupancyLoading.has(rowKey);
                         
                         return (
                            <React.Fragment key={row.seasonId}>
@@ -298,6 +338,28 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 <td className="px-3 py-3 align-middle text-slate-600">
                                    <span className="text-xs font-semibold">{row.seasonName}</span>
                                 </td>
+                                
+                                {/* OCCUPANCY COLUMN */}
+                                <td className="px-3 py-3 align-middle text-center">
+                                   <div className="flex items-center justify-center gap-2">
+                                     <span className={`text-xs font-bold ${
+                                       row.occupancyRate === undefined ? 'text-slate-400' : 
+                                       row.occupancyRate > 80 ? 'text-red-600' : 
+                                       row.occupancyRate > 50 ? 'text-orange-600' : 'text-green-600'
+                                     }`}>
+                                        {row.occupancyRate !== undefined ? `${row.occupancyRate}%` : '-'}
+                                     </span>
+                                     <button 
+                                        onClick={() => handleFetchOccupancy(row.roomId, row.seasonId)}
+                                        className="text-slate-400 hover:text-blue-500 transition-colors p-1"
+                                        title="Odśwież obłożenie z Hotres"
+                                        disabled={isLoading}
+                                     >
+                                        <RefreshCw size={14} className={isLoading ? "animate-spin text-blue-500" : ""} />
+                                     </button>
+                                   </div>
+                                </td>
+
                                 <td className="px-3 py-3 align-middle">
                                    <input
                                       type="text"
@@ -353,7 +415,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                              {/* EXPANDED DETAILS */}
                              {isExpanded && (
                                <tr>
-                                 <td colSpan={activeView === "ALL" ? 8 : 16} className="bg-slate-50 p-3 shadow-inner">
+                                 <td colSpan={activeView === "ALL" ? 9 : 17} className="bg-slate-50 p-3 shadow-inner">
                                    <div className="ml-12 border border-slate-200 rounded-md bg-white overflow-hidden max-w-4xl">
                                      <div className="px-3 py-2 bg-slate-100 text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
                                        Szczegóły obłożenia ({room.name} - {row.seasonName})
