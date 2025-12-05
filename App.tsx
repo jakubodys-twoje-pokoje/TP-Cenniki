@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { LayoutDashboard, Settings as SettingsIcon, Menu, BedDouble, Calendar, Share2, Cog, ChevronDown, ChevronRight, Building, Plus, Trash2, Bed, CheckCircle2, Copy, Cloud, CloudOff, Loader2, RefreshCw, LogOut, Download, X, Lock } from "lucide-react";
 import SettingsPanel from "./components/SettingsPanel";
@@ -10,7 +9,7 @@ import {
   INITIAL_SEASONS,
   INITIAL_SETTINGS,
 } from "./constants";
-import { Property, RoomType, SettingsTab, UserPermissions } from "./types";
+import { Channel, Property, RoomType, SettingsTab, UserPermissions } from "./types";
 import { supabase } from "./utils/supabaseClient";
 import { fetchSeasonOccupancyMap, fetchHotresRooms } from "./utils/hotresApi";
 import { getUserPermissions } from "./utils/userConfig";
@@ -416,6 +415,43 @@ const App: React.FC = () => {
        return p;
     }));
     alert("Sezony zostały skopiowane pomyślnie. (Uwaga: Ustawienia OBP pokoi nie są kopiowane między obiektami)");
+  };
+
+  const handleDuplicateChannelToProperty = async (sourceChannel: Channel, targetPropertyId: string) => {
+    if (userPermissions.role !== 'super_admin') return;
+    if (!activeProperty) return;
+    
+    const targetProp = properties.find(p => p.id === targetPropertyId);
+    if (!targetProp) return;
+
+    // Deep clone and generate new ID
+    const newChannel = {
+        ...deepClone(sourceChannel),
+        id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+        name: `${sourceChannel.name} (Kopia)`
+    };
+
+    const updatedTargetProp = {
+        ...targetProp,
+        channels: [...targetProp.channels, newChannel]
+    };
+
+    setProperties(prev => prev.map(p => 
+        p.id === targetPropertyId ? updatedTargetProp : p
+    ));
+
+    // Hard save for target property immediately
+    setSyncStatus('saving');
+    lastServerState.current[targetPropertyId] = JSON.stringify(updatedTargetProp);
+    await supabase.from('properties').upsert({
+        id: targetPropertyId,
+        content: updatedTargetProp,
+        updated_at: new Date().toISOString()
+    });
+    setSyncStatus('synced');
+    setTimeout(() => setSyncStatus('idle'), 2000);
+
+    alert(`Kanał "${sourceChannel.name}" został skopiowany do wybranego obiektu.`);
   };
 
   const handleCreateProperty = async () => {
@@ -958,6 +994,7 @@ const App: React.FC = () => {
               onDuplicateProperty={handleDuplicateProperty}
               otherProperties={properties.filter(p => p.id !== activePropertyId)}
               onDuplicateSeasons={handleDuplicateSeasons}
+              onDuplicateChannel={handleDuplicateChannelToProperty}
               isReadOnly={isReadOnly}
             />
           )}

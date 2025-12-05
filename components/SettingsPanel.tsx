@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Channel, ChannelDiscountProfile, GlobalSettings, Property, RoomType, Season, SettingsTab } from "../types";
 import { Plus, Trash2, X, Copy, GripVertical, ArrowRightLeft, Check, AlertCircle, Lock, ToggleLeft, ToggleRight } from "lucide-react";
@@ -22,6 +21,7 @@ interface SettingsPanelProps {
   onDuplicateProperty: () => void;
   otherProperties: Property[];
   onDuplicateSeasons: (targetPropertyId: string) => void;
+  onDuplicateChannel: (sourceChannel: Channel, targetPropertyId: string) => void;
   isReadOnly?: boolean;
 }
 
@@ -44,6 +44,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   onDuplicateProperty,
   otherProperties,
   onDuplicateSeasons,
+  onDuplicateChannel,
   isReadOnly = false,
 }) => {
   // Drag and Drop State
@@ -53,6 +54,10 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   // Duplicate Seasons Modal State
   const [showSeasonDupModal, setShowSeasonDupModal] = useState(false);
   const [targetPropertyId, setTargetPropertyId] = useState<string>("");
+
+  // Duplicate Channel Modal State
+  const [channelToDuplicate, setChannelToDuplicate] = useState<Channel | null>(null);
+  const [targetChannelPropertyId, setTargetChannelPropertyId] = useState<string>("");
 
   // Generic Handlers for Arrays
   const deleteItem = <T extends { id: string }>(
@@ -132,7 +137,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     const channelToClone = channels[index];
     const newChannel: Channel = {
       ...JSON.parse(JSON.stringify(channelToClone)), // Deep clone to be safe
-      id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+      id: Date.now().toString(),
       name: `${channelToClone.name} (Kopia)`,
     };
 
@@ -147,6 +152,15 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       onDuplicateSeasons(targetPropertyId);
       setShowSeasonDupModal(false);
       setTargetPropertyId("");
+    }
+  };
+
+  const handleDuplicateChannelToPropertySubmit = () => {
+    if (isReadOnly) return;
+    if (channelToDuplicate && targetChannelPropertyId) {
+      onDuplicateChannel(channelToDuplicate, targetChannelPropertyId);
+      setChannelToDuplicate(null);
+      setTargetChannelPropertyId("");
     }
   };
 
@@ -537,7 +551,10 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                       </div>
                       {!isReadOnly && (
                         <div className="flex gap-2">
-                          <button onClick={() => duplicateChannel(channel.id)} className="text-slate-400 hover:text-indigo-500" title="Duplikuj kanał">
+                          <button onClick={() => { setChannelToDuplicate(channel); setTargetChannelPropertyId(""); }} className="text-slate-400 hover:text-green-500" title="Duplikuj do innego obiektu">
+                            <ArrowRightLeft size={16} />
+                          </button>
+                          <button onClick={() => duplicateChannel(channel.id)} className="text-slate-400 hover:text-indigo-500" title="Duplikuj kanał lokalnie">
                             <Copy size={16} />
                           </button>
                           <button onClick={() => deleteItem(channel.id, channels, setChannels)} className="text-slate-400 hover:text-red-500" title="Usuń kanał">
@@ -659,6 +676,45 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   className="px-3 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                    <Check size={16}/> Wykonaj
+                </button>
+             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Duplicate Channel Modal */}
+      {channelToDuplicate && !isReadOnly && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px] rounded-lg">
+          <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full overflow-hidden border border-slate-200">
+             <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h3 className="font-bold text-slate-800">Skopiuj Kanał do Obiektu</h3>
+                <button onClick={() => setChannelToDuplicate(null)} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+             </div>
+             <div className="p-6">
+                <p className="text-sm text-slate-600 mb-4">
+                   Wybierz obiekt, do którego chcesz skopiować kanał <strong>{channelToDuplicate.name}</strong>.
+                </p>
+                
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Obiekt Docelowy</label>
+                <select 
+                   className={inputClass} 
+                   value={targetChannelPropertyId}
+                   onChange={(e) => setTargetChannelPropertyId(e.target.value)}
+                >
+                   <option value="">-- Wybierz Obiekt --</option>
+                   {otherProperties.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                   ))}
+                </select>
+             </div>
+             <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2">
+                <button onClick={() => setChannelToDuplicate(null)} className="px-3 py-2 text-sm text-slate-600 hover:bg-slate-200 rounded">Anuluj</button>
+                <button 
+                  onClick={handleDuplicateChannelToPropertySubmit}
+                  disabled={!targetChannelPropertyId}
+                  className="px-3 py-2 text-sm bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                   <Check size={16}/> Kopiuj
                 </button>
              </div>
           </div>
