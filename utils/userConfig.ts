@@ -3,23 +3,26 @@ import { UserPermissions } from "../types";
 
 // Configuration mapping emails to roles
 export const USER_PERMISSIONS: Record<string, UserPermissions> = {
-  // Super Admin: Pełny dostęp, edycja, zapis
+  // Super Admins: Pełny dostęp, edycja, zapis
   "tyberiusz@twojepokoje.pl": { 
+    role: "super_admin" 
+  },
+  "kontakt@twojepokoje.com.pl": { 
+    role: "super_admin" 
+  },
+  "admin@twojepokoje.com.pl": { 
     role: "super_admin" 
   },
   
   // Admin: Widzi wszystko, ale Read-Only
-  "dorota@twojepokoje.pl": { 
+  "dorota@twojepokoje.com.pl": { 
     role: "admin" 
   },
   
   // Klient: Widzi tylko przypisane ID, Read-Only
   "jakub@twojepokoje.pl": { 
     role: "client",
-    // UWAGA: Wpisz tutaj ID obiektu, który ma widzieć Jakub.
-    // ID znajdziesz w bazie danych (pole id w tabeli properties) lub tworząc obiekt jako super-admin.
-    // Na razie wpisane "default" jako placeholder.
-    allowedPropertyIds: ["default", "1740923000000"] 
+    allowedPropertyIds: ["default"] 
   }
 };
 
