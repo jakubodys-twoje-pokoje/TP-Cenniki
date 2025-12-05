@@ -65,12 +65,18 @@ export const calculateChannelPrice = (
 
   const getDisc = (val: number, enabled: boolean | undefined) => (enabled ?? true) ? val : 0;
 
+  const mobilePct = getDisc(discounts.mobile, discounts.mobileEnabled) / 100;
+  const geniusPct = getDisc(discounts.genius, discounts.geniusEnabled) / 100;
+  const seasonalPct = getDisc(discounts.seasonal, discounts.seasonalEnabled) / 100;
+  const firstMinutePct = getDisc(discounts.firstMinute, discounts.firstMinuteEnabled) / 100;
+  const lastMinutePct = getDisc(discounts.lastMinute, discounts.lastMinuteEnabled) / 100;
+
   const discountFactor = 
-    (1 - getDisc(discounts.mobile, discounts.mobileEnabled) / 100) * 
-    (1 - getDisc(discounts.genius, discounts.geniusEnabled) / 100) * 
-    (1 - getDisc(discounts.seasonal, discounts.seasonalEnabled) / 100) *
-    (1 - getDisc(discounts.firstMinute, discounts.firstMinuteEnabled) / 100) *
-    (1 - getDisc(discounts.lastMinute, discounts.lastMinuteEnabled) / 100);
+    (1 - mobilePct) * 
+    (1 - geniusPct) * 
+    (1 - seasonalPct) *
+    (1 - firstMinutePct) *
+    (1 - lastMinutePct);
   
   const commissionFactor = 1 - (channel.commissionPct / 100);
   
@@ -83,9 +89,26 @@ export const calculateChannelPrice = (
   const listPrice = roundPrice(rawListPrice);
 
   // Forward check to get actual estimated net
-  const soldPrice = listPrice * discountFactor;
+  const priceAfterMobile = listPrice * (1 - mobilePct);
+  const priceAfterGenius = priceAfterMobile * (1 - geniusPct);
+  const priceAfterSeasonal = priceAfterGenius * (1 - seasonalPct);
+  const priceAfterFirst = priceAfterSeasonal * (1 - firstMinutePct);
+  const priceAfterLast = priceAfterFirst * (1 - lastMinutePct);
+  
+  const soldPrice = priceAfterLast;
   const commissionAmount = soldPrice * (channel.commissionPct / 100);
   const estimatedNet = soldPrice - commissionAmount;
+
+  // Calculate Breakdown Values (Approximated based on list price cascade for display)
+  // Note: OTAs usually stack discounts on the *reduced* price, or base price. 
+  // Here we calculate the "Value lost" at each step for display purposes.
+  // Ideally this matches the OTA logic. Assuming cascading:
+  
+  const mobileVal = listPrice * mobilePct;
+  const geniusVal = (listPrice - mobileVal) * geniusPct;
+  const seasonalVal = (listPrice - mobileVal - geniusVal) * seasonalPct;
+  const firstVal = (listPrice - mobileVal - geniusVal - seasonalVal) * firstMinutePct;
+  const lastVal = (listPrice - mobileVal - geniusVal - seasonalVal - firstVal) * lastMinutePct;
 
   return {
     listPrice,
@@ -93,6 +116,13 @@ export const calculateChannelPrice = (
     commission: roundPrice(commissionAmount),
     // Profitable if we meet the target net
     isProfitable: roundPrice(estimatedNet) >= roundPrice(targetNetPrice) - 1, // Allow 1 unit margin of error
+    discountBreakdown: {
+      mobile: roundPrice(mobileVal),
+      genius: roundPrice(geniusVal),
+      seasonal: roundPrice(seasonalVal),
+      firstMinute: roundPrice(firstVal),
+      lastMinute: roundPrice(lastVal)
+    }
   };
 };
 

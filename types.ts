@@ -74,4 +74,11 @@ export interface ChannelCalculation {
   estimatedNet: number;
   commission: number;
   isProfitable: boolean; // net >= directPrice
+  discountBreakdown: {
+    mobile: number;
+    genius: number;
+    seasonal: number;
+    firstMinute: number;
+    lastMinute: number;
+  }
 }
