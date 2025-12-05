@@ -5,12 +5,13 @@ export const INITIAL_SETTINGS: GlobalSettings = {
     "s1": { amount: 30, enabled: true },
     "s2": { amount: 30, enabled: true },
     "s3": { amount: 30, enabled: false }, 
-    "s4": { amount: 30, enabled: true }, 
+    "s4": { amount: 30, enabled: true },
     "s5": { amount: 30, enabled: true },
   }
 };
 
 // Helper to create default discount map for initial seasons
+// Now supports 5 specific discount types
 const defaultDiscounts = (
   mobile: number = 0, 
   genius: number = 0, 
@@ -25,13 +26,12 @@ const defaultDiscounts = (
     firstMinute, firstMinuteEnabled: true,
     lastMinute, lastMinuteEnabled: true,
   };
-  
   return {
-    "s1": defaults, // Majówka
-    "s2": defaults, // Czerwiec
-    "s3": defaults, // Open'er (High demand, maybe different?)
-    "s4": defaults, // Wysoki Sezon
-    "s5": defaults, // Festiwal Sopot
+    "s1": { ...defaults },
+    "s2": { ...defaults },
+    "s3": { ...defaults },
+    "s4": { ...defaults },
+    "s5": { ...defaults },
   };
 };
 
@@ -76,36 +76,36 @@ export const INITIAL_SEASONS: Season[] = [
   {
     id: "s1",
     name: "Majówka",
-    startDate: "2024-05-01",
-    endDate: "2024-05-05",
+    startDate: "2025-05-01",
+    endDate: "2025-05-05",
     multiplier: 1.1,
   },
   {
     id: "s2",
-    name: "Czerwiec",
-    startDate: "2024-06-01",
-    endDate: "2024-06-25",
+    name: "Przed szczytem",
+    startDate: "2025-05-06",
+    endDate: "2025-06-25",
     multiplier: 0.85,
   },
   {
     id: "s3",
-    name: "Open'er",
-    startDate: "2024-06-26",
-    endDate: "2024-07-02",
-    multiplier: 1.3, // High demand
+    name: "Open'er Festival",
+    startDate: "2025-06-26",
+    endDate: "2025-07-02",
+    multiplier: 1.5,
   },
   {
     id: "s4",
-    name: "Wysoki Sezon",
-    startDate: "2024-07-03",
-    endDate: "2024-08-17",
+    name: "Szczyt (Lipiec/Sierpień)",
+    startDate: "2025-07-03",
+    endDate: "2025-08-17",
     multiplier: 1.0,
   },
   {
     id: "s5",
-    name: "Festiwal",
-    startDate: "2024-08-18",
-    endDate: "2024-08-31",
-    multiplier: 1.2, // High demand
-  }
+    name: "Koniec Wakacji",
+    startDate: "2025-08-18",
+    endDate: "2025-08-31",
+    multiplier: 0.9,
+  },
 ];

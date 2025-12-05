@@ -262,16 +262,16 @@ const App: React.FC = () => {
   };
 
 
-  // 3. Auto-Refresh Occupancy (1 HOUR interval)
+  // 3. Auto-Refresh Occupancy (60 min interval)
   useEffect(() => {
     if (!session || isLoading || !activePropertyId) return;
 
     const checkAndFetchOccupancy = async () => {
       const now = Date.now();
-      const oneHour = 60 * 60 * 1000; // 60 minutes
+      const sixtyMinutes = 60 * 60 * 1000;
       const prop = properties.find(p => p.id === activePropertyId);
 
-      if (prop && prop.oid && (now - lastOccupancyFetch > oneHour) && !isOccupancyRefreshing) {
+      if (prop && prop.oid && (now - lastOccupancyFetch > sixtyMinutes) && !isOccupancyRefreshing) {
         setIsOccupancyRefreshing(true);
         try {
           await syncPropertyOccupancy(activePropertyId);
@@ -285,8 +285,7 @@ const App: React.FC = () => {
     };
 
     checkAndFetchOccupancy();
-    // Check every 5 minutes to see if an hour has passed
-    const intervalId = setInterval(checkAndFetchOccupancy, 300000); 
+    const intervalId = setInterval(checkAndFetchOccupancy, 60000); 
     return () => clearInterval(intervalId);
   }, [session, activePropertyId, properties, lastOccupancyFetch, isOccupancyRefreshing, isLoading]);
 
@@ -545,12 +544,13 @@ const App: React.FC = () => {
         />
       )}
 
-      {/* Sidebar */}
+      {/* Sidebar - Added flex-col and h-full for scrolling fix */}
       <aside className={`
         fixed inset-y-0 left-0 z-30 w-64 bg-slate-900 text-white transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0
+        flex flex-col h-full
         ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
-        <div className="p-6 border-b border-slate-700 flex flex-col gap-4">
+        <div className="p-6 border-b border-slate-700 flex flex-col gap-4 flex-shrink-0">
           <img 
             src="https://twojepokoje.com.pl/wp-content/uploads/2024/02/Twoje_pokoje_logo_full.webp" 
             alt="Twoje Pokoje Logo" 
@@ -563,10 +563,10 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        <nav className="p-4 space-y-2 flex-1 overflow-y-auto">
+        <nav className="p-4 space-y-2 flex-1 overflow-y-auto min-h-0">
           <button
             onClick={() => { setActiveTab("dashboard"); setSelectedRoomId(null); setIsSidebarOpen(false); }}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors flex-shrink-0 ${
               activeTab === "dashboard" && selectedRoomId === null
                 ? "bg-blue-600 text-white"
                 : "text-slate-400 hover:bg-slate-800 hover:text-white"
@@ -577,7 +577,7 @@ const App: React.FC = () => {
           </button>
 
           {/* Configuration Dropdown */}
-          <div>
+          <div className="flex-shrink-0">
             <button
               onClick={() => setIsConfigExpanded(!isConfigExpanded)}
               className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-colors ${
@@ -648,7 +648,7 @@ const App: React.FC = () => {
           </div>
 
           {/* Properties Section */}
-          <div className="mt-6">
+          <div className="mt-6 flex-shrink-0">
              <div className="flex items-center justify-between mb-2 px-4">
                 <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Twoje Obiekty</span>
                 <div className="flex gap-1">
@@ -722,7 +722,7 @@ const App: React.FC = () => {
           </div>
         </nav>
 
-        <div className="p-6 border-t border-slate-800 space-y-3">
+        <div className="p-6 border-t border-slate-800 space-y-3 flex-shrink-0">
            {/* Sync Status Indicator */}
           <div className="flex items-center justify-between">
              <div className={`flex items-center gap-2 text-xs transition-colors h-4 ${
