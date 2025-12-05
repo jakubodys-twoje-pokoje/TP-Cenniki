@@ -186,6 +186,16 @@ const Dashboard: React.FC<DashboardProps> = ({
   const occupancyOptions = [1, 2, 3, 4, 5, 6, 7];
   const selectedRoomName = useMemo(() => rooms.find(r => r.id === selectedRoomId)?.name, [rooms, selectedRoomId]);
 
+  // Color helper for occupancy
+  const getOccupancyColor = (rate: number | undefined) => {
+    if (rate === undefined) return 'text-slate-400';
+    // Smooth transition from Red (0%) to Green (100%)
+    // 0 -> hsl(0, 80%, 50%)
+    // 100 -> hsl(120, 80%, 40%)
+    const hue = (rate / 100) * 120; 
+    return `hsl(${hue}, 80%, 40%)`;
+  };
+
   return (
     <div className="h-full flex flex-col space-y-6">
       
@@ -321,7 +331,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                         const rowKey = `${row.roomId}-${row.seasonId}`;
                         const isExpanded = expandedRows.has(rowKey);
                         const isLoading = occupancyLoading.has(rowKey);
-                        
+                        const occColor = getOccupancyColor(row.occupancyRate);
+
                         return (
                            <React.Fragment key={row.seasonId}>
                              <tr className={`hover:bg-slate-100/50 ${isExpanded ? 'bg-slate-50 border-b border-slate-100' : ''}`}>
@@ -342,11 +353,10 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 {/* OCCUPANCY COLUMN */}
                                 <td className="px-3 py-3 align-middle text-center">
                                    <div className="flex items-center justify-center gap-2">
-                                     <span className={`text-xs font-bold ${
-                                       row.occupancyRate === undefined ? 'text-slate-400' : 
-                                       row.occupancyRate > 80 ? 'text-red-600' : 
-                                       row.occupancyRate > 50 ? 'text-orange-600' : 'text-green-600'
-                                     }`}>
+                                     <span 
+                                       className="text-xs font-bold transition-colors duration-300"
+                                       style={{ color: occColor }}
+                                     >
                                         {row.occupancyRate !== undefined ? `${row.occupancyRate}%` : '-'}
                                      </span>
                                      <button 

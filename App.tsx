@@ -12,6 +12,7 @@ import {
 } from "./constants";
 import { Property, RoomType, SettingsTab } from "./types";
 import { supabase } from "./utils/supabaseClient";
+import { fetchSeasonOccupancyMap } from "./utils/hotresApi";
 
 // Utility for deep cloning
 function deepClone<T>(obj: T): T {
@@ -41,6 +42,10 @@ const App: React.FC = () => {
   
   // Track expanded sidebar items
   const [expandedProperties, setExpandedProperties] = useState<Set<string>>(new Set(["default"]));
+
+  // Occupancy Auto-Refresh State
+  const [lastOccupancyFetch, setLastOccupancyFetch] = useState<number>(0);
+  const [isOccupancyRefreshing, setIsOccupancyRefreshing] = useState(false);
 
   // Ref to track the last known server state to prevent loops
   const lastServerState = useRef<Record<string, string>>({});
@@ -210,6 +215,74 @@ const App: React.FC = () => {
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     };
   }, [properties, activePropertyId, session, isLoading]);
+
+  // 3. Auto-Refresh Occupancy (30 min interval)
+  useEffect(() => {
+    if (!session || isLoading || !activePropertyId) return;
+
+    const checkAndFetchOccupancy = async () => {
+      const now = Date.now();
+      const thirtyMinutes = 30 * 60 * 1000;
+      const prop = properties.find(p => p.id === activePropertyId);
+
+      // Conditions:
+      // 1. Property exists and has OID
+      // 2. Time elapsed > 30 mins OR never fetched
+      // 3. Not currently refreshing
+      if (prop && prop.oid && (now - lastOccupancyFetch > thirtyMinutes) && !isOccupancyRefreshing) {
+        console.log("Triggering auto-refresh for occupancy...");
+        setIsOccupancyRefreshing(true);
+        
+        try {
+          // Clone rooms to avoid direct mutation during loop
+          let updatedRooms = deepClone(prop.rooms);
+          let hasUpdates = false;
+
+          // Iterate seasons to fetch bulk data
+          for (const season of prop.seasons) {
+            // Fetch map for this season (returns { tid: percentage })
+            const occupancyMap = await fetchSeasonOccupancyMap(prop.oid, season.startDate, season.endDate);
+            
+            // Update rooms that match TIDs found in map
+            updatedRooms = updatedRooms.map(room => {
+              if (room.tid && occupancyMap[room.tid] !== undefined) {
+                 const newRate = occupancyMap[room.tid];
+                 const currentRates = room.seasonOccupancy || {};
+                 // Only mark update if value changed
+                 if (currentRates[season.id] !== newRate) {
+                   hasUpdates = true;
+                   return {
+                     ...room,
+                     seasonOccupancy: {
+                       ...currentRates,
+                       [season.id]: newRate
+                     }
+                   };
+                 }
+              }
+              return room;
+            });
+          }
+
+          if (hasUpdates) {
+             updateActiveProperty({ rooms: updatedRooms });
+          }
+          setLastOccupancyFetch(now);
+
+        } catch (e) {
+          console.error("Auto-refresh occupancy failed", e);
+        } finally {
+          setIsOccupancyRefreshing(false);
+        }
+      }
+    };
+
+    checkAndFetchOccupancy();
+    // Set up an interval to check periodically (e.g., every 1 minute check if 30 mins elapsed)
+    const intervalId = setInterval(checkAndFetchOccupancy, 60000); 
+
+    return () => clearInterval(intervalId);
+  }, [session, activePropertyId, properties, lastOccupancyFetch, isOccupancyRefreshing, isLoading]);
 
 
   const activeProperty = properties.find(p => p.id === activePropertyId) || properties[0];
@@ -512,9 +585,12 @@ const App: React.FC = () => {
           <div className="mt-6">
              <div className="flex items-center justify-between mb-2 px-4">
                 <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Twoje Obiekty</span>
-                <button onClick={handleAddProperty} className="text-blue-400 hover:text-blue-300 transition-colors p-1" title="Dodaj obiekt">
-                   <Plus size={16} />
-                </button>
+                <div className="flex gap-1">
+                   {isOccupancyRefreshing && <Loader2 size={12} className="text-slate-500 animate-spin" title="Odświeżanie obłożenia..." />}
+                   <button onClick={handleAddProperty} className="text-blue-400 hover:text-blue-300 transition-colors p-1" title="Dodaj obiekt">
+                     <Plus size={16} />
+                   </button>
+                </div>
              </div>
              <div className="space-y-1 px-2">
                 {properties.map(p => {
