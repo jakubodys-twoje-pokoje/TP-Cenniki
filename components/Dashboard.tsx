@@ -396,9 +396,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                         <td className="px-3 py-2 font-bold text-slate-700 flex items-center gap-2" colSpan={2}>
                            {isCollapsed ? <ChevronRight size={16}/> : <ChevronDown size={16}/>}
                            {room.name}
-                           {room.minNights && room.minNights > 1 && (
-                             <span className="text-[10px] bg-white border border-slate-300 px-1.5 rounded font-normal text-slate-500">Min. {room.minNights} noce</span>
-                           )}
                         </td>
                         <td colSpan={15} className="px-3 py-2 text-right text-xs text-slate-400 font-medium uppercase tracking-wider">
                            {isCollapsed ? `${rows.length} Sezonów (Rozwiń)` : ''}
@@ -421,6 +418,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 </td>
                                 <td className="px-3 py-3 align-middle text-slate-600">
                                    <span className="text-xs font-semibold">{row.seasonName}</span>
+                                   <br/>
+                                   <span className="text-[10px] text-slate-400">Min. {row.minNights} noce</span>
                                 </td>
                                 
                                 {activeView !== "SUMMARY" && (

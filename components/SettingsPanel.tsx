@@ -170,7 +170,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       maxOccupancy: 2,
       tid: "",
       basePricePeak: 200,
-      minNights: 2,
       minObpOccupancy: 1,
       obpPerPerson: 30
     };
@@ -179,13 +178,14 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
   const addSeason = () => {
     if (isReadOnly) return;
-    const newId = Date.now().toString();
-    const newSeason: Season = {
+    const newId = Date.now().toString(),
+    newSeason: Season = {
       id: newId,
       name: "Nowy Sezon",
       startDate: new Date().toISOString().split('T')[0],
       endDate: new Date().toISOString().split('T')[0],
       multiplier: 1.0,
+      minNights: 2,
     };
     
     setSeasons([...seasons, newSeason]);
@@ -336,7 +336,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                       <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase whitespace-nowrap">Cena Bazowa</th>
                       <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase whitespace-nowrap">Max. Os.</th>
                       <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase whitespace-nowrap" title="Min. osób do naliczania OBP">Min. OBP</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase whitespace-nowrap">Min. Nocy</th>
                       <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase whitespace-nowrap" title="Kwota odliczana za osobę">Wartość OBP</th>
                       
                       {/* Dynamic Season Headers for OBP Toggles */}
@@ -386,10 +385,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                             onChange={(e) => updateItem<RoomType>(room.id, "minObpOccupancy", Math.min(Number(e.target.value), room.maxOccupancy), rooms, setRooms)} 
                             className={`w-16 ${inputClass}`} 
                           />
-                        </td>
-
-                        <td className="px-3 py-2">
-                           <input disabled={isReadOnly} type="number" value={room.minNights ?? 0} onChange={(e) => updateItem<RoomType>(room.id, "minNights", Number(e.target.value), rooms, setRooms)} className={`w-16 ${inputClass}`} />
                         </td>
 
                         <td className="px-3 py-2">
@@ -467,22 +462,25 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     <button onClick={() => deleteItem(season.id, seasons, setSeasons)} className="absolute top-2 right-2 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><X size={16}/></button>
                   </>
                 )}
-                <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${!isReadOnly ? 'pl-6' : ''}`}>
-                  <div>
+                <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 ${!isReadOnly ? 'pl-6' : ''}`}>
+                  <div className="md:col-span-2">
                     <label className="block text-xs font-medium text-slate-500">Nazwa Sezonu</label>
                     <input disabled={isReadOnly} type="text" value={season.name} onChange={(e) => updateItem<Season>(season.id, "name", e.target.value, seasons, setSeasons)} className={inputClass} />
                   </div>
                   <div>
-                     <label className="block text-xs font-medium text-slate-500">Mnożnik Ceny (np. 1.0, 0.8)</label>
+                     <label className="block text-xs font-medium text-slate-500">Mnożnik (np. 1.0)</label>
                     <input disabled={isReadOnly} type="number" step="0.05" value={season.multiplier} onChange={(e) => updateItem<Season>(season.id, "multiplier", Number(e.target.value), seasons, setSeasons)} className={inputClass} />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-slate-500">Data Początkowa</label>
-                    <input disabled={isReadOnly} type="date" value={season.startDate} onChange={(e) => updateItem<Season>(season.id, "startDate", e.target.value, seasons, setSeasons)} className={inputClass} />
+                     <label className="block text-xs font-medium text-slate-500">Min. Nocy</label>
+                    <input disabled={isReadOnly} type="number" min="1" value={season.minNights ?? 2} onChange={(e) => updateItem<Season>(season.id, "minNights", Number(e.target.value), seasons, setSeasons)} className={inputClass} />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-slate-500">Data Końcowa</label>
-                    <input disabled={isReadOnly} type="date" value={season.endDate} onChange={(e) => updateItem<Season>(season.id, "endDate", e.target.value, seasons, setSeasons)} className={inputClass} />
+                    <label className="block text-xs font-medium text-slate-500">Zakres Dat</label>
+                    <div className="flex gap-2">
+                      <input disabled={isReadOnly} type="date" value={season.startDate} onChange={(e) => updateItem<Season>(season.id, "startDate", e.target.value, seasons, setSeasons)} className={`${inputClass} text-xs px-1`} />
+                      <input disabled={isReadOnly} type="date" value={season.endDate} onChange={(e) => updateItem<Season>(season.id, "endDate", e.target.value, seasons, setSeasons)} className={`${inputClass} text-xs px-1`} />
+                    </div>
                   </div>
                 </div>
               </div>

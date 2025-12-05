@@ -127,7 +127,6 @@ export const fetchHotresRooms = async (oid: string): Promise<RoomType[]> => {
         maxOccupancy: maxOccupancy > 0 ? maxOccupancy : 2, // Default to 2 if calc fails
         tid: item.type_id.toString(),
         basePricePeak: 300, // Default base price
-        minNights: 2, // Default
         minObpOccupancy: 1, // Default to 1 person min
         obpPerPerson: 30, // Default OBP amount
       };

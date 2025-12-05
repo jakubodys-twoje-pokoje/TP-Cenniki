@@ -62,9 +62,9 @@ export const INITIAL_CHANNELS: Channel[] = [
 ];
 
 export const INITIAL_ROOMS: RoomType[] = [
-  { id: "1", name: "Pokój", maxOccupancy: 2, tid: "", basePricePeak: 200, minNights: 2, minObpOccupancy: 1, obpPerPerson: 30 },
-  { id: "2", name: "Studio", maxOccupancy: 3, tid: "", basePricePeak: 300, minNights: 3, minObpOccupancy: 2, obpPerPerson: 30 },
-  { id: "3", name: "Domek", maxOccupancy: 6, tid: "", basePricePeak: 600, minNights: 5, minObpOccupancy: 3, obpPerPerson: 30 },
+  { id: "1", name: "Pokój", maxOccupancy: 2, tid: "", basePricePeak: 200, minObpOccupancy: 1, obpPerPerson: 30 },
+  { id: "2", name: "Studio", maxOccupancy: 3, tid: "", basePricePeak: 300, minObpOccupancy: 2, obpPerPerson: 30 },
+  { id: "3", name: "Domek", maxOccupancy: 6, tid: "", basePricePeak: 600, minObpOccupancy: 3, obpPerPerson: 30 },
 ];
 
 export const INITIAL_SEASONS: Season[] = [
@@ -74,6 +74,7 @@ export const INITIAL_SEASONS: Season[] = [
     startDate: "2025-05-01",
     endDate: "2025-05-05",
     multiplier: 1.1,
+    minNights: 4,
   },
   {
     id: "s2",
@@ -81,6 +82,7 @@ export const INITIAL_SEASONS: Season[] = [
     startDate: "2025-05-06",
     endDate: "2025-06-25",
     multiplier: 0.85,
+    minNights: 2,
   },
   {
     id: "s3",
@@ -88,6 +90,7 @@ export const INITIAL_SEASONS: Season[] = [
     startDate: "2025-06-26",
     endDate: "2025-07-02",
     multiplier: 1.5,
+    minNights: 4,
   },
   {
     id: "s4",
@@ -95,6 +98,7 @@ export const INITIAL_SEASONS: Season[] = [
     startDate: "2025-07-03",
     endDate: "2025-08-17",
     multiplier: 1.0,
+    minNights: 5,
   },
   {
     id: "s5",
@@ -102,5 +106,6 @@ export const INITIAL_SEASONS: Season[] = [
     startDate: "2025-08-18",
     endDate: "2025-08-31",
     multiplier: 0.9,
+    minNights: 3,
   },
 ];

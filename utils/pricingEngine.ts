@@ -188,7 +188,7 @@ export const generatePricingGrid = (
         occupancy: targetOccupancy,
         maxOccupancy: room.maxOccupancy,
         directPrice,
-        minNights: room.minNights || 1, // Default to 1 if not set
+        minNights: season.minNights || 2, // Use Season Min Nights (default 2)
         comment: activeComment,
         occupancyRate: activeOccupancy,
         channelCalculations,
