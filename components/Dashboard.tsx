@@ -1,8 +1,8 @@
 
 import React, { useMemo, useState } from "react";
 import { Channel, GlobalSettings, RoomType, Season } from "../types";
-import { generatePricingGrid } from "../utils/pricingEngine";
-import { TrendingUp, Users, StickyNote, ChevronDown, GripVertical, Columns } from "lucide-react";
+import { generatePricingGrid, calculateDirectPrice, calculateChannelPrice } from "../utils/pricingEngine";
+import { TrendingUp, Users, StickyNote, ChevronDown, ChevronRight, GripVertical, Columns } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface DashboardProps {
@@ -38,11 +38,14 @@ const Dashboard: React.FC<DashboardProps> = ({
   onReorderRooms,
 }) => {
   const [occupancyFilter, setOccupancyFilter] = useState<"MAX" | number>("MAX");
-  const [occupancyOverrides, setOccupancyOverrides] = useState<Record<string, number>>({});
-  const [activeView, setActiveView] = useState<"ALL" | string>("ALL"); // 'ALL' for Direct or Channel ID
+  // occupancyOverrides removed in favor of expansion view
+  const [activeView, setActiveView] = useState<"ALL" | string>("ALL");
   
-  // Drag and drop state for sorting ROOMS
+  // Drag and drop state
   const [draggedRoomId, setDraggedRoomId] = useState<string | null>(null);
+
+  // Expanded Rows State (Set of "roomId-seasonId")
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
   // Column Visibility State
   const [columnVisibility, setColumnVisibility] = useState<ColumnVisibility>({
@@ -55,19 +58,18 @@ const Dashboard: React.FC<DashboardProps> = ({
   });
   const [isColumnMenuOpen, setIsColumnMenuOpen] = useState(false);
 
-  // Generate the flat grid first
+  // Generate the flat grid based on GLOBAL filter
   const pricingGrid = useMemo(() => {
-    // Filter rooms based on selection
     const activeRooms = selectedRoomId 
       ? rooms.filter(r => r.id === selectedRoomId)
       : rooms;
 
-    return generatePricingGrid(activeRooms, seasons, channels, settings, occupancyFilter, occupancyOverrides);
-  }, [rooms, seasons, channels, settings, occupancyFilter, selectedRoomId, occupancyOverrides]);
+    // We pass empty overrides because we removed per-row overrides in favor of expansion
+    return generatePricingGrid(activeRooms, seasons, channels, settings, occupancyFilter, {});
+  }, [rooms, seasons, channels, settings, occupancyFilter, selectedRoomId]);
 
-  // Group grid by Room for rendering (to allow Drag & Drop of entire room blocks)
+  // Group grid by Room
   const roomGroups = useMemo(() => {
-     // We map over 'rooms' to preserve the sort order
      const activeRooms = selectedRoomId 
       ? rooms.filter(r => r.id === selectedRoomId)
       : rooms;
@@ -78,7 +80,7 @@ const Dashboard: React.FC<DashboardProps> = ({
      }));
   }, [rooms, pricingGrid, selectedRoomId]);
 
-  // Transform data for charts
+  // Charts data
   const chartData = useMemo(() => {
     return seasons.map(s => {
       const seasonRows = pricingGrid.filter(r => r.seasonName === s.name);
@@ -94,49 +96,40 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   const handleGlobalFilterChange = (val: "MAX" | number) => {
     setOccupancyFilter(val);
-    setOccupancyOverrides({}); // Reset specific overrides when global filter is used
-  };
-
-  const handleOverrideChange = (roomId: string, seasonId: string, val: number) => {
-    const key = `${roomId}-${seasonId}`;
-    setOccupancyOverrides(prev => ({
-      ...prev,
-      [key]: val
-    }));
   };
 
   const handleBasePriceChange = (roomId: string, seasonId: string, newValue: number) => {
     const room = rooms.find(r => r.id === roomId);
     if (!room) return;
-
     const currentMap = room.seasonBasePrices || {};
-    const updatedMap = { ...currentMap, [seasonId]: newValue };
-    
-    onRoomUpdate(roomId, { seasonBasePrices: updatedMap });
+    onRoomUpdate(roomId, { seasonBasePrices: { ...currentMap, [seasonId]: newValue } });
   };
   
+  const toggleRowExpansion = (roomId: string, seasonId: string) => {
+    const key = `${roomId}-${seasonId}`;
+    setExpandedRows(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  // Drag & Drop Handlers
   const handleDragStart = (e: React.DragEvent, roomId: string) => {
     setDraggedRoomId(roomId);
     e.dataTransfer.effectAllowed = 'move';
   };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault(); // Necessary to allow dropping
-  };
-
+  const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); };
   const handleDrop = (e: React.DragEvent, targetRoomId: string) => {
     e.preventDefault();
     if (!draggedRoomId || draggedRoomId === targetRoomId) return;
-
     const sourceIndex = rooms.findIndex(r => r.id === draggedRoomId);
     const targetIndex = rooms.findIndex(r => r.id === targetRoomId);
-    
     if (sourceIndex === -1 || targetIndex === -1) return;
-
     const newRooms = [...rooms];
     const [removed] = newRooms.splice(sourceIndex, 1);
     newRooms.splice(targetIndex, 0, removed);
-    
     onReorderRooms(newRooms);
     setDraggedRoomId(null);
   };
@@ -146,11 +139,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   };
 
   const occupancyOptions = [1, 2, 3, 4, 5, 6, 7];
-  
-  const selectedRoomName = useMemo(() => {
-    if (!selectedRoomId) return null;
-    return rooms.find(r => r.id === selectedRoomId)?.name;
-  }, [rooms, selectedRoomId]);
+  const selectedRoomName = useMemo(() => rooms.find(r => r.id === selectedRoomId)?.name, [rooms, selectedRoomId]);
 
   return (
     <div className="h-full flex flex-col space-y-6">
@@ -166,22 +155,18 @@ const Dashboard: React.FC<DashboardProps> = ({
                </span>
             )}
           </h2>
-          <p className="text-sm text-slate-500">Analiza cen bezpośrednich i narzutów kanałów OTA</p>
+          <p className="text-sm text-slate-500">Widok główny: {occupancyFilter === "MAX" ? "Maksymalne obłożenie" : `${occupancyFilter} os.`}</p>
         </div>
         
         <div className="flex items-center gap-3">
-          {/* Column Visibility Toggle - Only visible when a channel is selected */}
           {activeView !== "ALL" && (
             <div className="relative">
               <button 
                   onClick={() => setIsColumnMenuOpen(!isColumnMenuOpen)}
                   className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50 text-sm font-medium transition-colors"
               >
-                  <Columns size={16} />
-                  Widok
-                  <ChevronDown size={14} />
+                  <Columns size={16} /> Widok <ChevronDown size={14} />
               </button>
-              
               {isColumnMenuOpen && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setIsColumnMenuOpen(false)}></div>
@@ -219,7 +204,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                   <button 
                     key={num}
                     onClick={() => handleGlobalFilterChange(num)}
-                    className={`px-3 py-1.5 text-sm rounded-md transition-all whitespace-nowrap ${occupancyFilter === num && Object.keys(occupancyOverrides).length === 0 ? 'bg-white shadow text-blue-600 font-medium' : 'text-slate-500 hover:text-slate-700'}`}
+                    className={`px-3 py-1.5 text-sm rounded-md transition-all whitespace-nowrap ${occupancyFilter === num ? 'bg-white shadow text-blue-600 font-medium' : 'text-slate-500 hover:text-slate-700'}`}
                   >
                     {num} Os.
                   </button>
@@ -227,7 +212,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                 <div className="w-px h-6 bg-slate-300 mx-1"></div>
                 <button 
                   onClick={() => handleGlobalFilterChange("MAX")}
-                  className={`px-3 py-1.5 text-sm rounded-md transition-all whitespace-nowrap ${occupancyFilter === "MAX" && Object.keys(occupancyOverrides).length === 0 ? 'bg-white shadow text-blue-600 font-medium' : 'text-slate-500 hover:text-slate-700'}`}
+                  className={`px-3 py-1.5 text-sm rounded-md transition-all whitespace-nowrap ${occupancyFilter === "MAX" ? 'bg-white shadow text-blue-600 font-medium' : 'text-slate-500 hover:text-slate-700'}`}
                 >
                   Maks.
                 </button>
@@ -236,32 +221,17 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* Main Content Area */}
       <div className="grid grid-cols-1 gap-6 flex-1 min-h-0">
-        
-        {/* The Grid */}
         <div className="bg-white rounded-lg shadow-sm border border-slate-200 flex flex-col overflow-hidden">
-          {/* Grid Tabs */}
           <div className="flex border-b border-slate-200 overflow-x-auto">
-             <button
-                onClick={() => setActiveView("ALL")}
-                className={`px-4 py-3 text-sm font-medium whitespace-nowrap ${activeView === "ALL" ? 'border-b-2 border-blue-600 text-blue-600' : 'text-slate-600 hover:bg-slate-50'}`}
-              >
-                Ceny Bezpośrednie (Baza)
-              </button>
-              {channels.map(c => (
-                 <button
-                 key={c.id}
-                 onClick={() => setActiveView(c.id)}
-                 className={`px-4 py-3 text-sm font-medium whitespace-nowrap flex items-center gap-2 ${activeView === c.id ? 'border-b-2 border-blue-600 text-blue-600' : 'text-slate-600 hover:bg-slate-50'}`}
-               >
-                 <span className="w-2 h-2 rounded-full" style={{backgroundColor: c.color}}></span>
-                 {c.name}
-               </button>
-              ))}
+             <button onClick={() => setActiveView("ALL")} className={`px-4 py-3 text-sm font-medium whitespace-nowrap ${activeView === "ALL" ? 'border-b-2 border-blue-600 text-blue-600' : 'text-slate-600 hover:bg-slate-50'}`}>Ceny Bezpośrednie (Baza)</button>
+             {channels.map(c => (
+                <button key={c.id} onClick={() => setActiveView(c.id)} className={`px-4 py-3 text-sm font-medium whitespace-nowrap flex items-center gap-2 ${activeView === c.id ? 'border-b-2 border-blue-600 text-blue-600' : 'text-slate-600 hover:bg-slate-50'}`}>
+                  <span className="w-2 h-2 rounded-full" style={{backgroundColor: c.color}}></span>{c.name}
+                </button>
+             ))}
           </div>
 
-          {/* List Table */}
           <div className="overflow-auto flex-1">
             <table className="min-w-full divide-y divide-slate-200 text-sm">
               <thead className="bg-slate-50 sticky top-0 z-10 shadow-sm">
@@ -280,22 +250,15 @@ const Dashboard: React.FC<DashboardProps> = ({
                         {columnVisibility.seasonal && <th className="px-3 py-3 text-right font-bold text-slate-500 uppercase tracking-wider text-green-600">Sezon</th>}
                         {columnVisibility.firstMinute && <th className="px-3 py-3 text-right font-bold text-slate-500 uppercase tracking-wider text-amber-600">1st Min</th>}
                         {columnVisibility.lastMinute && <th className="px-3 py-3 text-right font-bold text-slate-500 uppercase tracking-wider text-red-600">Last Min</th>}
-                        
                         <th className="px-3 py-3 text-right font-bold text-slate-500 uppercase tracking-wider bg-orange-50/50 text-orange-700">W OTA</th>
-                        
                         {columnVisibility.commission && <th className="px-3 py-3 text-right font-bold text-slate-500 uppercase tracking-wider">Prowizja</th>}
-                        
                         <th className="px-3 py-3 text-right font-bold text-slate-500 uppercase tracking-wider bg-green-50/50 text-green-800">Netto</th>
                      </>
                   )}
-                  {activeView === "ALL" && (
-                     // Spacer for simple view
-                     <th className="px-3 py-3 text-left font-normal text-slate-400"></th>
-                  )}
+                  {activeView === "ALL" && <th className="px-3 py-3"></th>}
                 </tr>
               </thead>
               
-              {/* Render Room Groups */}
               {roomGroups.length > 0 ? (
                 roomGroups.map(({ room, rows }) => (
                   <tbody 
@@ -308,170 +271,161 @@ const Dashboard: React.FC<DashboardProps> = ({
                   >
                      {rows.map((row, index) => {
                         const channelData = activeView !== "ALL" ? row.channelCalculations[activeView] : null;
+                        const rowKey = `${row.roomId}-${row.seasonId}`;
+                        const isExpanded = expandedRows.has(rowKey);
                         
                         return (
-                           <tr key={row.seasonId} className="hover:bg-slate-100/50">
-                              {/* Drag Handle - Only on first row of group */}
-                              <td className="px-2 py-3 text-center align-middle">
-                                 {index === 0 && (
-                                    <div className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 flex justify-center">
-                                       <GripVertical size={16} />
-                                    </div>
-                                 )}
-                              </td>
+                           <React.Fragment key={row.seasonId}>
+                             <tr className={`hover:bg-slate-100/50 ${isExpanded ? 'bg-slate-50 border-b border-slate-100' : ''}`}>
+                                <td className="px-2 py-3 text-center align-middle">
+                                   {index === 0 && (
+                                      <div className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 flex justify-center">
+                                         <GripVertical size={16} />
+                                      </div>
+                                   )}
+                                </td>
+                                <td className="px-3 py-3 align-middle">
+                                   {index === 0 && <div className="font-medium text-slate-900">{room.name}</div>}
+                                </td>
+                                <td className="px-3 py-3 align-middle text-slate-600">
+                                   <span className="text-xs font-semibold">{row.seasonName}</span>
+                                </td>
+                                <td className="px-3 py-3 align-middle text-center">
+                                   <input 
+                                      type="number" 
+                                      value={row.basePrice} 
+                                      onChange={(e) => handleBasePriceChange(room.id, row.seasonId, Number(e.target.value))}
+                                      className="w-20 px-2 py-1 text-sm text-center border border-slate-200 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-slate-700 bg-white shadow-sm"
+                                   />
+                                </td>
+                                <td className="px-3 py-3 align-middle text-center">
+                                   <div className="flex items-center justify-center gap-1">
+                                      <span className="text-sm font-medium text-slate-700">{row.occupancy} os.</span>
+                                      <button 
+                                        onClick={() => toggleRowExpansion(room.id, row.seasonId)}
+                                        className={`p-0.5 rounded hover:bg-slate-200 transition-colors ${isExpanded ? 'text-blue-600 bg-blue-50' : 'text-slate-400'}`}
+                                      >
+                                        {isExpanded ? <ChevronDown size={16}/> : <ChevronRight size={16}/>}
+                                      </button>
+                                   </div>
+                                </td>
+                                <td className="px-3 py-3 align-middle text-right font-bold text-blue-700 bg-blue-50/30 border-l border-blue-100">
+                                   {row.directPrice} zł
+                                </td>
 
-                              {/* Room Name - Only on first row of group */}
-                              <td className="px-3 py-3 align-middle">
-                                 {index === 0 && (
-                                    <div className="font-medium text-slate-900">{room.name}</div>
-                                 )}
-                              </td>
+                                {activeView !== "ALL" && channelData && (
+                                   <>
+                                      {columnVisibility.mobile && <td className="px-3 py-3 align-middle text-right text-blue-600 text-xs">{channelData.discountBreakdown.mobile > 0 ? `-${channelData.discountBreakdown.mobile}` : '-'}</td>}
+                                      {columnVisibility.genius && <td className="px-3 py-3 align-middle text-right text-purple-600 text-xs">{channelData.discountBreakdown.genius > 0 ? `-${channelData.discountBreakdown.genius}` : '-'}</td>}
+                                      {columnVisibility.seasonal && <td className="px-3 py-3 align-middle text-right text-green-600 text-xs">{channelData.discountBreakdown.seasonal > 0 ? `-${channelData.discountBreakdown.seasonal}` : '-'}</td>}
+                                      {columnVisibility.firstMinute && <td className="px-3 py-3 align-middle text-right text-amber-600 text-xs">{channelData.discountBreakdown.firstMinute > 0 ? `-${channelData.discountBreakdown.firstMinute}` : '-'}</td>}
+                                      {columnVisibility.lastMinute && <td className="px-3 py-3 align-middle text-right text-red-600 text-xs">{channelData.discountBreakdown.lastMinute > 0 ? `-${channelData.discountBreakdown.lastMinute}` : '-'}</td>}
+                                      <td className="px-3 py-3 align-middle text-right font-bold text-orange-700 bg-orange-50/30 border-l border-orange-100">{channelData.listPrice} zł</td>
+                                      {columnVisibility.commission && <td className="px-3 py-3 align-middle text-right text-slate-500 text-xs">-{channelData.commission}</td>}
+                                      <td className="px-3 py-3 align-middle text-right border-l border-green-100 bg-green-50/30">
+                                         <div className="flex flex-col items-end">
+                                            <span className={`font-bold ${channelData.estimatedNet < row.directPrice ? 'text-red-600' : 'text-green-700'}`}>{channelData.estimatedNet} zł</span>
+                                            {!channelData.isProfitable && <span className="text-[9px] bg-red-100 text-red-600 px-1 rounded">STRATA</span>}
+                                         </div>
+                                      </td>
+                                   </>
+                                )}
+                                {activeView === "ALL" && <td className="px-3 py-3"></td>}
+                             </tr>
+                             
+                             {/* EXPANDED DETAILS */}
+                             {isExpanded && (
+                               <tr>
+                                 <td colSpan={activeView === "ALL" ? 7 : 15} className="bg-slate-50 p-3 shadow-inner">
+                                   <div className="ml-12 border border-slate-200 rounded-md bg-white overflow-hidden max-w-4xl">
+                                     <div className="px-3 py-2 bg-slate-100 text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                                       Szczegóły obłożenia ({room.name} - {row.seasonName})
+                                     </div>
+                                     <table className="min-w-full text-xs">
+                                       <thead>
+                                         <tr className="bg-slate-50 text-slate-500">
+                                           <th className="px-3 py-2 text-left">Obłożenie</th>
+                                           <th className="px-3 py-2 text-right">Cena Direct</th>
+                                           {activeView !== "ALL" && (
+                                              <>
+                                                <th className="px-3 py-2 text-right text-orange-600">Cena {channels.find(c=>c.id === activeView)?.name}</th>
+                                                <th className="px-3 py-2 text-right text-green-700">Netto</th>
+                                                <th className="px-3 py-2 text-right">Wynik</th>
+                                              </>
+                                           )}
+                                         </tr>
+                                       </thead>
+                                       <tbody className="divide-y divide-slate-100">
+                                         {Array.from({length: room.maxOccupancy}, (_, i) => i + 1).map(occ => {
+                                           // Calc on the fly for expanded rows
+                                           const seasonObj = seasons.find(s => s.id === row.seasonId)!;
+                                           const dPrice = calculateDirectPrice(room, seasonObj, occ, settings);
+                                           
+                                           let cCalc = null;
+                                           if (activeView !== "ALL") {
+                                              const chan = channels.find(c => c.id === activeView)!;
+                                              cCalc = calculateChannelPrice(dPrice, chan, row.seasonId);
+                                           }
 
-                              <td className="px-3 py-3 align-middle text-slate-600">
-                                 <span className="text-xs font-semibold">{row.seasonName}</span>
-                              </td>
-
-                              <td className="px-3 py-3 align-middle text-center">
-                                 <input 
-                                    type="number" 
-                                    value={row.basePrice} 
-                                    onChange={(e) => handleBasePriceChange(room.id, row.seasonId, Number(e.target.value))}
-                                    className="w-20 px-2 py-1 text-sm text-center border border-slate-200 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-slate-700 bg-white shadow-sm"
-                                 />
-                              </td>
-
-                              <td className="px-3 py-3 align-middle text-center">
-                                 <div className="relative inline-block w-16 group/select">
-                                    <div className="flex items-center justify-between px-2 py-1 bg-white border border-slate-200 rounded text-sm text-slate-700 shadow-sm hover:border-blue-400 transition-colors cursor-pointer">
-                                       <span>{row.occupancy}</span>
-                                       <ChevronDown size={12} className="text-slate-300" />
-                                    </div>
-                                    <select
-                                       className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                       value={row.occupancy}
-                                       onChange={(e) => handleOverrideChange(room.id, row.seasonId, Number(e.target.value))}
-                                    >
-                                       {Array.from({ length: room.maxOccupancy }, (_, i) => i + 1).map((num) => (
-                                          <option key={num} value={num}>{num} os.</option>
-                                       ))}
-                                    </select>
-                                 </div>
-                              </td>
-
-                              <td className="px-3 py-3 align-middle text-right font-bold text-blue-700 bg-blue-50/30 border-l border-blue-100">
-                                 {row.directPrice} zł
-                              </td>
-
-                              {/* Channel Columns */}
-                              {activeView !== "ALL" && channelData && (
-                                 <>
-                                    {columnVisibility.mobile && (
-                                       <td className="px-3 py-3 align-middle text-right text-blue-600 text-xs">
-                                          {channelData.discountBreakdown.mobile > 0 ? `-${channelData.discountBreakdown.mobile}` : '-'}
-                                       </td>
-                                    )}
-                                    {columnVisibility.genius && (
-                                       <td className="px-3 py-3 align-middle text-right text-purple-600 text-xs">
-                                          {channelData.discountBreakdown.genius > 0 ? `-${channelData.discountBreakdown.genius}` : '-'}
-                                       </td>
-                                    )}
-                                    {columnVisibility.seasonal && (
-                                       <td className="px-3 py-3 align-middle text-right text-green-600 text-xs">
-                                          {channelData.discountBreakdown.seasonal > 0 ? `-${channelData.discountBreakdown.seasonal}` : '-'}
-                                       </td>
-                                    )}
-                                    {columnVisibility.firstMinute && (
-                                       <td className="px-3 py-3 align-middle text-right text-amber-600 text-xs">
-                                          {channelData.discountBreakdown.firstMinute > 0 ? `-${channelData.discountBreakdown.firstMinute}` : '-'}
-                                       </td>
-                                    )}
-                                    {columnVisibility.lastMinute && (
-                                       <td className="px-3 py-3 align-middle text-right text-red-600 text-xs">
-                                          {channelData.discountBreakdown.lastMinute > 0 ? `-${channelData.discountBreakdown.lastMinute}` : '-'}
-                                       </td>
-                                    )}
-
-                                    <td className="px-3 py-3 align-middle text-right font-bold text-orange-700 bg-orange-50/30 border-l border-orange-100">
-                                       {channelData.listPrice} zł
-                                    </td>
-
-                                    {columnVisibility.commission && (
-                                       <td className="px-3 py-3 align-middle text-right text-slate-500 text-xs">
-                                          -{channelData.commission}
-                                       </td>
-                                    )}
-
-                                    <td className="px-3 py-3 align-middle text-right border-l border-green-100 bg-green-50/30">
-                                       <div className="flex flex-col items-end">
-                                          <span className={`font-bold ${channelData.estimatedNet < row.directPrice ? 'text-red-600' : 'text-green-700'}`}>
-                                             {channelData.estimatedNet} zł
-                                          </span>
-                                          {!channelData.isProfitable && (
-                                             <span className="text-[9px] bg-red-100 text-red-600 px-1 rounded">STRATA</span>
-                                          )}
-                                       </div>
-                                    </td>
-                                 </>
-                              )}
-                              
-                              {/* Spacer for ALL view */}
-                              {activeView === "ALL" && <td className="px-3 py-3"></td>}
-                           </tr>
+                                           return (
+                                             <tr key={occ} className={occ === row.occupancy ? "bg-blue-50 font-medium" : ""}>
+                                               <td className="px-3 py-2 flex items-center gap-2">
+                                                  <Users size={12} className="text-slate-400"/> {occ} os.
+                                                  {occ === row.occupancy && <span className="text-[9px] bg-blue-100 text-blue-600 px-1 rounded ml-1">Widok</span>}
+                                               </td>
+                                               <td className="px-3 py-2 text-right font-medium text-blue-700">{dPrice} zł</td>
+                                               {cCalc && (
+                                                  <>
+                                                    <td className="px-3 py-2 text-right text-orange-600">{cCalc.listPrice} zł</td>
+                                                    <td className="px-3 py-2 text-right text-green-700">{cCalc.estimatedNet} zł</td>
+                                                    <td className="px-3 py-2 text-right">
+                                                      {cCalc.isProfitable ? (
+                                                        <span className="text-green-500">OK</span>
+                                                      ) : (
+                                                        <span className="text-red-500 font-bold">STRATA</span>
+                                                      )}
+                                                    </td>
+                                                  </>
+                                               )}
+                                             </tr>
+                                           );
+                                         })}
+                                       </tbody>
+                                     </table>
+                                   </div>
+                                 </td>
+                               </tr>
+                             )}
+                           </React.Fragment>
                         );
                      })}
                   </tbody>
                 ))
               ) : (
-                <tbody>
-                  <tr>
-                     <td colSpan={15} className="px-4 py-8 text-center text-slate-500">
-                       Brak danych.
-                     </td>
-                  </tr>
-                </tbody>
+                <tbody><tr><td colSpan={15} className="px-4 py-8 text-center text-slate-500">Brak danych.</td></tr></tbody>
               )}
             </table>
           </div>
         </div>
-
-        {/* Charts & Notes Row */}
+        
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Mini Summary Card */}
           <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
-            <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-              <TrendingUp size={20} className="text-blue-600"/> 
-              Średnie Stawki
-            </h3>
+            <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><TrendingUp size={20} className="text-blue-600"/> Średnie Stawki</h3>
             <div className="h-48">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="name" tick={{fontSize: 10}} interval={0} />
                   <YAxis tick={{fontSize: 10}} />
-                  <Tooltip 
-                    contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
-                    itemStyle={{color: '#1e293b', fontWeight: 600}}
-                    cursor={{fill: '#f1f5f9'}}
-                    labelFormatter={(label) => `Sezon: ${label}`}
-                  />
+                  <Tooltip contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} cursor={{fill: '#f1f5f9'}} />
                   <Bar dataKey="avgDirect" name="Śr. Cena Bezp." fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={40} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
-
-           {/* Notes Section */}
           <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200 flex flex-col">
-             <h3 className="text-lg font-bold text-slate-800 mb-3 flex items-center gap-2">
-               <StickyNote size={20} className="text-amber-500"/>
-               Notatki
-             </h3>
-             <textarea
-               className="flex-1 w-full min-h-[120px] p-3 border border-slate-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm text-slate-700 bg-amber-50/50 resize-none placeholder:text-slate-400"
-               placeholder="Wpisz ważne informacje dla tego obiektu..."
-               value={notes}
-               onChange={(e) => onNotesChange(e.target.value)}
-             />
+             <h3 className="text-lg font-bold text-slate-800 mb-3 flex items-center gap-2"><StickyNote size={20} className="text-amber-500"/> Notatki</h3>
+             <textarea className="flex-1 w-full min-h-[120px] p-3 border border-slate-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm text-slate-700 bg-amber-50/50 resize-none placeholder:text-slate-400" placeholder="Wpisz ważne informacje dla tego obiektu..." value={notes} onChange={(e) => onNotesChange(e.target.value)} />
           </div>
         </div>
       </div>
