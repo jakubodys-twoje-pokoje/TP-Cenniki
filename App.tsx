@@ -55,6 +55,10 @@ const App: React.FC = () => {
   const [lastOccupancyFetch, setLastOccupancyFetch] = useState<number>(0);
   const [isOccupancyRefreshing, setIsOccupancyRefreshing] = useState(false);
 
+  // Drag and Drop State for Sidebar
+  const [sidebarDragItem, setSidebarDragItem] = useState<{ type: 'property' | 'room', id: string, parentId?: string } | null>(null);
+
+
   // Ref to track the last known server state to prevent loops
   const lastServerState = useRef<Record<string, string>>({});
 
@@ -267,11 +271,6 @@ const App: React.FC = () => {
 
   // Helper logic to sync occupancy for a property
   const syncPropertyOccupancy = async (propId: string) => {
-    // Only Super Admin should trigger expensive syncs, but let's allow it for now if needed. 
-    // Actually, prompt says Admin/Client are Read Only. 
-    // However, refreshing occupancy is fetching data, not changing config. 
-    // But it does change STATE. So effectively it's a write operation.
-    // We will allow Super Admin only to trigger updates that save to DB.
     if (userPermissions.role !== 'super_admin') {
        alert("Brak uprawnień do aktualizacji bazy danych.");
        return;
@@ -388,22 +387,17 @@ const App: React.FC = () => {
     if (!targetProp) return;
 
     const seasonsCopy = deepClone(activeProperty.seasons);
-    const obpCopy = deepClone(activeProperty.settings.seasonalObp);
-
+    
     setProperties(prev => prev.map(p => {
        if (p.id === targetPropertyId) {
           return {
              ...p,
              seasons: seasonsCopy,
-             settings: {
-                ...p.settings,
-                seasonalObp: obpCopy
-             }
           }
        }
        return p;
     }));
-    alert("Sezony zostały skopiowane pomyślnie.");
+    alert("Sezony zostały skopiowane pomyślnie. (Uwaga: Ustawienia OBP pokoi nie są kopiowane między obiektami)");
   };
 
   const handleCreateProperty = async () => {
@@ -532,6 +526,64 @@ const App: React.FC = () => {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
+  };
+
+  // Drag & Drop Handlers for Sidebar
+  const handleSidebarDragStart = (e: React.DragEvent, type: 'property' | 'room', id: string, parentId?: string) => {
+    if (userPermissions.role !== 'super_admin') return;
+    setSidebarDragItem({ type, id, parentId });
+    e.dataTransfer.effectAllowed = 'move';
+    e.stopPropagation();
+  };
+
+  const handleSidebarDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleSidebarDrop = (e: React.DragEvent, targetType: 'property' | 'room', targetId: string, targetParentId?: string) => {
+    e.preventDefault();
+    if (!sidebarDragItem) return;
+    
+    // Logic for Property Reordering
+    if (sidebarDragItem.type === 'property' && targetType === 'property') {
+       if (sidebarDragItem.id === targetId) return;
+       const sourceIndex = properties.findIndex(p => p.id === sidebarDragItem.id);
+       const targetIndex = properties.findIndex(p => p.id === targetId);
+       
+       if (sourceIndex === -1 || targetIndex === -1) return;
+       
+       const newProperties = [...properties];
+       const [moved] = newProperties.splice(sourceIndex, 1);
+       newProperties.splice(targetIndex, 0, moved);
+       
+       setProperties(newProperties);
+       // Trigger save implicitly via effect
+    } 
+    
+    // Logic for Room Reordering (Must be within same property)
+    else if (sidebarDragItem.type === 'room' && targetType === 'room') {
+       if (sidebarDragItem.id === targetId) return;
+       if (sidebarDragItem.parentId !== targetParentId) return; // Prevent cross-property drag
+
+       const propIndex = properties.findIndex(p => p.id === sidebarDragItem.parentId);
+       if (propIndex === -1) return;
+
+       const prop = properties[propIndex];
+       const sourceIndex = prop.rooms.findIndex(r => r.id === sidebarDragItem.id);
+       const targetIndex = prop.rooms.findIndex(r => r.id === targetId);
+
+       if (sourceIndex === -1 || targetIndex === -1) return;
+
+       const newRooms = [...prop.rooms];
+       const [moved] = newRooms.splice(sourceIndex, 1);
+       newRooms.splice(targetIndex, 0, moved);
+
+       setProperties(prev => prev.map(p => 
+          p.id === prop.id ? { ...p, rooms: newRooms } : p
+       ));
+    }
+    
+    setSidebarDragItem(null);
   };
 
   const isReadOnly = userPermissions.role !== 'super_admin';
@@ -682,7 +734,14 @@ const App: React.FC = () => {
                   const isActive = activePropertyId === p.id;
                   
                   return (
-                   <div key={p.id} className="mb-1">
+                   <div 
+                      key={p.id} 
+                      className={`mb-1 transition-opacity ${sidebarDragItem?.id === p.id ? 'opacity-40' : ''}`}
+                      draggable={!isReadOnly}
+                      onDragStart={(e) => handleSidebarDragStart(e, 'property', p.id)}
+                      onDragOver={handleSidebarDragOver}
+                      onDrop={(e) => handleSidebarDrop(e, 'property', p.id)}
+                   >
                      <div 
                         className={`group flex items-center justify-between px-3 py-2 text-sm rounded-lg cursor-pointer transition-colors ${
                            isActive 
@@ -723,7 +782,11 @@ const App: React.FC = () => {
                                 isActive && activeTab === 'dashboard' && selectedRoomId === room.id
                                 ? "text-blue-300 font-medium bg-slate-800/50" 
                                 : "text-slate-500 hover:text-slate-300 hover:bg-slate-800/30"
-                              }`}
+                              } ${sidebarDragItem?.id === room.id ? 'opacity-40' : ''}`}
+                              draggable={!isReadOnly}
+                              onDragStart={(e) => handleSidebarDragStart(e, 'room', room.id, p.id)}
+                              onDragOver={handleSidebarDragOver}
+                              onDrop={(e) => handleSidebarDrop(e, 'room', room.id, p.id)}
                             >
                               <Bed size={12} />
                               <span className="truncate">{room.name}</span>

@@ -22,11 +22,8 @@ export const calculateDirectPrice = (
   // 2. Base Price * Season Multiplier
   let price = basePrice * season.multiplier;
 
-  // 3. Apply Seasonal OBP (Global/Season Setting)
-  // If enabled for this season, subtract Amount for each missing person
-  const obpConfig = settings.seasonalObp?.[season.id] ?? { amount: 30, enabled: true };
-  
-  if (obpConfig.enabled) {
+  // 3. Apply OBP if Globally Enabled
+  if (settings.obpEnabled) {
     // Determine the effective occupancy for pricing calculation.
     // We cannot go below the minObpOccupancy set for the room.
     const minObpOccupancy = room.minObpOccupancy || 1;
@@ -35,8 +32,11 @@ export const calculateDirectPrice = (
     // Calculate missing people based on this effective occupancy
     const missingPeople = Math.max(0, room.maxOccupancy - effectiveOccupancy);
     
+    // Use room-specific OBP amount, defaulting to 30 if unset
+    const obpAmount = room.obpPerPerson ?? 30;
+
     if (missingPeople > 0) {
-      price = price - (missingPeople * obpConfig.amount);
+      price = price - (missingPeople * obpAmount);
     }
   }
 

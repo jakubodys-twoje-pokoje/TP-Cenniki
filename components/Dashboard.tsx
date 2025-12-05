@@ -2,7 +2,7 @@
 import React, { useMemo, useState } from "react";
 import { Channel, GlobalSettings, RoomType, Season } from "../types";
 import { generatePricingGrid, calculateDirectPrice, calculateChannelPrice } from "../utils/pricingEngine";
-import { TrendingUp, Users, StickyNote, ChevronDown, ChevronRight, GripVertical, Columns, RefreshCw, Loader2, AlertCircle, CloudDownload, Lock } from "lucide-react";
+import { TrendingUp, Users, StickyNote, ChevronDown, ChevronRight, GripVertical, Columns, RefreshCw, Loader2, AlertCircle, CloudDownload, Lock, TableProperties } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { fetchHotresOccupancy } from "../utils/hotresApi";
 
@@ -47,7 +47,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   isReadOnly = false,
 }) => {
   const [occupancyFilter, setOccupancyFilter] = useState<"MAX" | number>("MAX");
-  const [activeView, setActiveView] = useState<"ALL" | string>("ALL");
+  const [activeView, setActiveView] = useState<"ALL" | "SUMMARY" | string>("ALL");
   
   // Drag and drop state
   const [draggedRoomId, setDraggedRoomId] = useState<string | null>(null);
@@ -206,8 +206,6 @@ const Dashboard: React.FC<DashboardProps> = ({
   const getOccupancyColor = (rate: number | undefined) => {
     if (rate === undefined) return 'text-slate-400';
     // Smooth transition from Red (0%) to Green (100%)
-    // 0 -> hsl(0, 80%, 50%)
-    // 100 -> hsl(120, 80%, 40%)
     const hue = (rate / 100) * 120; 
     return `hsl(${hue}, 80%, 40%)`;
   };
@@ -243,7 +241,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 
           <div className="h-8 w-px bg-slate-200 hidden md:block"></div>
 
-          {activeView !== "ALL" && (
+          {activeView !== "ALL" && activeView !== "SUMMARY" && (
             <div className="relative">
               <button 
                   onClick={() => setIsColumnMenuOpen(!isColumnMenuOpen)}
@@ -309,6 +307,12 @@ const Dashboard: React.FC<DashboardProps> = ({
         <div className="bg-white rounded-lg shadow-sm border border-slate-200 flex flex-col overflow-hidden">
           <div className="flex border-b border-slate-200 overflow-x-auto">
              <button onClick={() => setActiveView("ALL")} className={`px-4 py-3 text-sm font-medium whitespace-nowrap ${activeView === "ALL" ? 'border-b-2 border-blue-600 text-blue-600' : 'text-slate-600 hover:bg-slate-50'}`}>Ceny Bezpośrednie (Baza)</button>
+             
+             {/* New Summary Tab */}
+             <button onClick={() => setActiveView("SUMMARY")} className={`px-4 py-3 text-sm font-medium whitespace-nowrap flex items-center gap-2 ${activeView === "SUMMARY" ? 'border-b-2 border-blue-600 text-blue-600' : 'text-slate-600 hover:bg-slate-50'}`}>
+                <TableProperties size={14}/> Podsumowanie
+             </button>
+
              {channels.map(c => (
                 <button key={c.id} onClick={() => setActiveView(c.id)} className={`px-4 py-3 text-sm font-medium whitespace-nowrap flex items-center gap-2 ${activeView === c.id ? 'border-b-2 border-blue-600 text-blue-600' : 'text-slate-600 hover:bg-slate-50'}`}>
                   <span className="w-2 h-2 rounded-full" style={{backgroundColor: c.color}}></span>{c.name}
@@ -323,13 +327,25 @@ const Dashboard: React.FC<DashboardProps> = ({
                   <th className="px-2 py-3 w-8 bg-slate-50"></th>
                   <th className="px-3 py-3 text-left font-bold text-slate-500 uppercase tracking-wider">Pokój</th>
                   <th className="px-3 py-3 text-left font-bold text-slate-500 uppercase tracking-wider">Sezon</th>
-                  <th className="px-3 py-3 text-center font-bold text-slate-500 uppercase tracking-wider w-28">OBŁOŻENIE</th>
-                  <th className="px-3 py-3 text-left font-bold text-slate-500 uppercase tracking-wider w-40">Komentarz</th>
-                  <th className="px-3 py-3 text-center font-bold text-slate-500 uppercase tracking-wider w-24">Baza (PLN)</th>
+                  {activeView !== "SUMMARY" && (
+                    <>
+                      <th className="px-3 py-3 text-center font-bold text-slate-500 uppercase tracking-wider w-28">OBŁOŻENIE</th>
+                      <th className="px-3 py-3 text-left font-bold text-slate-500 uppercase tracking-wider w-40">Komentarz</th>
+                      <th className="px-3 py-3 text-center font-bold text-slate-500 uppercase tracking-wider w-24">Baza (PLN)</th>
+                    </>
+                  )}
                   <th className="px-3 py-3 text-center font-bold text-slate-500 uppercase tracking-wider w-20">Os.</th>
                   <th className="px-3 py-3 text-right font-bold text-slate-500 uppercase tracking-wider bg-blue-50/50 text-blue-700">Direct</th>
                   
-                  {activeView !== "ALL" && (
+                  {activeView === "SUMMARY" && (
+                     channels.map(c => (
+                       <th key={c.id} className="px-3 py-3 text-right font-bold text-slate-500 uppercase tracking-wider border-l border-slate-200" style={{color: c.color}}>
+                          {c.name}
+                       </th>
+                     ))
+                  )}
+
+                  {activeView !== "ALL" && activeView !== "SUMMARY" && (
                      <>
                         {columnVisibility.mobile && <th className="px-3 py-3 text-right font-bold text-slate-500 uppercase tracking-wider text-blue-600">Mobile</th>}
                         {columnVisibility.genius && <th className="px-3 py-3 text-right font-bold text-slate-500 uppercase tracking-wider text-purple-600">Genius</th>}
@@ -356,7 +372,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                      className={`group/body border-b border-slate-200 hover:bg-slate-50/50 transition-colors ${draggedRoomId === room.id ? 'opacity-30' : ''}`}
                   >
                      {rows.map((row, index) => {
-                        const channelData = activeView !== "ALL" ? row.channelCalculations[activeView] : null;
+                        const channelData = activeView !== "ALL" && activeView !== "SUMMARY" ? row.channelCalculations[activeView] : null;
                         const rowKey = `${row.roomId}-${row.seasonId}`;
                         const isExpanded = expandedRows.has(rowKey);
                         const isLoading = occupancyLoading.has(rowKey);
@@ -388,41 +404,45 @@ const Dashboard: React.FC<DashboardProps> = ({
                                    <span className="text-xs font-semibold">{row.seasonName}</span>
                                 </td>
                                 
-                                {/* OCCUPANCY COLUMN */}
-                                <td className="px-3 py-3 align-middle text-center">
-                                   <div className="flex items-center justify-center gap-2">
-                                     <span 
-                                       className="text-xs font-bold transition-colors duration-300"
-                                       style={{ color: occColor }}
-                                     >
-                                        {row.occupancyRate !== undefined ? `${row.occupancyRate}%` : '-'}
-                                     </span>
-                                     {!isReadOnly && (
-                                      <button 
-                                          onClick={() => handleFetchOccupancy(row.roomId, row.seasonId)}
-                                          className="text-slate-400 hover:text-blue-500 transition-colors p-1"
-                                          title="Odśwież obłożenie z Hotres"
-                                          disabled={isLoading}
-                                      >
-                                          <RefreshCw size={14} className={isLoading ? "animate-spin text-blue-500" : ""} />
-                                      </button>
-                                     )}
-                                   </div>
-                                </td>
+                                {activeView !== "SUMMARY" && (
+                                  <>
+                                    <td className="px-3 py-3 align-middle text-center">
+                                      <div className="flex items-center justify-center gap-2">
+                                        <span 
+                                          className="text-xs font-bold transition-colors duration-300"
+                                          style={{ color: occColor }}
+                                        >
+                                            {row.occupancyRate !== undefined ? `${row.occupancyRate}%` : '-'}
+                                        </span>
+                                        {!isReadOnly && (
+                                          <button 
+                                              onClick={() => handleFetchOccupancy(row.roomId, row.seasonId)}
+                                              className="text-slate-400 hover:text-blue-500 transition-colors p-1"
+                                              title="Odśwież obłożenie z Hotres"
+                                              disabled={isLoading}
+                                          >
+                                              <RefreshCw size={14} className={isLoading ? "animate-spin text-blue-500" : ""} />
+                                          </button>
+                                        )}
+                                      </div>
+                                    </td>
 
-                                <td className="px-3 py-3 align-middle">
-                                   <input
-                                      type="text"
-                                      value={row.comment || ""}
-                                      disabled={isReadOnly}
-                                      onChange={(e) => handleCommentChange(room.id, row.seasonId, e.target.value)}
-                                      placeholder="Uwagi..."
-                                      className="w-full px-2 py-1 text-xs border border-transparent hover:border-slate-200 focus:border-blue-500 focus:bg-white bg-transparent rounded transition-all placeholder:text-slate-300 disabled:bg-transparent disabled:placeholder-slate-200"
-                                   />
-                                </td>
-                                <td className="px-3 py-3 align-middle text-center text-slate-600 font-medium">
-                                   {row.basePrice} zł
-                                </td>
+                                    <td className="px-3 py-3 align-middle">
+                                      <input
+                                          type="text"
+                                          value={row.comment || ""}
+                                          disabled={isReadOnly}
+                                          onChange={(e) => handleCommentChange(room.id, row.seasonId, e.target.value)}
+                                          placeholder="Uwagi..."
+                                          className="w-full px-2 py-1 text-xs border border-transparent hover:border-slate-200 focus:border-blue-500 focus:bg-white bg-transparent rounded transition-all placeholder:text-slate-300 disabled:bg-transparent disabled:placeholder-slate-200"
+                                      />
+                                    </td>
+                                    <td className="px-3 py-3 align-middle text-center text-slate-600 font-medium">
+                                      {row.basePrice} zł
+                                    </td>
+                                  </>
+                                )}
+
                                 <td className="px-3 py-3 align-middle text-center">
                                    <div className="flex items-center justify-center gap-1">
                                       <span className="text-sm font-medium text-slate-700">{row.occupancy} os.</span>
@@ -438,7 +458,18 @@ const Dashboard: React.FC<DashboardProps> = ({
                                    {row.directPrice} zł
                                 </td>
 
-                                {activeView !== "ALL" && channelData && (
+                                {activeView === "SUMMARY" && (
+                                   channels.map(c => {
+                                      const cData = row.channelCalculations[c.id];
+                                      return (
+                                        <td key={c.id} className="px-3 py-3 align-middle text-right font-bold text-slate-600 border-l border-slate-100">
+                                           {cData ? `${cData.listPrice} zł` : '-'}
+                                        </td>
+                                      )
+                                   })
+                                )}
+
+                                {activeView !== "ALL" && activeView !== "SUMMARY" && channelData && (
                                    <>
                                       {columnVisibility.mobile && <td className="px-3 py-3 align-middle text-right text-blue-600 text-xs">{channelData.discountBreakdown.mobile > 0 ? `-${channelData.discountBreakdown.mobile}` : '-'}</td>}
                                       {columnVisibility.genius && <td className="px-3 py-3 align-middle text-right text-purple-600 text-xs">{channelData.discountBreakdown.genius > 0 ? `-${channelData.discountBreakdown.genius}` : '-'}</td>}
@@ -461,7 +492,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                              {/* EXPANDED DETAILS */}
                              {isExpanded && (
                                <tr>
-                                 <td colSpan={activeView === "ALL" ? 9 : 17} className="bg-slate-50 p-3 shadow-inner">
+                                 <td colSpan={activeView === "ALL" ? 9 : activeView === "SUMMARY" ? (6 + channels.length) : 17} className="bg-slate-50 p-3 shadow-inner">
                                    <div className="ml-12 border border-slate-200 rounded-md bg-white overflow-hidden max-w-4xl">
                                      <div className="px-3 py-2 bg-slate-100 text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
                                        Szczegóły obłożenia ({room.name} - {row.seasonName})
@@ -471,13 +502,16 @@ const Dashboard: React.FC<DashboardProps> = ({
                                          <tr className="bg-slate-50 text-slate-500">
                                            <th className="px-3 py-2 text-left">Obłożenie</th>
                                            <th className="px-3 py-2 text-right">Cena Direct</th>
-                                           {activeView !== "ALL" && (
+                                           {activeView !== "ALL" && activeView !== "SUMMARY" && (
                                               <>
                                                 <th className="px-3 py-2 text-right text-orange-600">Cena {channels.find(c=>c.id === activeView)?.name}</th>
                                                 <th className="px-3 py-2 text-right text-green-700">Netto</th>
                                                 <th className="px-3 py-2 text-right">Wynik</th>
                                               </>
                                            )}
+                                           {activeView === "SUMMARY" && channels.map(c => (
+                                              <th key={c.id} className="px-3 py-2 text-right" style={{color: c.color}}>{c.name}</th>
+                                           ))}
                                          </tr>
                                        </thead>
                                        <tbody className="divide-y divide-slate-100">
@@ -486,8 +520,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                                            const seasonObj = seasons.find(s => s.id === row.seasonId)!;
                                            const dPrice = calculateDirectPrice(room, seasonObj, occ, settings);
                                            
-                                           let cCalc = null;
-                                           if (activeView !== "ALL") {
+                                           let cCalc: any = null;
+                                           if (activeView !== "ALL" && activeView !== "SUMMARY") {
                                               const chan = channels.find(c => c.id === activeView)!;
                                               cCalc = calculateChannelPrice(dPrice, chan, row.seasonId);
                                            }
@@ -499,6 +533,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                                                   {occ === row.occupancy && <span className="text-[9px] bg-blue-100 text-blue-600 px-1 rounded ml-1">Widok</span>}
                                                </td>
                                                <td className="px-3 py-2 text-right font-medium text-blue-700">{dPrice} zł</td>
+                                               
+                                               {/* Single Channel View Details */}
                                                {cCalc && (
                                                   <>
                                                     <td className="px-3 py-2 text-right text-orange-600">{cCalc.listPrice} zł</td>
@@ -512,6 +548,12 @@ const Dashboard: React.FC<DashboardProps> = ({
                                                     </td>
                                                   </>
                                                )}
+
+                                               {/* Summary View Details */}
+                                               {activeView === "SUMMARY" && channels.map(c => {
+                                                  const calc = calculateChannelPrice(dPrice, c, row.seasonId);
+                                                  return <td key={c.id} className="px-3 py-2 text-right text-slate-600">{calc.listPrice} zł</td>
+                                               })}
                                              </tr>
                                            );
                                          })}

@@ -1,7 +1,7 @@
 
 import React, { useState } from "react";
 import { Channel, ChannelDiscountProfile, GlobalSettings, Property, RoomType, Season, SettingsTab } from "../types";
-import { Plus, Trash2, X, Copy, GripVertical, ArrowRightLeft, Check, AlertCircle, Lock } from "lucide-react";
+import { Plus, Trash2, X, Copy, GripVertical, ArrowRightLeft, Check, AlertCircle, Lock, ToggleLeft, ToggleRight } from "lucide-react";
 
 interface SettingsPanelProps {
   propertyName: string;
@@ -110,18 +110,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     );
   };
 
-  const updateSeasonalObp = (seasonId: string, field: 'amount' | 'enabled', value: number | boolean) => {
-    if (isReadOnly) return;
-    const current = settings.seasonalObp?.[seasonId] || { amount: 30, enabled: true };
-    setSettings({
-      ...settings,
-      seasonalObp: {
-        ...settings.seasonalObp,
-        [seasonId]: { ...current, [field]: value }
-      }
-    });
-  };
-
   const handleDuplicateSeasonsSubmit = () => {
     if (isReadOnly) return;
     if (targetPropertyId) {
@@ -169,7 +157,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       tid: "",
       basePricePeak: 200,
       minNights: 2,
-      minObpOccupancy: 1
+      minObpOccupancy: 1,
+      obpPerPerson: 30
     };
     setRooms([...rooms, newRoom]);
   };
@@ -184,15 +173,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       endDate: new Date().toISOString().split('T')[0],
       multiplier: 1.0,
     };
-    
-    // Auto-init OBP for new season
-    setSettings({
-      ...settings,
-      seasonalObp: {
-        ...settings.seasonalObp,
-        [newId]: { amount: 30, enabled: true }
-      }
-    });
     
     setSeasons([...seasons, newSeason]);
   };
@@ -275,6 +255,20 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 className={inputClass}
                 placeholder="np. 12345"
               />
+
+              <div className="mt-6 flex items-center gap-3 bg-white p-3 rounded border border-slate-200">
+                 <button 
+                  onClick={() => !isReadOnly && setSettings({...settings, obpEnabled: !settings.obpEnabled})}
+                  disabled={isReadOnly}
+                  className={`text-slate-600 transition-colors ${settings.obpEnabled ? 'text-blue-600' : 'text-slate-400'}`}
+                 >
+                   {settings.obpEnabled ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
+                 </button>
+                 <div>
+                    <h4 className="text-sm font-semibold text-slate-800">Cennik Zależny od Obłożenia (OBP)</h4>
+                    <p className="text-xs text-slate-500">Jeśli włączone, cena będzie redukowana za każdą brakującą osobę w pokoju.</p>
+                 </div>
+              </div>
             </div>
 
             {!isReadOnly && (
@@ -314,62 +308,23 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
         {/* Rooms Tab */}
         {activeTab === "rooms" && (
           <div className="space-y-6">
-            
-            {/* OBP Configuration Section */}
-            <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-5">
-              <h3 className="text-sm font-bold text-indigo-900 mb-1">Polityka Cenowa OBP (Occupancy Based Pricing)</h3>
-              <p className="text-xs text-indigo-600 mb-4">Określ kwotę zniżki (PLN) za każdą brakującą osobę w pokoju. Ustawienia dla każdego sezonu oddzielnie.</p>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {seasons.map((season) => {
-                  const obp = settings.seasonalObp?.[season.id] || { amount: 30, enabled: true };
-                  return (
-                    <div key={season.id} className="bg-white p-3 rounded-md border border-indigo-200 shadow-sm">
-                       <div className="text-xs font-semibold text-indigo-800 mb-2 truncate" title={season.name}>{season.name}</div>
-                       <div className="space-y-2">
-                          <label className={`flex items-center gap-2 text-sm text-slate-700 ${isReadOnly ? 'opacity-50' : 'cursor-pointer'}`}>
-                            <input 
-                              type="checkbox"
-                              checked={obp.enabled}
-                              disabled={isReadOnly}
-                              onChange={(e) => updateSeasonalObp(season.id, 'enabled', e.target.checked)}
-                              className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 disabled:text-slate-400"
-                            />
-                            <span>Aktywne</span>
-                          </label>
-                          <div className="flex items-center gap-2">
-                             <input 
-                               type="number"
-                               value={obp.amount}
-                               disabled={!obp.enabled || isReadOnly}
-                               onChange={(e) => updateSeasonalObp(season.id, 'amount', Number(e.target.value))}
-                               className={`${inputClass} py-1 px-2 text-right`}
-                             />
-                             <span className="text-xs text-slate-500">PLN/os.</span>
-                          </div>
-                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                  <h3 className="text-lg font-medium">Typy Pokoi (Kwatery)</h3>
                  {!isReadOnly && <button onClick={addRoom} className="flex items-center gap-1 text-sm bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700"><Plus size={16}/> Dodaj Pokój</button>}
               </div>
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto pb-4">
                 <table className="min-w-full divide-y divide-slate-200">
                   <thead>
                     <tr className="bg-slate-50">
-                      <th className="px-3 py-2 text-center w-10"></th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase">Nazwa</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase">Maks. Osób</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase">TID</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase">Min. Nocy</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase" title="Minimalna liczba osób, poniżej której OBP nie obniża ceny">Min. Osób (OBP)</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase">Cena Bazowa</th>
+                      <th className="px-3 py-2 text-center w-8"></th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase whitespace-nowrap min-w-[150px]">Nazwa</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase whitespace-nowrap">Cena Bazowa</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase whitespace-nowrap">Max. Os.</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase whitespace-nowrap" title="Min. osób do naliczania OBP">Min. OBP</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase whitespace-nowrap">Min. Nocy</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase whitespace-nowrap" title="Kwota odliczana za osobę">Wartość OBP</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase whitespace-nowrap">TID</th>
                       <th className="px-3 py-2"></th>
                     </tr>
                   </thead>
@@ -386,10 +341,19 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                         <td className={`px-3 py-2 text-center text-slate-400 ${!isReadOnly ? 'cursor-grab active:cursor-grabbing' : ''}`}>
                           {!isReadOnly && <GripVertical size={16} />}
                         </td>
-                        <td className="px-3 py-2"><input disabled={isReadOnly} type="text" value={room.name} onChange={(e) => updateItem<RoomType>(room.id, "name", e.target.value, rooms, setRooms)} className={`w-full ${inputClass}`} /></td>
-                        <td className="px-3 py-2"><input disabled={isReadOnly} type="number" value={room.maxOccupancy} onChange={(e) => updateItem<RoomType>(room.id, "maxOccupancy", Number(e.target.value), rooms, setRooms)} className={`w-20 ${inputClass}`} /></td>
-                        <td className="px-3 py-2"><input disabled={isReadOnly} type="text" value={room.tid || ""} onChange={(e) => updateItem<RoomType>(room.id, "tid", e.target.value, rooms, setRooms)} className={`w-24 ${inputClass}`} /></td>
-                        <td className="px-3 py-2"><input disabled={isReadOnly} type="number" value={room.minNights ?? 0} onChange={(e) => updateItem<RoomType>(room.id, "minNights", Number(e.target.value), rooms, setRooms)} className={`w-20 ${inputClass}`} /></td>
+                        
+                        <td className="px-3 py-2">
+                           <input disabled={isReadOnly} type="text" value={room.name} onChange={(e) => updateItem<RoomType>(room.id, "name", e.target.value, rooms, setRooms)} className={`w-full ${inputClass}`} />
+                        </td>
+                        
+                        <td className="px-3 py-2">
+                           <input disabled={isReadOnly} type="number" value={room.basePricePeak} onChange={(e) => updateItem<RoomType>(room.id, "basePricePeak", Number(e.target.value), rooms, setRooms)} className={`w-24 ${inputClass}`} />
+                        </td>
+                        
+                        <td className="px-3 py-2">
+                           <input disabled={isReadOnly} type="number" value={room.maxOccupancy} onChange={(e) => updateItem<RoomType>(room.id, "maxOccupancy", Number(e.target.value), rooms, setRooms)} className={`w-16 ${inputClass}`} />
+                        </td>
+                        
                         <td className="px-3 py-2">
                           <input 
                             disabled={isReadOnly}
@@ -398,10 +362,29 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                             max={room.maxOccupancy}
                             value={room.minObpOccupancy ?? 1} 
                             onChange={(e) => updateItem<RoomType>(room.id, "minObpOccupancy", Math.min(Number(e.target.value), room.maxOccupancy), rooms, setRooms)} 
-                            className={`w-24 ${inputClass}`} 
+                            className={`w-16 ${inputClass}`} 
                           />
                         </td>
-                        <td className="px-3 py-2"><input disabled={isReadOnly} type="number" value={room.basePricePeak} onChange={(e) => updateItem<RoomType>(room.id, "basePricePeak", Number(e.target.value), rooms, setRooms)} className={`w-24 ${inputClass}`} /></td>
+
+                        <td className="px-3 py-2">
+                           <input disabled={isReadOnly} type="number" value={room.minNights ?? 0} onChange={(e) => updateItem<RoomType>(room.id, "minNights", Number(e.target.value), rooms, setRooms)} className={`w-16 ${inputClass}`} />
+                        </td>
+
+                        <td className="px-3 py-2">
+                           <input 
+                             disabled={isReadOnly || !settings.obpEnabled} 
+                             type="number" 
+                             value={room.obpPerPerson ?? 30} 
+                             onChange={(e) => updateItem<RoomType>(room.id, "obpPerPerson", Number(e.target.value), rooms, setRooms)} 
+                             className={`w-20 ${inputClass} ${!settings.obpEnabled ? 'bg-slate-100 text-slate-400' : ''}`} 
+                             placeholder="30"
+                           />
+                        </td>
+                        
+                        <td className="px-3 py-2">
+                           <input disabled={isReadOnly} type="text" value={room.tid || ""} onChange={(e) => updateItem<RoomType>(room.id, "tid", e.target.value, rooms, setRooms)} className={`w-20 ${inputClass}`} />
+                        </td>
+                        
                         <td className="px-3 py-2 text-right">
                           {!isReadOnly && <button onClick={() => deleteItem(room.id, rooms, setRooms)} className="text-red-500 hover:text-red-700"><Trash2 size={16}/></button>}
                         </td>
@@ -589,7 +572,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
              </div>
              <div className="p-6">
                 <p className="text-sm text-slate-600 mb-4">
-                   Wybierz obiekt, do którego chcesz skopiować sezony i ustawienia OBP z <strong>{propertyName}</strong>.
+                   Wybierz obiekt, do którego chcesz skopiować sezony z <strong>{propertyName}</strong>.
                    <br/><span className="text-xs text-red-500 font-medium">Uwaga: Sezony w obiekcie docelowym zostaną nadpisane.</span>
                 </p>
                 

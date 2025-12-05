@@ -47,6 +47,9 @@ export interface RoomType {
   seasonComments?: Record<string, string>;
   // Key is season.id, value is the calculated occupancy percentage (0-100)
   seasonOccupancy?: Record<string, number>;
+  
+  // OBP Setting: Amount per person to deduct
+  obpPerPerson?: number; 
 }
 
 export interface Season {
@@ -58,8 +61,7 @@ export interface Season {
 }
 
 export interface GlobalSettings {
-  // Key is season.id, value is OBP config
-  seasonalObp: Record<string, { amount: number; enabled: boolean }>;
+  obpEnabled: boolean; // Global toggle for OBP logic
 }
 
 export interface Property {

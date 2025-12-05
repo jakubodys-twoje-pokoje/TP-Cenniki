@@ -2,13 +2,7 @@
 import { Channel, GlobalSettings, RoomType, Season } from "./types";
 
 export const INITIAL_SETTINGS: GlobalSettings = {
-  seasonalObp: {
-    "s1": { amount: 30, enabled: true },
-    "s2": { amount: 30, enabled: true },
-    "s3": { amount: 30, enabled: false }, 
-    "s4": { amount: 30, enabled: true },
-    "s5": { amount: 30, enabled: true },
-  }
+  obpEnabled: true, // Default to enabled
 };
 
 // Helper to create default discount map for initial seasons
@@ -68,9 +62,9 @@ export const INITIAL_CHANNELS: Channel[] = [
 ];
 
 export const INITIAL_ROOMS: RoomType[] = [
-  { id: "1", name: "Pokój", maxOccupancy: 2, tid: "", basePricePeak: 200, minNights: 2, minObpOccupancy: 1 },
-  { id: "2", name: "Studio", maxOccupancy: 3, tid: "", basePricePeak: 300, minNights: 3, minObpOccupancy: 2 },
-  { id: "3", name: "Domek", maxOccupancy: 6, tid: "", basePricePeak: 600, minNights: 5, minObpOccupancy: 3 },
+  { id: "1", name: "Pokój", maxOccupancy: 2, tid: "", basePricePeak: 200, minNights: 2, minObpOccupancy: 1, obpPerPerson: 30 },
+  { id: "2", name: "Studio", maxOccupancy: 3, tid: "", basePricePeak: 300, minNights: 3, minObpOccupancy: 2, obpPerPerson: 30 },
+  { id: "3", name: "Domek", maxOccupancy: 6, tid: "", basePricePeak: 600, minNights: 5, minObpOccupancy: 3, obpPerPerson: 30 },
 ];
 
 export const INITIAL_SEASONS: Season[] = [
