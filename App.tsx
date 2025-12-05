@@ -69,7 +69,8 @@ const App: React.FC = () => {
       setSession(session);
       if (session) {
         setUserPermissions(getUserPermissions(session.user.email));
-        fetchProperties();
+        // Pass email directly to avoid stale state
+        fetchProperties(session.user.email);
       }
       setAuthLoading(false);
     });
@@ -80,7 +81,8 @@ const App: React.FC = () => {
       setSession(session);
       if (session) {
          setUserPermissions(getUserPermissions(session.user.email));
-         fetchProperties();
+         // Pass email directly
+         fetchProperties(session.user.email);
       } else {
          setProperties([]);
       }
@@ -97,10 +99,14 @@ const App: React.FC = () => {
     setProperties(props);
   };
 
-  const fetchProperties = async () => {
+  const fetchProperties = async (currentUserEmail?: string) => {
     setIsLoading(true);
     setSyncStatus('idle');
     setLoadError(null);
+    
+    // Resolve email: Argument > Session State > Undefined
+    const emailToUse = currentUserEmail || session?.user?.email;
+
     try {
       const { data, error } = await supabase
         .from('properties')
@@ -116,7 +122,7 @@ const App: React.FC = () => {
         }));
 
         // FILTER PROPERTIES BASED ON ROLE
-        const perms = getUserPermissions(session?.user?.email);
+        const perms = getUserPermissions(emailToUse);
         if (perms.role === 'client') {
            const allowedIds = perms.allowedPropertyIds || [];
            loadedProps = loadedProps.filter(p => allowedIds.includes(p.id));
@@ -129,7 +135,8 @@ const App: React.FC = () => {
         }
       } else {
         // Only create default if Super Admin
-        const perms = getUserPermissions(session?.user?.email);
+        const perms = getUserPermissions(emailToUse);
+        
         if (perms.role === 'super_admin') {
            const defaultProp: Property = {
              id: "default",
@@ -520,7 +527,7 @@ const App: React.FC = () => {
   };
   
   const handleManualSync = () => {
-      fetchProperties();
+      fetchProperties(session?.user?.email);
   };
 
   const handleLogout = async () => {
