@@ -103,6 +103,7 @@ const App: React.FC = () => {
         const defaultProp: Property = {
           id: "default",
           name: "Główny Obiekt",
+          oid: "",
           settings: deepClone(INITIAL_SETTINGS),
           channels: deepClone(INITIAL_CHANNELS),
           rooms: deepClone(INITIAL_ROOMS),
@@ -236,6 +237,7 @@ const App: React.FC = () => {
     const newProperty: Property = {
       id: newId,
       name: "Nowy Obiekt",
+      oid: "",
       settings: deepClone(INITIAL_SETTINGS),
       channels: deepClone(INITIAL_CHANNELS),
       rooms: deepClone(INITIAL_ROOMS),
@@ -633,6 +635,8 @@ const App: React.FC = () => {
               key={activeProperty.id}
               propertyName={activeProperty.name}
               onPropertyNameChange={(name) => updateActiveProperty({ name })}
+              propertyOid={activeProperty.oid || ""}
+              onPropertyOidChange={(oid) => updateActiveProperty({ oid })}
               settings={activeProperty.settings}
               setSettings={(s) => updateActiveProperty({ settings: s })}
               channels={activeProperty.channels}

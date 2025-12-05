@@ -27,7 +27,7 @@ export interface RoomType {
   id: string;
   name: string;
   maxOccupancy: number;
-  quantity: number;
+  tid: string; // Type ID (replaced quantity)
   basePricePeak: number;
   // Key is season.id, value is the specific base price for that season.
   // If not present, falls back to basePricePeak.
@@ -52,6 +52,7 @@ export interface GlobalSettings {
 export interface Property {
   id: string;
   name: string;
+  oid?: string; // Object ID
   settings: GlobalSettings;
   channels: Channel[];
   rooms: RoomType[];

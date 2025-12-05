@@ -6,6 +6,8 @@ import { Plus, Trash2, X, Copy, GripVertical } from "lucide-react";
 interface SettingsPanelProps {
   propertyName: string;
   onPropertyNameChange: (name: string) => void;
+  propertyOid: string;
+  onPropertyOidChange: (oid: string) => void;
   settings: GlobalSettings;
   setSettings: (s: GlobalSettings) => void;
   channels: Channel[];
@@ -23,6 +25,8 @@ interface SettingsPanelProps {
 const SettingsPanel: React.FC<SettingsPanelProps> = ({
   propertyName,
   onPropertyNameChange,
+  propertyOid,
+  onPropertyOidChange,
   settings,
   setSettings,
   channels,
@@ -137,7 +141,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       id: Date.now().toString(),
       name: "Nowy Pokój",
       maxOccupancy: 2,
-      quantity: 1,
+      tid: "",
       basePricePeak: 200,
     };
     setRooms([...rooms, newRoom]);
@@ -223,6 +227,17 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 onChange={(e) => onPropertyNameChange(e.target.value)}
                 className={inputClass}
                 placeholder="np. Apartament Centrum"
+              />
+
+              <label className="block text-sm font-medium text-slate-700 mb-1 mt-4">
+                ID Obiektu (OID)
+              </label>
+              <input
+                type="text"
+                value={propertyOid}
+                onChange={(e) => onPropertyOidChange(e.target.value)}
+                className={inputClass}
+                placeholder="np. 12345"
               />
             </div>
 
@@ -310,7 +325,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                       <th className="px-3 py-2 text-center w-10"></th>
                       <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase">Nazwa</th>
                       <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase">Maks. Osób</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase">Ilość</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase">TID</th>
                       <th className="px-3 py-2"></th>
                     </tr>
                   </thead>
@@ -327,7 +342,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                         <td className="px-3 py-2 text-center text-slate-400 cursor-grab active:cursor-grabbing"><GripVertical size={16} /></td>
                         <td className="px-3 py-2"><input type="text" value={room.name} onChange={(e) => updateItem<RoomType>(room.id, "name", e.target.value, rooms, setRooms)} className={`w-full ${inputClass}`} /></td>
                         <td className="px-3 py-2"><input type="number" value={room.maxOccupancy} onChange={(e) => updateItem<RoomType>(room.id, "maxOccupancy", Number(e.target.value), rooms, setRooms)} className={`w-20 ${inputClass}`} /></td>
-                        <td className="px-3 py-2"><input type="number" value={room.quantity} onChange={(e) => updateItem<RoomType>(room.id, "quantity", Number(e.target.value), rooms, setRooms)} className={`w-20 ${inputClass}`} /></td>
+                        <td className="px-3 py-2"><input type="text" value={room.tid || ""} onChange={(e) => updateItem<RoomType>(room.id, "tid", e.target.value, rooms, setRooms)} className={`w-24 ${inputClass}`} /></td>
                         <td className="px-3 py-2 text-right"><button onClick={() => deleteItem(room.id, rooms, setRooms)} className="text-red-500 hover:text-red-700"><Trash2 size={16}/></button></td>
                       </tr>
                     ))}

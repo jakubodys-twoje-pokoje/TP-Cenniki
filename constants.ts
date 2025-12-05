@@ -73,9 +73,9 @@ export const INITIAL_CHANNELS: Channel[] = [
 ];
 
 export const INITIAL_ROOMS: RoomType[] = [
-  { id: "1", name: "Pokój", maxOccupancy: 2, quantity: 5, basePricePeak: 200 },
-  { id: "2", name: "Studio", maxOccupancy: 3, quantity: 3, basePricePeak: 300 },
-  { id: "3", name: "Domek", maxOccupancy: 6, quantity: 2, basePricePeak: 600 },
+  { id: "1", name: "Pokój", maxOccupancy: 2, tid: "", basePricePeak: 200 },
+  { id: "2", name: "Studio", maxOccupancy: 3, tid: "", basePricePeak: 300 },
+  { id: "3", name: "Domek", maxOccupancy: 6, tid: "", basePricePeak: 600 },
 ];
 
 export const INITIAL_SEASONS: Season[] = [
