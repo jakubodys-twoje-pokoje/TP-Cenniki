@@ -27,13 +27,20 @@ export const calculateDirectPrice = (
   const obpConfig = settings.seasonalObp?.[season.id] ?? { amount: 30, enabled: true };
   
   if (obpConfig.enabled) {
-    const missingPeople = room.maxOccupancy - occupancy;
+    // Determine the effective occupancy for pricing calculation.
+    // We cannot go below the minObpOccupancy set for the room.
+    const minObpOccupancy = room.minObpOccupancy || 1;
+    const effectiveOccupancy = Math.max(occupancy, minObpOccupancy);
+
+    // Calculate missing people based on this effective occupancy
+    const missingPeople = Math.max(0, room.maxOccupancy - effectiveOccupancy);
+    
     if (missingPeople > 0) {
       price = price - (missingPeople * obpConfig.amount);
     }
   }
 
-  // Prevent negative or zero prices (sanity check)
+  // Prevent negative or zero prices (absolute sanity check)
   const finalPrice = Math.max(price, 50); // Minimum 50 currency units
   
   return roundPrice(finalPrice);
@@ -149,7 +156,7 @@ export const generatePricingGrid = (
       // Ensure target doesn't exceed max (sanity check)
       targetOccupancy = Math.min(targetOccupancy, room.maxOccupancy);
       
-      // Direct Price (Calculated with OBP)
+      // Direct Price (Calculated with OBP and Min OBP)
       const directPrice = calculateDirectPrice(room, season, targetOccupancy, settings);
       
       const channelCalculations: Record<string, ChannelCalculation> = {};
@@ -178,6 +185,7 @@ export const generatePricingGrid = (
         occupancy: targetOccupancy,
         maxOccupancy: room.maxOccupancy,
         directPrice,
+        minNights: room.minNights || 1, // Default to 1 if not set
         comment: activeComment,
         occupancyRate: activeOccupancy,
         channelCalculations,

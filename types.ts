@@ -29,6 +29,8 @@ export interface RoomType {
   maxOccupancy: number;
   tid: string; // Type ID (replaced quantity)
   basePricePeak: number;
+  minNights?: number; // Minimum number of nights
+  minObpOccupancy?: number; // Minimum occupancy threshold for OBP calculation
   // Key is season.id, value is the specific base price for that season.
   // If not present, falls back to basePricePeak.
   seasonBasePrices?: Record<string, number>; 
@@ -67,6 +69,7 @@ export interface PricingRow {
   seasonId: string;
   roomName: string;
   basePrice: number;
+  minNights: number; // Displayed in dashboard
   seasonName: string;
   occupancy: number;
   maxOccupancy: number;

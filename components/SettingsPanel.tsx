@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { Channel, ChannelDiscountProfile, GlobalSettings, Property, RoomType, Season, SettingsTab } from "../types";
 import { Plus, Trash2, X, Copy, GripVertical, ArrowRightLeft, Check, AlertCircle } from "lucide-react";
@@ -158,6 +159,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       maxOccupancy: 2,
       tid: "",
       basePricePeak: 200,
+      minNights: 2,
+      minObpOccupancy: 1
     };
     setRooms([...rooms, newRoom]);
   };
@@ -341,6 +344,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                       <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase">Nazwa</th>
                       <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase">Maks. Osób</th>
                       <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase">TID</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase">Min. Nocy</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase" title="Minimalna liczba osób, poniżej której OBP nie obniża ceny">Min. Osób (OBP)</th>
                       <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase">Cena Bazowa</th>
                       <th className="px-3 py-2"></th>
                     </tr>
@@ -359,6 +364,17 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                         <td className="px-3 py-2"><input type="text" value={room.name} onChange={(e) => updateItem<RoomType>(room.id, "name", e.target.value, rooms, setRooms)} className={`w-full ${inputClass}`} /></td>
                         <td className="px-3 py-2"><input type="number" value={room.maxOccupancy} onChange={(e) => updateItem<RoomType>(room.id, "maxOccupancy", Number(e.target.value), rooms, setRooms)} className={`w-20 ${inputClass}`} /></td>
                         <td className="px-3 py-2"><input type="text" value={room.tid || ""} onChange={(e) => updateItem<RoomType>(room.id, "tid", e.target.value, rooms, setRooms)} className={`w-24 ${inputClass}`} /></td>
+                        <td className="px-3 py-2"><input type="number" value={room.minNights ?? 0} onChange={(e) => updateItem<RoomType>(room.id, "minNights", Number(e.target.value), rooms, setRooms)} className={`w-20 ${inputClass}`} /></td>
+                        <td className="px-3 py-2">
+                          <input 
+                            type="number" 
+                            min={1} 
+                            max={room.maxOccupancy}
+                            value={room.minObpOccupancy ?? 1} 
+                            onChange={(e) => updateItem<RoomType>(room.id, "minObpOccupancy", Math.min(Number(e.target.value), room.maxOccupancy), rooms, setRooms)} 
+                            className={`w-24 ${inputClass}`} 
+                          />
+                        </td>
                         <td className="px-3 py-2"><input type="number" value={room.basePricePeak} onChange={(e) => updateItem<RoomType>(room.id, "basePricePeak", Number(e.target.value), rooms, setRooms)} className={`w-24 ${inputClass}`} /></td>
                         <td className="px-3 py-2 text-right"><button onClick={() => deleteItem(room.id, rooms, setRooms)} className="text-red-500 hover:text-red-700"><Trash2 size={16}/></button></td>
                       </tr>

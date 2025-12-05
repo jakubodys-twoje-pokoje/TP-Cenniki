@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState } from "react";
 import { Channel, GlobalSettings, RoomType, Season } from "../types";
 import { generatePricingGrid, calculateDirectPrice, calculateChannelPrice } from "../utils/pricingEngine";
@@ -361,7 +362,16 @@ const Dashboard: React.FC<DashboardProps> = ({
                                    )}
                                 </td>
                                 <td className="px-3 py-3 align-middle">
-                                   {index === 0 && <div className="font-medium text-slate-900">{room.name}</div>}
+                                   {index === 0 && (
+                                     <div>
+                                       <div className="font-medium text-slate-900">{room.name}</div>
+                                       {room.minNights && room.minNights > 1 && (
+                                         <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200">
+                                           Min. {room.minNights} noce
+                                         </span>
+                                       )}
+                                     </div>
+                                   )}
                                 </td>
                                 <td className="px-3 py-3 align-middle text-slate-600">
                                    <span className="text-xs font-semibold">{row.seasonName}</span>
