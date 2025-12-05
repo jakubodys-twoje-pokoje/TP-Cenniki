@@ -77,6 +77,20 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     );
   };
 
+  const updateRoomSeasonalObp = (roomId: string, seasonId: string, isActive: boolean) => {
+    if (isReadOnly) return;
+    setRooms(rooms.map(r => {
+      if (r.id !== roomId) return r;
+      return {
+        ...r,
+        seasonalObpActive: {
+          ...r.seasonalObpActive,
+          [seasonId]: isActive
+        }
+      };
+    }));
+  };
+
   const updateChannelDiscount = (
     channelId: string,
     seasonId: string,
@@ -265,8 +279,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                    {settings.obpEnabled ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
                  </button>
                  <div>
-                    <h4 className="text-sm font-semibold text-slate-800">Cennik Zależny od Obłożenia (OBP)</h4>
-                    <p className="text-xs text-slate-500">Jeśli włączone, cena będzie redukowana za każdą brakującą osobę w pokoju.</p>
+                    <h4 className="text-sm font-semibold text-slate-800">Cennik Zależny od Obłożenia (OBP) - Globalnie</h4>
+                    <p className="text-xs text-slate-500">Włącz lub wyłącz logikę OBP dla całego obiektu. Możesz też wyłączyć ją dla konkretnych pokoi i sezonów w zakładce Pokoje.</p>
                  </div>
               </div>
             </div>
@@ -324,6 +338,14 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                       <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase whitespace-nowrap" title="Min. osób do naliczania OBP">Min. OBP</th>
                       <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase whitespace-nowrap">Min. Nocy</th>
                       <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase whitespace-nowrap" title="Kwota odliczana za osobę">Wartość OBP</th>
+                      
+                      {/* Dynamic Season Headers for OBP Toggles */}
+                      {seasons.map(s => (
+                        <th key={s.id} className="px-3 py-2 text-center text-xs font-medium text-slate-500 uppercase whitespace-nowrap min-w-[80px]">
+                          {s.name} <br/><span className="text-[10px]">OBP</span>
+                        </th>
+                      ))}
+
                       <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase whitespace-nowrap">TID</th>
                       <th className="px-3 py-2"></th>
                     </tr>
@@ -380,6 +402,23 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                              placeholder="30"
                            />
                         </td>
+
+                        {/* Season OBP Toggles */}
+                        {seasons.map(s => {
+                           const isActive = room.seasonalObpActive?.[s.id] ?? true;
+                           return (
+                             <td key={s.id} className="px-3 py-2 text-center">
+                                <input 
+                                  type="checkbox" 
+                                  checked={isActive} 
+                                  disabled={isReadOnly || !settings.obpEnabled}
+                                  onChange={(e) => updateRoomSeasonalObp(room.id, s.id, e.target.checked)}
+                                  className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:opacity-30"
+                                  title={`OBP ${isActive ? 'Włączone' : 'Wyłączone'} dla ${s.name}`}
+                                />
+                             </td>
+                           )
+                        })}
                         
                         <td className="px-3 py-2">
                            <input disabled={isReadOnly} type="text" value={room.tid || ""} onChange={(e) => updateItem<RoomType>(room.id, "tid", e.target.value, rooms, setRooms)} className={`w-20 ${inputClass}`} />

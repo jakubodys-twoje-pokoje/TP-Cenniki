@@ -114,8 +114,7 @@ const App: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from('properties')
-        .select('*')
-        .order('updated_at', { ascending: true });
+        .select('*');
 
       if (error) throw error;
 
@@ -131,6 +130,16 @@ const App: React.FC = () => {
            const allowedIds = perms.allowedPropertyIds || [];
            loadedProps = loadedProps.filter(p => allowedIds.includes(p.id));
         }
+
+        // Apply Custom Sorting (sortOrder) - Critical for persistence
+        loadedProps.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+
+        // Apply Room Sorting within properties
+        loadedProps.forEach(p => {
+          if (p.rooms) {
+            p.rooms.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+          }
+        });
 
         processLoadedProperties(loadedProps);
         
@@ -151,6 +160,7 @@ const App: React.FC = () => {
              rooms: deepClone(INITIAL_ROOMS),
              seasons: deepClone(INITIAL_SEASONS),
              notes: "",
+             sortOrder: 0
            };
            await supabase.from('properties').insert({ id: defaultProp.id, content: defaultProp });
            processLoadedProperties([defaultProp]);
@@ -195,14 +205,22 @@ const App: React.FC = () => {
                return; // Ignore update for property not allowed
             }
 
+            // Ensure rooms are sorted when receiving update
+            if (newContent.rooms) {
+               newContent.rooms.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+            }
+
             lastServerState.current[newId] = JSON.stringify(newContent);
             setProperties(prev => {
               const exists = prev.find(p => p.id === newId);
+              let updatedList;
               if (exists) {
-                return prev.map(p => p.id === newId ? { ...newContent, id: newId } : p);
+                updatedList = prev.map(p => p.id === newId ? { ...newContent, id: newId } : p);
               } else {
-                return [...prev, { ...newContent, id: newId }];
+                updatedList = [...prev, { ...newContent, id: newId }];
               }
+              // Re-sort entire property list on update based on sortOrder
+              return updatedList.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
             });
           } else if (payload.eventType === 'DELETE') {
              const deletedId = payload.old.id;
@@ -424,6 +442,7 @@ const App: React.FC = () => {
           rooms: importedRooms,
           seasons: deepClone(INITIAL_SEASONS),
           notes: `Zaimportowano z Hotres OID: ${importOid}`,
+          sortOrder: properties.length,
         };
       } catch (e: any) {
         alert("Błąd importu: " + e.message);
@@ -441,6 +460,7 @@ const App: React.FC = () => {
         rooms: deepClone(INITIAL_ROOMS),
         seasons: deepClone(INITIAL_SEASONS),
         notes: "",
+        sortOrder: properties.length,
       };
     }
 
@@ -467,6 +487,7 @@ const App: React.FC = () => {
     
     newProperty.id = newId;
     newProperty.name = `${newProperty.name} (Kopia)`;
+    newProperty.sortOrder = properties.length;
     
     setProperties([...properties, newProperty]);
     setActivePropertyId(newId);
@@ -540,47 +561,87 @@ const App: React.FC = () => {
     e.preventDefault();
   };
 
-  const handleSidebarDrop = (e: React.DragEvent, targetType: 'property' | 'room', targetId: string, targetParentId?: string) => {
+  const handleSidebarDragEnd = (e: React.DragEvent) => {
+    setSidebarDragItem(null); // Clear drag item to fix visual "greyed out" glitch
+  };
+
+  const handleSidebarDrop = async (e: React.DragEvent, targetType: 'property' | 'room', targetId: string, targetParentId?: string) => {
     e.preventDefault();
     if (!sidebarDragItem) return;
     
     // Logic for Property Reordering
     if (sidebarDragItem.type === 'property' && targetType === 'property') {
-       if (sidebarDragItem.id === targetId) return;
+       if (sidebarDragItem.id === targetId) { setSidebarDragItem(null); return; }
        const sourceIndex = properties.findIndex(p => p.id === sidebarDragItem.id);
        const targetIndex = properties.findIndex(p => p.id === targetId);
        
-       if (sourceIndex === -1 || targetIndex === -1) return;
+       if (sourceIndex === -1 || targetIndex === -1) { setSidebarDragItem(null); return; }
        
        const newProperties = [...properties];
        const [moved] = newProperties.splice(sourceIndex, 1);
        newProperties.splice(targetIndex, 0, moved);
        
-       setProperties(newProperties);
-       // Trigger save implicitly via effect
+       // Re-assign Sort Order
+       const sortedProperties = newProperties.map((p, idx) => ({ ...p, sortOrder: idx }));
+       setProperties(sortedProperties);
+
+       // Save to DB immediately & Update Last Server State to prevent useEffect loop
+       setSyncStatus('saving');
+       const updates = sortedProperties.map(p => {
+         // Update reference to prevent auto-save triggering
+         const content = { ...p, sortOrder: p.sortOrder };
+         lastServerState.current[p.id] = JSON.stringify(content);
+         return {
+           id: p.id,
+           content: content,
+           updated_at: new Date().toISOString()
+         };
+       });
+       
+       await supabase.from('properties').upsert(updates);
+       setSyncStatus('synced');
+       setTimeout(() => setSyncStatus('idle'), 2000);
     } 
     
     // Logic for Room Reordering (Must be within same property)
     else if (sidebarDragItem.type === 'room' && targetType === 'room') {
-       if (sidebarDragItem.id === targetId) return;
-       if (sidebarDragItem.parentId !== targetParentId) return; // Prevent cross-property drag
+       if (sidebarDragItem.id === targetId) { setSidebarDragItem(null); return; }
+       if (sidebarDragItem.parentId !== targetParentId) { setSidebarDragItem(null); return; } // Prevent cross-property drag
 
        const propIndex = properties.findIndex(p => p.id === sidebarDragItem.parentId);
-       if (propIndex === -1) return;
+       if (propIndex === -1) { setSidebarDragItem(null); return; }
 
        const prop = properties[propIndex];
        const sourceIndex = prop.rooms.findIndex(r => r.id === sidebarDragItem.id);
        const targetIndex = prop.rooms.findIndex(r => r.id === targetId);
 
-       if (sourceIndex === -1 || targetIndex === -1) return;
+       if (sourceIndex === -1 || targetIndex === -1) { setSidebarDragItem(null); return; }
 
        const newRooms = [...prop.rooms];
        const [moved] = newRooms.splice(sourceIndex, 1);
        newRooms.splice(targetIndex, 0, moved);
 
+       // Re-assign Sort Order for rooms
+       newRooms.forEach((r, idx) => r.sortOrder = idx);
+
+       const updatedProp = { ...prop, rooms: newRooms };
+       
+       // Update State
        setProperties(prev => prev.map(p => 
-          p.id === prop.id ? { ...p, rooms: newRooms } : p
+          p.id === prop.id ? updatedProp : p
        ));
+
+       // Save to DB immediately & Update Ref
+       setSyncStatus('saving');
+       lastServerState.current[prop.id] = JSON.stringify(updatedProp);
+       
+       await supabase.from('properties').upsert({
+         id: prop.id,
+         content: updatedProp,
+         updated_at: new Date().toISOString()
+       });
+       setSyncStatus('synced');
+       setTimeout(() => setSyncStatus('idle'), 2000);
     }
     
     setSidebarDragItem(null);
@@ -732,13 +793,15 @@ const App: React.FC = () => {
                 {properties.map(p => {
                   const isExpanded = expandedProperties.has(p.id);
                   const isActive = activePropertyId === p.id;
+                  const isDraggingThis = sidebarDragItem?.type === 'property' && sidebarDragItem.id === p.id;
                   
                   return (
                    <div 
                       key={p.id} 
-                      className={`mb-1 transition-opacity ${sidebarDragItem?.id === p.id ? 'opacity-40' : ''}`}
+                      className={`mb-1 transition-opacity ${isDraggingThis ? 'opacity-40' : ''}`}
                       draggable={!isReadOnly}
                       onDragStart={(e) => handleSidebarDragStart(e, 'property', p.id)}
+                      onDragEnd={handleSidebarDragEnd}
                       onDragOver={handleSidebarDragOver}
                       onDrop={(e) => handleSidebarDrop(e, 'property', p.id)}
                    >
@@ -774,7 +837,10 @@ const App: React.FC = () => {
                      
                      {isExpanded && (
                        <div className="ml-2 pl-4 border-l border-slate-800 space-y-1 mt-1">
-                          {p.rooms.map(room => (
+                          {p.rooms.map(room => {
+                            const isDraggingRoom = sidebarDragItem?.type === 'room' && sidebarDragItem.id === room.id;
+                            
+                            return (
                             <button
                               key={room.id}
                               onClick={() => handleRoomClick(p.id, room.id)}
@@ -782,16 +848,18 @@ const App: React.FC = () => {
                                 isActive && activeTab === 'dashboard' && selectedRoomId === room.id
                                 ? "text-blue-300 font-medium bg-slate-800/50" 
                                 : "text-slate-500 hover:text-slate-300 hover:bg-slate-800/30"
-                              } ${sidebarDragItem?.id === room.id ? 'opacity-40' : ''}`}
+                              } ${isDraggingRoom ? 'opacity-40' : ''}`}
                               draggable={!isReadOnly}
                               onDragStart={(e) => handleSidebarDragStart(e, 'room', room.id, p.id)}
+                              onDragEnd={handleSidebarDragEnd}
                               onDragOver={handleSidebarDragOver}
                               onDrop={(e) => handleSidebarDrop(e, 'room', room.id, p.id)}
                             >
                               <Bed size={12} />
                               <span className="truncate">{room.name}</span>
                             </button>
-                          ))}
+                            )
+                          })}
                           {p.rooms.length === 0 && (
                             <div className="px-2 py-1 text-xs text-slate-600 italic">Brak pokoi</div>
                           )}

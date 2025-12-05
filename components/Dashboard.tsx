@@ -2,7 +2,7 @@
 import React, { useMemo, useState } from "react";
 import { Channel, GlobalSettings, RoomType, Season } from "../types";
 import { generatePricingGrid, calculateDirectPrice, calculateChannelPrice } from "../utils/pricingEngine";
-import { TrendingUp, Users, StickyNote, ChevronDown, ChevronRight, GripVertical, Columns, RefreshCw, Loader2, AlertCircle, CloudDownload, Lock, TableProperties } from "lucide-react";
+import { TrendingUp, Users, StickyNote, ChevronDown, ChevronRight, GripVertical, Columns, RefreshCw, Loader2, AlertCircle, CloudDownload, Lock, TableProperties, ChevronUp } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { fetchHotresOccupancy } from "../utils/hotresApi";
 
@@ -52,8 +52,11 @@ const Dashboard: React.FC<DashboardProps> = ({
   // Drag and drop state
   const [draggedRoomId, setDraggedRoomId] = useState<string | null>(null);
 
-  // Expanded Rows State (Set of "roomId-seasonId")
+  // Expanded Rows State (Set of "roomId-seasonId") - for detail expansion within a row
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+
+  // Collapsed Rooms State (Set of "roomId") - for hiding season rows of a room
+  const [collapsedRoomIds, setCollapsedRoomIds] = useState<Set<string>>(new Set());
 
   // Loading state for occupancy fetching: "roomId-seasonId"
   const [occupancyLoading, setOccupancyLoading] = useState<Set<string>>(new Set());
@@ -78,7 +81,6 @@ const Dashboard: React.FC<DashboardProps> = ({
       ? rooms.filter(r => r.id === selectedRoomId)
       : rooms;
 
-    // We pass empty overrides because we removed per-row overrides in favor of expansion
     return generatePricingGrid(activeRooms, seasons, channels, settings, occupancyFilter, {});
   }, [rooms, seasons, channels, settings, occupancyFilter, selectedRoomId]);
 
@@ -171,6 +173,15 @@ const Dashboard: React.FC<DashboardProps> = ({
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
+      return next;
+    });
+  };
+
+  const toggleRoomCollapse = (roomId: string) => {
+    setCollapsedRoomIds(prev => {
+      const next = new Set(prev);
+      if (next.has(roomId)) next.delete(roomId);
+      else next.add(roomId);
       return next;
     });
   };
@@ -362,16 +373,39 @@ const Dashboard: React.FC<DashboardProps> = ({
               </thead>
               
               {roomGroups.length > 0 ? (
-                roomGroups.map(({ room, rows }) => (
+                roomGroups.map(({ room, rows }) => {
+                  const isCollapsed = collapsedRoomIds.has(room.id);
+                  const dragActive = draggedRoomId === room.id;
+
+                  return (
                   <tbody 
                      key={room.id}
                      draggable={!isReadOnly}
                      onDragStart={(e) => handleDragStart(e, room.id)}
                      onDragOver={handleDragOver}
                      onDrop={(e) => handleDrop(e, room.id)}
-                     className={`group/body border-b border-slate-200 hover:bg-slate-50/50 transition-colors ${draggedRoomId === room.id ? 'opacity-30' : ''}`}
+                     className={`group/body border-b border-slate-200 hover:bg-slate-50/50 transition-colors ${dragActive ? 'opacity-30' : ''}`}
                   >
-                     {rows.map((row, index) => {
+                     {/* Group Header Row */}
+                     <tr className="bg-slate-100 hover:bg-slate-200/50 cursor-pointer" onClick={() => toggleRoomCollapse(room.id)}>
+                        <td className="px-2 py-2 text-center align-middle">
+                           <div className={`text-slate-400 flex justify-center ${!isReadOnly ? 'cursor-grab active:cursor-grabbing hover:text-slate-600' : ''}`} onClick={(e) => e.stopPropagation()}>
+                              {!isReadOnly && <GripVertical size={16} />}
+                           </div>
+                        </td>
+                        <td className="px-3 py-2 font-bold text-slate-700 flex items-center gap-2" colSpan={2}>
+                           {isCollapsed ? <ChevronRight size={16}/> : <ChevronDown size={16}/>}
+                           {room.name}
+                           {room.minNights && room.minNights > 1 && (
+                             <span className="text-[10px] bg-white border border-slate-300 px-1.5 rounded font-normal text-slate-500">Min. {room.minNights} noce</span>
+                           )}
+                        </td>
+                        <td colSpan={15} className="px-3 py-2 text-right text-xs text-slate-400 font-medium uppercase tracking-wider">
+                           {isCollapsed ? `${rows.length} Sezonów (Rozwiń)` : ''}
+                        </td>
+                     </tr>
+
+                     {!isCollapsed && rows.map((row, index) => {
                         const channelData = activeView !== "ALL" && activeView !== "SUMMARY" ? row.channelCalculations[activeView] : null;
                         const rowKey = `${row.roomId}-${row.seasonId}`;
                         const isExpanded = expandedRows.has(rowKey);
@@ -381,24 +415,9 @@ const Dashboard: React.FC<DashboardProps> = ({
                         return (
                            <React.Fragment key={row.seasonId}>
                              <tr className={`hover:bg-slate-100/50 ${isExpanded ? 'bg-slate-50 border-b border-slate-100' : ''}`}>
-                                <td className="px-2 py-3 text-center align-middle">
-                                   {index === 0 && (
-                                      <div className={`text-slate-300 flex justify-center ${!isReadOnly ? 'cursor-grab active:cursor-grabbing hover:text-slate-500' : ''}`}>
-                                         {!isReadOnly && <GripVertical size={16} />}
-                                      </div>
-                                   )}
-                                </td>
-                                <td className="px-3 py-3 align-middle">
-                                   {index === 0 && (
-                                     <div>
-                                       <div className="font-medium text-slate-900">{room.name}</div>
-                                       {room.minNights && room.minNights > 1 && (
-                                         <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200">
-                                           Min. {room.minNights} noce
-                                         </span>
-                                       )}
-                                     </div>
-                                   )}
+                                <td className="px-2 py-3"></td> {/* Empty space for indentation */}
+                                <td className="px-3 py-3 align-middle opacity-50">
+                                   {/* Room Name placeholder */}
                                 </td>
                                 <td className="px-3 py-3 align-middle text-slate-600">
                                    <span className="text-xs font-semibold">{row.seasonName}</span>
@@ -567,7 +586,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                         );
                      })}
                   </tbody>
-                ))
+                );
+                })
               ) : (
                 <tbody><tr><td colSpan={15} className="px-4 py-8 text-center text-slate-500">Brak danych.</td></tr></tbody>
               )}

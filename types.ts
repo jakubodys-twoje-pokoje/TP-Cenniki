@@ -50,6 +50,12 @@ export interface RoomType {
   
   // OBP Setting: Amount per person to deduct
   obpPerPerson?: number; 
+  
+  // OBP Setting: Active per season (Key: season.id, Value: boolean)
+  seasonalObpActive?: Record<string, boolean>;
+
+  // Sorting order
+  sortOrder?: number;
 }
 
 export interface Season {
@@ -73,6 +79,7 @@ export interface Property {
   rooms: RoomType[];
   seasons: Season[];
   notes?: string;
+  sortOrder?: number;
 }
 
 export interface PricingRow {

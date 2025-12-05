@@ -22,8 +22,11 @@ export const calculateDirectPrice = (
   // 2. Base Price * Season Multiplier
   let price = basePrice * season.multiplier;
 
-  // 3. Apply OBP if Globally Enabled
-  if (settings.obpEnabled) {
+  // 3. Apply OBP
+  // Logic: Must be globally enabled AND (enabled for this specific season on this room OR undefined which defaults to true)
+  const isSeasonObpActive = room.seasonalObpActive?.[season.id] ?? true;
+
+  if (settings.obpEnabled && isSeasonObpActive) {
     // Determine the effective occupancy for pricing calculation.
     // We cannot go below the minObpOccupancy set for the room.
     const minObpOccupancy = room.minObpOccupancy || 1;
