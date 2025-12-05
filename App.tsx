@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect, useRef } from "react";
-import { LayoutDashboard, Settings as SettingsIcon, Menu, BedDouble, Calendar, Share2, Cog, ChevronDown, ChevronRight, Building, Plus, Trash2, Bed, CheckCircle2, Copy, Cloud, CloudOff, Loader2, RefreshCw, LogOut, Download, X } from "lucide-react";
+import { LayoutDashboard, Settings as SettingsIcon, Menu, BedDouble, Calendar, Share2, Cog, ChevronDown, ChevronRight, Building, Plus, Trash2, Bed, CheckCircle2, Copy, Cloud, CloudOff, Loader2, RefreshCw, LogOut, Download, X, Lock } from "lucide-react";
 import SettingsPanel from "./components/SettingsPanel";
 import Dashboard from "./components/Dashboard";
 import LoginScreen from "./components/LoginScreen";
@@ -9,9 +10,10 @@ import {
   INITIAL_SEASONS,
   INITIAL_SETTINGS,
 } from "./constants";
-import { Property, RoomType, SettingsTab } from "./types";
+import { Property, RoomType, SettingsTab, UserPermissions } from "./types";
 import { supabase } from "./utils/supabaseClient";
 import { fetchSeasonOccupancyMap, fetchHotresRooms } from "./utils/hotresApi";
+import { getUserPermissions } from "./utils/userConfig";
 
 // Utility for deep cloning
 function deepClone<T>(obj: T): T {
@@ -22,6 +24,7 @@ const App: React.FC = () => {
   // Auth State
   const [session, setSession] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [userPermissions, setUserPermissions] = useState<UserPermissions>({ role: 'client', allowedPropertyIds: [] });
 
   // Application State
   const [activeTab, setActiveTab] = useState<"dashboard" | "settings">("dashboard");
@@ -64,16 +67,23 @@ const App: React.FC = () => {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
+      if (session) {
+        setUserPermissions(getUserPermissions(session.user.email));
+        fetchProperties();
+      }
       setAuthLoading(false);
-      if (session) fetchProperties();
     });
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
-      if (session) fetchProperties();
-      else setProperties([]);
+      if (session) {
+         setUserPermissions(getUserPermissions(session.user.email));
+         fetchProperties();
+      } else {
+         setProperties([]);
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -100,29 +110,43 @@ const App: React.FC = () => {
       if (error) throw error;
 
       if (data && data.length > 0) {
-        const loadedProps = data.map(row => ({
+        let loadedProps = data.map(row => ({
            ...row.content,
            id: row.id
         }));
+
+        // FILTER PROPERTIES BASED ON ROLE
+        const perms = getUserPermissions(session?.user?.email);
+        if (perms.role === 'client') {
+           const allowedIds = perms.allowedPropertyIds || [];
+           loadedProps = loadedProps.filter(p => allowedIds.includes(p.id));
+        }
+
         processLoadedProperties(loadedProps);
         
-        if (!loadedProps.find(p => p.id === activePropertyId)) {
+        if (loadedProps.length > 0 && !loadedProps.find(p => p.id === activePropertyId)) {
             setActivePropertyId(loadedProps[0].id);
         }
       } else {
-        const defaultProp: Property = {
-          id: "default",
-          name: "Główny Obiekt",
-          oid: "",
-          settings: deepClone(INITIAL_SETTINGS),
-          channels: deepClone(INITIAL_CHANNELS),
-          rooms: deepClone(INITIAL_ROOMS),
-          seasons: deepClone(INITIAL_SEASONS),
-          notes: "",
-        };
-        await supabase.from('properties').insert({ id: defaultProp.id, content: defaultProp });
-        processLoadedProperties([defaultProp]);
-        setActivePropertyId(defaultProp.id);
+        // Only create default if Super Admin
+        const perms = getUserPermissions(session?.user?.email);
+        if (perms.role === 'super_admin') {
+           const defaultProp: Property = {
+             id: "default",
+             name: "Główny Obiekt",
+             oid: "",
+             settings: deepClone(INITIAL_SETTINGS),
+             channels: deepClone(INITIAL_CHANNELS),
+             rooms: deepClone(INITIAL_ROOMS),
+             seasons: deepClone(INITIAL_SEASONS),
+             notes: "",
+           };
+           await supabase.from('properties').insert({ id: defaultProp.id, content: defaultProp });
+           processLoadedProperties([defaultProp]);
+           setActivePropertyId(defaultProp.id);
+        } else {
+           setProperties([]); // Empty state for read-only user if DB is empty
+        }
       }
     } catch (err: any) {
       console.error("Error fetching data:", err);
@@ -147,9 +171,19 @@ const App: React.FC = () => {
           table: 'properties',
         },
         (payload) => {
+          // If read-only user (Admin/Client), just consume updates
+          // Super Admin also consumes to stay synced
+          const perms = getUserPermissions(session.user.email);
+          
           if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
             const newContent = payload.new.content as Property;
             const newId = payload.new.id;
+            
+            // Client Filter Check
+            if (perms.role === 'client' && !perms.allowedPropertyIds?.includes(newId)) {
+               return; // Ignore update for property not allowed
+            }
+
             lastServerState.current[newId] = JSON.stringify(newContent);
             setProperties(prev => {
               const exists = prev.find(p => p.id === newId);
@@ -176,6 +210,9 @@ const App: React.FC = () => {
   // 2. Save Changes
   useEffect(() => {
     if (isLoading || properties.length === 0 || !session) return;
+    
+    // PERMISSION CHECK: Only Super Admin can save
+    if (userPermissions.role !== 'super_admin') return;
 
     const propToSave = properties.find(p => p.id === activePropertyId);
     if (!propToSave) return;
@@ -219,16 +256,25 @@ const App: React.FC = () => {
     return () => {
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     };
-  }, [properties, activePropertyId, session, isLoading]);
+  }, [properties, activePropertyId, session, isLoading, userPermissions]);
 
   // Helper logic to sync occupancy for a property
   const syncPropertyOccupancy = async (propId: string) => {
+    // Only Super Admin should trigger expensive syncs, but let's allow it for now if needed. 
+    // Actually, prompt says Admin/Client are Read Only. 
+    // However, refreshing occupancy is fetching data, not changing config. 
+    // But it does change STATE. So effectively it's a write operation.
+    // We will allow Super Admin only to trigger updates that save to DB.
+    if (userPermissions.role !== 'super_admin') {
+       alert("Brak uprawnień do aktualizacji bazy danych.");
+       return;
+    }
+
     const prop = properties.find(p => p.id === propId);
     if (!prop || !prop.oid) return;
 
     console.log(`Syncing occupancy for property ${prop.name} (${prop.oid})`);
     
-    // Clone rooms to avoid direct mutation
     let updatedRooms = deepClone(prop.rooms);
     let hasUpdates = false;
 
@@ -267,6 +313,9 @@ const App: React.FC = () => {
     if (!session || isLoading || !activePropertyId) return;
 
     const checkAndFetchOccupancy = async () => {
+      // Only Super Admin runs the background sync to avoid conflicts
+      if (userPermissions.role !== 'super_admin') return;
+
       const now = Date.now();
       const sixtyMinutes = 60 * 60 * 1000;
       const prop = properties.find(p => p.id === activePropertyId);
@@ -287,18 +336,20 @@ const App: React.FC = () => {
     checkAndFetchOccupancy();
     const intervalId = setInterval(checkAndFetchOccupancy, 60000); 
     return () => clearInterval(intervalId);
-  }, [session, activePropertyId, properties, lastOccupancyFetch, isOccupancyRefreshing, isLoading]);
+  }, [session, activePropertyId, properties, lastOccupancyFetch, isOccupancyRefreshing, isLoading, userPermissions]);
 
 
   const activeProperty = properties.find(p => p.id === activePropertyId) || properties[0];
 
   const updateActiveProperty = (updates: Partial<Property>) => {
+    if (userPermissions.role !== 'super_admin') return; // Enforce Read-Only
     setProperties(prev => prev.map(p => 
       p.id === activePropertyId ? { ...p, ...updates } : p
     ));
   };
 
   const handleRoomUpdate = (roomId: string, updates: Partial<RoomType>) => {
+    if (userPermissions.role !== 'super_admin') return;
     if (!activeProperty) return;
     const updatedRooms = activeProperty.rooms.map(r => 
       r.id === roomId ? { ...r, ...updates } : r
@@ -307,6 +358,7 @@ const App: React.FC = () => {
   };
 
   const handleOccupancyUpdate = (roomId: string, seasonId: string, rate: number) => {
+    if (userPermissions.role !== 'super_admin') return;
     if (!activeProperty) return;
     const room = activeProperty.rooms.find(r => r.id === roomId);
     if (!room) return;
@@ -318,15 +370,16 @@ const App: React.FC = () => {
   };
 
   const handleReorderRooms = (reorderedRooms: RoomType[]) => {
+    if (userPermissions.role !== 'super_admin') return;
     updateActiveProperty({ rooms: reorderedRooms });
   };
 
   const handleDuplicateSeasons = (targetPropertyId: string) => {
+    if (userPermissions.role !== 'super_admin') return;
     if (!activeProperty) return;
     const targetProp = properties.find(p => p.id === targetPropertyId);
     if (!targetProp) return;
 
-    // Deep clone seasons and OBP settings from active property
     const seasonsCopy = deepClone(activeProperty.seasons);
     const obpCopy = deepClone(activeProperty.settings.seasonalObp);
 
@@ -347,6 +400,8 @@ const App: React.FC = () => {
   };
 
   const handleCreateProperty = async () => {
+    if (userPermissions.role !== 'super_admin') return;
+
     const newId = Date.now().toString();
     let newProperty: Property;
 
@@ -361,7 +416,7 @@ const App: React.FC = () => {
         
         newProperty = {
           id: newId,
-          name: `Obiekt ${importOid}`, // User can rename later
+          name: `Obiekt ${importOid}`,
           oid: importOid,
           settings: deepClone(INITIAL_SETTINGS),
           channels: deepClone(INITIAL_CHANNELS),
@@ -376,7 +431,6 @@ const App: React.FC = () => {
       }
       setIsImporting(false);
     } else {
-      // Manual Mode
       newProperty = {
         id: newId,
         name: "Nowy Obiekt",
@@ -398,13 +452,13 @@ const App: React.FC = () => {
     lastServerState.current[newId] = JSON.stringify(newProperty);
     await supabase.from('properties').insert({ id: newId, content: newProperty });
     
-    // Close modal and reset
     setShowAddPropertyModal(false);
     setImportOid("");
     setAddPropertyMode('manual');
   };
 
   const handleDuplicateProperty = async () => {
+    if (userPermissions.role !== 'super_admin') return;
     if (!activeProperty) return;
 
     const newId = Date.now().toString();
@@ -423,6 +477,8 @@ const App: React.FC = () => {
   };
 
   const handleDeleteProperty = async (id: string) => {
+    if (userPermissions.role !== 'super_admin') return;
+
     if (properties.length <= 1) {
       alert("Musisz zachować przynajmniej jeden obiekt.");
       return;
@@ -471,6 +527,8 @@ const App: React.FC = () => {
     await supabase.auth.signOut();
   };
 
+  const isReadOnly = userPermissions.role !== 'super_admin';
+
   // --- Render Views ---
 
   if (authLoading) {
@@ -487,7 +545,8 @@ const App: React.FC = () => {
 
   if (loadError) {
     return (
-      <div className="flex flex-col h-screen items-center justify-center bg-slate-50 text-slate-800 p-4">
+       <div className="flex flex-col h-screen items-center justify-center bg-slate-50 text-slate-800 p-4">
+        {/* Error UI kept same as previous */}
         <div className="bg-white p-6 rounded-lg shadow-lg max-w-lg w-full border border-red-200">
            <div className="flex items-center gap-2 text-red-600 font-bold mb-4">
              <CloudOff size={24} />
@@ -499,23 +558,6 @@ const App: React.FC = () => {
            <div className="bg-slate-100 p-3 rounded text-xs font-mono text-slate-700 overflow-x-auto mb-4">
              {loadError}
            </div>
-           
-           <h3 className="font-bold text-sm mb-2">Jak naprawić?</h3>
-           <p className="text-xs mb-3">1. Skopiuj poniższy kod SQL.<br/>2. Wejdź w Supabase -&gt; SQL Editor.<br/>3. Wklej i uruchom (Run).</p>
-           
-           <div className="relative group">
-              <button 
-                onClick={() => {
-                  const sql = `DROP TABLE IF EXISTS properties;\nCREATE TABLE properties (\n  id TEXT PRIMARY KEY,\n  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),\n  content JSONB NOT NULL\n);\nALTER PUBLICATION supabase_realtime ADD TABLE properties;\nALTER TABLE properties REPLICA IDENTITY FULL;\nALTER TABLE properties DISABLE ROW LEVEL SECURITY;`;
-                  navigator.clipboard.writeText(sql);
-                  alert("Skopiowano SQL do schowka!");
-                }}
-                className="flex items-center gap-2 bg-slate-800 text-white px-3 py-2 rounded hover:bg-slate-700 w-full justify-center"
-              >
-                <Copy size={16} /> Kopiuj kod SQL naprawczy
-              </button>
-           </div>
-           
            <div className="mt-6 border-t pt-4 text-center">
              <button onClick={() => window.location.reload()} className="text-blue-600 font-bold hover:underline">Spróbuj ponownie</button>
            </div>
@@ -532,18 +574,10 @@ const App: React.FC = () => {
     );
   }
 
-  if (!activeProperty) return <div>Brak danych.</div>;
+  if (!activeProperty) return <div className="p-8 text-center text-slate-500">Brak dostępnych obiektów. Skontaktuj się z administratorem.</div>;
 
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden">
-      {/* Mobile Sidebar Overlay */}
-      {isSidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-20 md:hidden"
-          onClick={() => setIsSidebarOpen(false)}
-        />
-      )}
-
       {/* Sidebar - Added flex-col and h-full for scrolling fix */}
       <aside className={`
         fixed inset-y-0 left-0 z-30 w-64 bg-slate-900 text-white transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0
@@ -560,6 +594,9 @@ const App: React.FC = () => {
           <div className="text-center">
              <span className="text-sm font-bold tracking-tight text-slate-400 uppercase">Cennik Twoje Pokoje</span>
              <div className="text-xs text-slate-600 mt-1 truncate px-2">{session.user.email}</div>
+             <div className={`text-[10px] uppercase font-bold mt-1 px-2 py-0.5 rounded inline-block ${userPermissions.role === 'super_admin' ? 'bg-blue-600' : userPermissions.role === 'admin' ? 'bg-purple-600' : 'bg-slate-700'}`}>
+                {userPermissions.role === 'super_admin' ? 'Super Admin' : userPermissions.role === 'admin' ? 'Admin (Podgląd)' : 'Klient'}
+             </div>
           </div>
         </div>
 
@@ -596,53 +633,25 @@ const App: React.FC = () => {
             {/* Sub-menu */}
             {isConfigExpanded && (
               <div className="mt-1 ml-4 pl-4 border-l border-slate-700 space-y-1">
-                <button
-                  onClick={() => handleSettingsNav("rooms")}
-                  className={`w-full flex items-center gap-3 px-4 py-2 text-sm rounded-lg transition-colors ${
-                    activeTab === "settings" && activeSettingsTab === "rooms"
-                      ? "bg-blue-600/50 text-white font-medium"
-                      : "text-slate-400 hover:bg-slate-800/50 hover:text-white"
-                  }`}
-                >
-                  <BedDouble size={16} />
-                  <span>Pokoje</span>
-                </button>
-                
-                <button
-                  onClick={() => handleSettingsNav("seasons")}
-                  className={`w-full flex items-center gap-3 px-4 py-2 text-sm rounded-lg transition-colors ${
-                    activeTab === "settings" && activeSettingsTab === "seasons"
-                      ? "bg-blue-600/50 text-white font-medium"
-                      : "text-slate-400 hover:bg-slate-800/50 hover:text-white"
-                  }`}
-                >
-                  <Calendar size={16} />
-                  <span>Sezony</span>
-                </button>
-
-                <button
-                  onClick={() => handleSettingsNav("channels")}
-                  className={`w-full flex items-center gap-3 px-4 py-2 text-sm rounded-lg transition-colors ${
-                    activeTab === "settings" && activeSettingsTab === "channels"
-                      ? "bg-blue-600/50 text-white font-medium"
-                      : "text-slate-400 hover:bg-slate-800/50 hover:text-white"
-                  }`}
-                >
-                  <Share2 size={16} />
-                  <span>Kanały</span>
-                </button>
-                
-                 <button
-                  onClick={() => handleSettingsNav("global")}
-                  className={`w-full flex items-center gap-3 px-4 py-2 text-sm rounded-lg transition-colors ${
-                    activeTab === "settings" && activeSettingsTab === "global"
-                      ? "bg-blue-600/50 text-white font-medium"
-                      : "text-slate-400 hover:bg-slate-800/50 hover:text-white"
-                  }`}
-                >
-                  <Cog size={16} />
-                  <span>Ogólne</span>
-                </button>
+                {(["rooms", "seasons", "channels", "global"] as SettingsTab[]).map(tab => (
+                   <button
+                    key={tab}
+                    onClick={() => handleSettingsNav(tab)}
+                    className={`w-full flex items-center gap-3 px-4 py-2 text-sm rounded-lg transition-colors ${
+                      activeTab === "settings" && activeSettingsTab === tab
+                        ? "bg-blue-600/50 text-white font-medium"
+                        : "text-slate-400 hover:bg-slate-800/50 hover:text-white"
+                    }`}
+                  >
+                    {tab === 'rooms' && <BedDouble size={16} />}
+                    {tab === 'seasons' && <Calendar size={16} />}
+                    {tab === 'channels' && <Share2 size={16} />}
+                    {tab === 'global' && <Cog size={16} />}
+                    <span className="capitalize">
+                        {tab === 'rooms' ? 'Pokoje' : tab === 'seasons' ? 'Sezony' : tab === 'channels' ? 'Kanały' : 'Ogólne'}
+                    </span>
+                  </button>
+                ))}
               </div>
             )}
           </div>
@@ -653,9 +662,11 @@ const App: React.FC = () => {
                 <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Twoje Obiekty</span>
                 <div className="flex gap-1">
                    {isOccupancyRefreshing && <Loader2 size={12} className="text-slate-500 animate-spin" title="Odświeżanie obłożenia..." />}
-                   <button onClick={() => setShowAddPropertyModal(true)} className="text-blue-400 hover:text-blue-300 transition-colors p-1" title="Dodaj obiekt">
-                     <Plus size={16} />
-                   </button>
+                   {!isReadOnly && (
+                    <button onClick={() => setShowAddPropertyModal(true)} className="text-blue-400 hover:text-blue-300 transition-colors p-1" title="Dodaj obiekt">
+                      <Plus size={16} />
+                    </button>
+                   )}
                 </div>
              </div>
              <div className="space-y-1 px-2">
@@ -683,7 +694,7 @@ const App: React.FC = () => {
                            <Building size={14} className="flex-shrink-0" />
                            <span className="truncate">{p.name}</span>
                         </div>
-                        {properties.length > 1 && (
+                        {properties.length > 1 && !isReadOnly && (
                           <button 
                              onClick={(e) => { e.stopPropagation(); handleDeleteProperty(p.id); }}
                              className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-red-400 p-1 transition-opacity"
@@ -692,6 +703,7 @@ const App: React.FC = () => {
                              <Trash2 size={12} />
                           </button>
                         )}
+                        {isReadOnly && isActive && <Lock size={12} className="text-slate-500" />}
                      </div>
                      
                      {isExpanded && (
@@ -785,6 +797,7 @@ const App: React.FC = () => {
               onOccupancyUpdate={handleOccupancyUpdate}
               onReorderRooms={handleReorderRooms}
               onSyncAllOccupancy={() => syncPropertyOccupancy(activePropertyId)}
+              isReadOnly={isReadOnly}
             />
           ) : (
             <SettingsPanel 
@@ -807,97 +820,46 @@ const App: React.FC = () => {
               onDuplicateProperty={handleDuplicateProperty}
               otherProperties={properties.filter(p => p.id !== activePropertyId)}
               onDuplicateSeasons={handleDuplicateSeasons}
+              isReadOnly={isReadOnly}
             />
           )}
         </div>
       </main>
 
       {/* Add Property Modal */}
-      {showAddPropertyModal && (
+      {showAddPropertyModal && !isReadOnly && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200">
+           {/* Modal Content - Same as previous */}
+           <div className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200">
             <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center">
               <h3 className="text-lg font-bold text-slate-800">Dodaj Nowy Obiekt</h3>
-              <button 
-                onClick={() => setShowAddPropertyModal(false)}
-                className="text-slate-400 hover:text-slate-600"
-              >
-                <X size={20} />
-              </button>
+              <button onClick={() => setShowAddPropertyModal(false)} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
             </div>
-            
             <div className="p-6">
               <div className="flex gap-4 mb-6">
-                <button
-                  onClick={() => setAddPropertyMode('manual')}
-                  className={`flex-1 py-3 px-4 rounded-lg border-2 text-sm font-semibold transition-all ${
-                    addPropertyMode === 'manual'
-                      ? 'border-blue-600 bg-blue-50 text-blue-700'
-                      : 'border-slate-100 bg-white text-slate-500 hover:border-slate-200'
-                  }`}
-                >
-                  <div className="flex flex-col items-center gap-2">
-                    <Plus size={24} />
-                    <span>Ręcznie</span>
-                  </div>
+                <button onClick={() => setAddPropertyMode('manual')} className={`flex-1 py-3 px-4 rounded-lg border-2 text-sm font-semibold transition-all ${addPropertyMode === 'manual' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-100 bg-white text-slate-500 hover:border-slate-200'}`}>
+                  <div className="flex flex-col items-center gap-2"><Plus size={24} /><span>Ręcznie</span></div>
                 </button>
-                <button
-                  onClick={() => setAddPropertyMode('import')}
-                  className={`flex-1 py-3 px-4 rounded-lg border-2 text-sm font-semibold transition-all ${
-                    addPropertyMode === 'import'
-                      ? 'border-blue-600 bg-blue-50 text-blue-700'
-                      : 'border-slate-100 bg-white text-slate-500 hover:border-slate-200'
-                  }`}
-                >
-                  <div className="flex flex-col items-center gap-2">
-                    <Download size={24} />
-                    <span>Import Hotres</span>
-                  </div>
+                <button onClick={() => setAddPropertyMode('import')} className={`flex-1 py-3 px-4 rounded-lg border-2 text-sm font-semibold transition-all ${addPropertyMode === 'import' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-100 bg-white text-slate-500 hover:border-slate-200'}`}>
+                  <div className="flex flex-col items-center gap-2"><Download size={24} /><span>Import Hotres</span></div>
                 </button>
               </div>
-
               {addPropertyMode === 'import' ? (
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                      Podaj numer OID z Hotres
-                    </label>
-                    <input
-                      type="text"
-                      value={importOid}
-                      onChange={(e) => setImportOid(e.target.value)}
-                      placeholder="np. 4268"
-                      className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                    />
-                    <p className="text-xs text-slate-500 mt-1">
-                      Pobierzemy listę pokoi, ich nazwy oraz automatycznie wyliczymy maksymalne obłożenie.
-                    </p>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Podaj numer OID z Hotres</label>
+                    <input type="text" value={importOid} onChange={(e) => setImportOid(e.target.value)} placeholder="np. 4268" className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" />
+                    <p className="text-xs text-slate-500 mt-1">Pobierzemy listę pokoi, ich nazwy oraz automatycznie wyliczymy maksymalne obłożenie.</p>
                   </div>
                 </div>
               ) : (
-                <p className="text-sm text-slate-600 bg-slate-50 p-3 rounded-md border border-slate-100">
-                  Utworzymy pusty obiekt z domyślnymi ustawieniami. Będziesz mógł dodać pokoje ręcznie w panelu konfiguracji.
-                </p>
+                <p className="text-sm text-slate-600 bg-slate-50 p-3 rounded-md border border-slate-100">Utworzymy pusty obiekt z domyślnymi ustawieniami. Będziesz mógł dodać pokoje ręcznie w panelu konfiguracji.</p>
               )}
             </div>
-
             <div className="bg-slate-50 px-6 py-4 border-t border-slate-200 flex justify-end gap-3">
-              <button
-                onClick={() => setShowAddPropertyModal(false)}
-                className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-md transition-colors"
-              >
-                Anuluj
-              </button>
-              <button
-                onClick={handleCreateProperty}
-                disabled={isImporting}
-                className="px-4 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-md shadow-sm transition-all flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
-              >
-                {isImporting ? (
-                  <><Loader2 size={16} className="animate-spin"/> Importowanie...</>
-                ) : (
-                  <>Utwórz Obiekt</>
-                )}
+              <button onClick={() => setShowAddPropertyModal(false)} className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-md transition-colors">Anuluj</button>
+              <button onClick={handleCreateProperty} disabled={isImporting} className="px-4 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-md shadow-sm transition-all flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed">
+                {isImporting ? <><Loader2 size={16} className="animate-spin"/> Importowanie...</> : <>Utwórz Obiekt</>}
               </button>
             </div>
           </div>

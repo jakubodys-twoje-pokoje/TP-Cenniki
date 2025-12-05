@@ -1,7 +1,7 @@
 
 import React, { useState } from "react";
 import { Channel, ChannelDiscountProfile, GlobalSettings, Property, RoomType, Season, SettingsTab } from "../types";
-import { Plus, Trash2, X, Copy, GripVertical, ArrowRightLeft, Check, AlertCircle } from "lucide-react";
+import { Plus, Trash2, X, Copy, GripVertical, ArrowRightLeft, Check, AlertCircle, Lock } from "lucide-react";
 
 interface SettingsPanelProps {
   propertyName: string;
@@ -22,6 +22,7 @@ interface SettingsPanelProps {
   onDuplicateProperty: () => void;
   otherProperties: Property[];
   onDuplicateSeasons: (targetPropertyId: string) => void;
+  isReadOnly?: boolean;
 }
 
 const SettingsPanel: React.FC<SettingsPanelProps> = ({
@@ -43,6 +44,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   onDuplicateProperty,
   otherProperties,
   onDuplicateSeasons,
+  isReadOnly = false,
 }) => {
   // Drag and Drop State
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
@@ -58,6 +60,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     list: T[],
     setList: (l: T[]) => void
   ) => {
+    if (isReadOnly) return;
     setList(list.filter((item) => item.id !== id));
   };
 
@@ -68,6 +71,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     list: T[],
     setList: (l: T[]) => void
   ) => {
+    if (isReadOnly) return;
     setList(
       list.map((item) => (item.id === id ? { ...item, [field]: value } : item))
     );
@@ -79,6 +83,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     field: keyof ChannelDiscountProfile,
     value: number | boolean
   ) => {
+    if (isReadOnly) return;
     setChannels(
       channels.map((channel) => {
         if (channel.id !== channelId) return channel;
@@ -106,6 +111,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   };
 
   const updateSeasonalObp = (seasonId: string, field: 'amount' | 'enabled', value: number | boolean) => {
+    if (isReadOnly) return;
     const current = settings.seasonalObp?.[seasonId] || { amount: 30, enabled: true };
     setSettings({
       ...settings,
@@ -117,6 +123,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   };
 
   const handleDuplicateSeasonsSubmit = () => {
+    if (isReadOnly) return;
     if (targetPropertyId) {
       onDuplicateSeasons(targetPropertyId);
       setShowSeasonDupModal(false);
@@ -126,6 +133,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
   // Sort Handlers
   const handleDragStart = (index: number, listType: string) => {
+    if (isReadOnly) return;
     setDraggedIndex(index);
     setDraggedListType(listType);
   };
@@ -140,7 +148,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     setList: (l: T[]) => void,
     listType: string
   ) => {
-    if (draggedIndex === null || draggedIndex === index || draggedListType !== listType) return;
+    if (isReadOnly || draggedIndex === null || draggedIndex === index || draggedListType !== listType) return;
     
     const newList = [...list];
     const [movedItem] = newList.splice(draggedIndex, 1);
@@ -153,6 +161,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
 
   const addRoom = () => {
+    if (isReadOnly) return;
     const newRoom: RoomType = {
       id: Date.now().toString(),
       name: "Nowy Pokój",
@@ -166,6 +175,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   };
 
   const addSeason = () => {
+    if (isReadOnly) return;
     const newId = Date.now().toString();
     const newSeason: Season = {
       id: newId,
@@ -188,6 +198,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   };
 
   const addChannel = () => {
+    if (isReadOnly) return;
     const newChannel: Channel = {
       id: Date.now().toString(),
       name: "Nowy Kanał",
@@ -205,13 +216,18 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     channels: "Kanały"
   };
 
-  const inputClass = "block w-full rounded-md border border-slate-300 bg-white text-slate-900 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2";
+  const inputClass = `block w-full rounded-md border border-slate-300 bg-white text-slate-900 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed`;
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-slate-200 h-full flex flex-col relative">
-      <div className="p-4 border-b border-slate-200">
-        <h2 className="text-xl font-bold text-slate-800">Konfiguracja</h2>
-        <p className="text-sm text-slate-500">Zarządzaj ofertą, cenami i kanałami sprzedaży.</p>
+      <div className="p-4 border-b border-slate-200 flex justify-between items-center">
+        <div>
+          <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+            Konfiguracja
+            {isReadOnly && <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded border border-slate-200 flex items-center gap-1"><Lock size={10}/> Tylko do odczytu</span>}
+          </h2>
+          <p className="text-sm text-slate-500">Zarządzaj ofertą, cenami i kanałami sprzedaży.</p>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -242,6 +258,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
               <input
                 type="text"
                 value={propertyName}
+                disabled={isReadOnly}
                 onChange={(e) => onPropertyNameChange(e.target.value)}
                 className={inputClass}
                 placeholder="np. Apartament Centrum"
@@ -253,39 +270,44 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
               <input
                 type="text"
                 value={propertyOid}
+                disabled={isReadOnly}
                 onChange={(e) => onPropertyOidChange(e.target.value)}
                 className={inputClass}
                 placeholder="np. 12345"
               />
             </div>
 
-             <div className="bg-indigo-50 p-4 rounded-md border border-indigo-100 mt-6">
-              <h3 className="font-semibold text-indigo-900 mb-2">Szablony i Kopiowanie</h3>
-              <p className="text-sm text-indigo-700 mb-4">
-                Możesz stworzyć duplikat tego obiektu (wraz z wszystkimi ustawieniami, pokojami i kanałami) i użyć go jako szablonu dla nowej lokalizacji.
-              </p>
-              <button
-                onClick={onDuplicateProperty}
-                className="flex items-center gap-2 bg-white border border-indigo-300 text-indigo-600 px-4 py-2 rounded shadow-sm hover:bg-indigo-50 transition-colors"
-              >
-                <Copy size={16} />
-                Duplikuj ten obiekt
-              </button>
-            </div>
+            {!isReadOnly && (
+             <>
+                <div className="bg-indigo-50 p-4 rounded-md border border-indigo-100 mt-6">
+                  <h3 className="font-semibold text-indigo-900 mb-2">Szablony i Kopiowanie</h3>
+                  <p className="text-sm text-indigo-700 mb-4">
+                    Możesz stworzyć duplikat tego obiektu (wraz z wszystkimi ustawieniami, pokojami i kanałami) i użyć go jako szablonu dla nowej lokalizacji.
+                  </p>
+                  <button
+                    onClick={onDuplicateProperty}
+                    className="flex items-center gap-2 bg-white border border-indigo-300 text-indigo-600 px-4 py-2 rounded shadow-sm hover:bg-indigo-50 transition-colors"
+                  >
+                    <Copy size={16} />
+                    Duplikuj ten obiekt
+                  </button>
+                </div>
 
-            <div className="bg-red-50 p-4 rounded-md border border-red-100 mt-6">
-              <h3 className="font-semibold text-red-900 mb-2">Strefa Niebezpieczna</h3>
-              <p className="text-sm text-red-700 mb-4">
-                Usunięcie tego obiektu jest nieodwracalne. 
-              </p>
-              <button
-                onClick={onDeleteProperty}
-                className="flex items-center gap-2 bg-white border border-red-300 text-red-600 px-4 py-2 rounded shadow-sm hover:bg-red-100 transition-colors"
-              >
-                <Trash2 size={16} />
-                Usuń ten obiekt
-              </button>
-            </div>
+                <div className="bg-red-50 p-4 rounded-md border border-red-100 mt-6">
+                  <h3 className="font-semibold text-red-900 mb-2">Strefa Niebezpieczna</h3>
+                  <p className="text-sm text-red-700 mb-4">
+                    Usunięcie tego obiektu jest nieodwracalne. 
+                  </p>
+                  <button
+                    onClick={onDeleteProperty}
+                    className="flex items-center gap-2 bg-white border border-red-300 text-red-600 px-4 py-2 rounded shadow-sm hover:bg-red-100 transition-colors"
+                  >
+                    <Trash2 size={16} />
+                    Usuń ten obiekt
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         )}
 
@@ -305,12 +327,13 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     <div key={season.id} className="bg-white p-3 rounded-md border border-indigo-200 shadow-sm">
                        <div className="text-xs font-semibold text-indigo-800 mb-2 truncate" title={season.name}>{season.name}</div>
                        <div className="space-y-2">
-                          <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                          <label className={`flex items-center gap-2 text-sm text-slate-700 ${isReadOnly ? 'opacity-50' : 'cursor-pointer'}`}>
                             <input 
                               type="checkbox"
                               checked={obp.enabled}
+                              disabled={isReadOnly}
                               onChange={(e) => updateSeasonalObp(season.id, 'enabled', e.target.checked)}
-                              className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                              className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 disabled:text-slate-400"
                             />
                             <span>Aktywne</span>
                           </label>
@@ -318,9 +341,9 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                              <input 
                                type="number"
                                value={obp.amount}
-                               disabled={!obp.enabled}
+                               disabled={!obp.enabled || isReadOnly}
                                onChange={(e) => updateSeasonalObp(season.id, 'amount', Number(e.target.value))}
-                               className={`${inputClass} py-1 px-2 text-right disabled:bg-slate-100 disabled:text-slate-400`}
+                               className={`${inputClass} py-1 px-2 text-right`}
                              />
                              <span className="text-xs text-slate-500">PLN/os.</span>
                           </div>
@@ -334,7 +357,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                  <h3 className="text-lg font-medium">Typy Pokoi (Kwatery)</h3>
-                 <button onClick={addRoom} className="flex items-center gap-1 text-sm bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700"><Plus size={16}/> Dodaj Pokój</button>
+                 {!isReadOnly && <button onClick={addRoom} className="flex items-center gap-1 text-sm bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700"><Plus size={16}/> Dodaj Pokój</button>}
               </div>
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-slate-200">
@@ -354,19 +377,22 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     {rooms.map((room, index) => (
                       <tr 
                         key={room.id}
-                        draggable
+                        draggable={!isReadOnly}
                         onDragStart={() => handleDragStart(index, 'rooms')}
                         onDragOver={handleDragOver}
                         onDrop={() => handleDrop(index, rooms, setRooms, 'rooms')}
                         className={`bg-white ${draggedListType === 'rooms' && draggedIndex === index ? 'opacity-50' : ''}`}
                       >
-                        <td className="px-3 py-2 text-center text-slate-400 cursor-grab active:cursor-grabbing"><GripVertical size={16} /></td>
-                        <td className="px-3 py-2"><input type="text" value={room.name} onChange={(e) => updateItem<RoomType>(room.id, "name", e.target.value, rooms, setRooms)} className={`w-full ${inputClass}`} /></td>
-                        <td className="px-3 py-2"><input type="number" value={room.maxOccupancy} onChange={(e) => updateItem<RoomType>(room.id, "maxOccupancy", Number(e.target.value), rooms, setRooms)} className={`w-20 ${inputClass}`} /></td>
-                        <td className="px-3 py-2"><input type="text" value={room.tid || ""} onChange={(e) => updateItem<RoomType>(room.id, "tid", e.target.value, rooms, setRooms)} className={`w-24 ${inputClass}`} /></td>
-                        <td className="px-3 py-2"><input type="number" value={room.minNights ?? 0} onChange={(e) => updateItem<RoomType>(room.id, "minNights", Number(e.target.value), rooms, setRooms)} className={`w-20 ${inputClass}`} /></td>
+                        <td className={`px-3 py-2 text-center text-slate-400 ${!isReadOnly ? 'cursor-grab active:cursor-grabbing' : ''}`}>
+                          {!isReadOnly && <GripVertical size={16} />}
+                        </td>
+                        <td className="px-3 py-2"><input disabled={isReadOnly} type="text" value={room.name} onChange={(e) => updateItem<RoomType>(room.id, "name", e.target.value, rooms, setRooms)} className={`w-full ${inputClass}`} /></td>
+                        <td className="px-3 py-2"><input disabled={isReadOnly} type="number" value={room.maxOccupancy} onChange={(e) => updateItem<RoomType>(room.id, "maxOccupancy", Number(e.target.value), rooms, setRooms)} className={`w-20 ${inputClass}`} /></td>
+                        <td className="px-3 py-2"><input disabled={isReadOnly} type="text" value={room.tid || ""} onChange={(e) => updateItem<RoomType>(room.id, "tid", e.target.value, rooms, setRooms)} className={`w-24 ${inputClass}`} /></td>
+                        <td className="px-3 py-2"><input disabled={isReadOnly} type="number" value={room.minNights ?? 0} onChange={(e) => updateItem<RoomType>(room.id, "minNights", Number(e.target.value), rooms, setRooms)} className={`w-20 ${inputClass}`} /></td>
                         <td className="px-3 py-2">
                           <input 
+                            disabled={isReadOnly}
                             type="number" 
                             min={1} 
                             max={room.maxOccupancy}
@@ -375,8 +401,10 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                             className={`w-24 ${inputClass}`} 
                           />
                         </td>
-                        <td className="px-3 py-2"><input type="number" value={room.basePricePeak} onChange={(e) => updateItem<RoomType>(room.id, "basePricePeak", Number(e.target.value), rooms, setRooms)} className={`w-24 ${inputClass}`} /></td>
-                        <td className="px-3 py-2 text-right"><button onClick={() => deleteItem(room.id, rooms, setRooms)} className="text-red-500 hover:text-red-700"><Trash2 size={16}/></button></td>
+                        <td className="px-3 py-2"><input disabled={isReadOnly} type="number" value={room.basePricePeak} onChange={(e) => updateItem<RoomType>(room.id, "basePricePeak", Number(e.target.value), rooms, setRooms)} className={`w-24 ${inputClass}`} /></td>
+                        <td className="px-3 py-2 text-right">
+                          {!isReadOnly && <button onClick={() => deleteItem(room.id, rooms, setRooms)} className="text-red-500 hover:text-red-700"><Trash2 size={16}/></button>}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -391,42 +419,48 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
           <div className="space-y-4">
              <div className="flex justify-between items-center">
                <h3 className="text-lg font-medium">Reguły Sezonowe</h3>
-               <div className="flex gap-2">
-                 <button onClick={() => setShowSeasonDupModal(true)} className="flex items-center gap-1 text-sm bg-indigo-50 text-indigo-600 border border-indigo-200 px-3 py-1.5 rounded hover:bg-indigo-100">
-                   <ArrowRightLeft size={16}/> Duplikuj Sezony
-                 </button>
-                 <button onClick={addSeason} className="flex items-center gap-1 text-sm bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700">
-                   <Plus size={16}/> Dodaj Sezon
-                 </button>
-               </div>
+               {!isReadOnly && (
+                <div className="flex gap-2">
+                  <button onClick={() => setShowSeasonDupModal(true)} className="flex items-center gap-1 text-sm bg-indigo-50 text-indigo-600 border border-indigo-200 px-3 py-1.5 rounded hover:bg-indigo-100">
+                    <ArrowRightLeft size={16}/> Duplikuj Sezony
+                  </button>
+                  <button onClick={addSeason} className="flex items-center gap-1 text-sm bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700">
+                    <Plus size={16}/> Dodaj Sezon
+                  </button>
+                </div>
+               )}
             </div>
             {seasons.map((season, index) => (
               <div 
                 key={season.id} 
-                draggable
+                draggable={!isReadOnly}
                 onDragStart={() => handleDragStart(index, 'seasons')}
                 onDragOver={handleDragOver}
                 onDrop={() => handleDrop(index, seasons, setSeasons, 'seasons')}
                 className={`border border-slate-200 rounded-md p-4 bg-slate-50 relative group ${draggedListType === 'seasons' && draggedIndex === index ? 'opacity-50' : ''}`}
               >
-                <div className="absolute top-2 left-2 cursor-grab active:cursor-grabbing text-slate-400"><GripVertical size={16}/></div>
-                <button onClick={() => deleteItem(season.id, seasons, setSeasons)} className="absolute top-2 right-2 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><X size={16}/></button>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pl-6">
+                {!isReadOnly && (
+                  <>
+                    <div className="absolute top-2 left-2 cursor-grab active:cursor-grabbing text-slate-400"><GripVertical size={16}/></div>
+                    <button onClick={() => deleteItem(season.id, seasons, setSeasons)} className="absolute top-2 right-2 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><X size={16}/></button>
+                  </>
+                )}
+                <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${!isReadOnly ? 'pl-6' : ''}`}>
                   <div>
                     <label className="block text-xs font-medium text-slate-500">Nazwa Sezonu</label>
-                    <input type="text" value={season.name} onChange={(e) => updateItem<Season>(season.id, "name", e.target.value, seasons, setSeasons)} className={inputClass} />
+                    <input disabled={isReadOnly} type="text" value={season.name} onChange={(e) => updateItem<Season>(season.id, "name", e.target.value, seasons, setSeasons)} className={inputClass} />
                   </div>
                   <div>
                      <label className="block text-xs font-medium text-slate-500">Mnożnik Ceny (np. 1.0, 0.8)</label>
-                    <input type="number" step="0.05" value={season.multiplier} onChange={(e) => updateItem<Season>(season.id, "multiplier", Number(e.target.value), seasons, setSeasons)} className={inputClass} />
+                    <input disabled={isReadOnly} type="number" step="0.05" value={season.multiplier} onChange={(e) => updateItem<Season>(season.id, "multiplier", Number(e.target.value), seasons, setSeasons)} className={inputClass} />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-500">Data Początkowa</label>
-                    <input type="date" value={season.startDate} onChange={(e) => updateItem<Season>(season.id, "startDate", e.target.value, seasons, setSeasons)} className={inputClass} />
+                    <input disabled={isReadOnly} type="date" value={season.startDate} onChange={(e) => updateItem<Season>(season.id, "startDate", e.target.value, seasons, setSeasons)} className={inputClass} />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-500">Data Końcowa</label>
-                    <input type="date" value={season.endDate} onChange={(e) => updateItem<Season>(season.id, "endDate", e.target.value, seasons, setSeasons)} className={inputClass} />
+                    <input disabled={isReadOnly} type="date" value={season.endDate} onChange={(e) => updateItem<Season>(season.id, "endDate", e.target.value, seasons, setSeasons)} className={inputClass} />
                   </div>
                 </div>
               </div>
@@ -439,32 +473,32 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
           <div className="space-y-4">
              <div className="flex justify-between items-center">
                <h3 className="text-lg font-medium">Kanały Sprzedaży (OTA)</h3>
-               <button onClick={addChannel} className="flex items-center gap-1 text-sm bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700"><Plus size={16}/> Dodaj Kanał</button>
+               {!isReadOnly && <button onClick={addChannel} className="flex items-center gap-1 text-sm bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700"><Plus size={16}/> Dodaj Kanał</button>}
             </div>
             <div className="space-y-6">
               {channels.map((channel, index) => (
                 <div 
                   key={channel.id} 
-                  draggable
+                  draggable={!isReadOnly}
                   onDragStart={() => handleDragStart(index, 'channels')}
                   onDragOver={handleDragOver}
                   onDrop={() => handleDrop(index, channels, setChannels, 'channels')}
                   className={`border border-slate-200 rounded-md p-4 bg-white shadow-sm ${draggedListType === 'channels' && draggedIndex === index ? 'opacity-50' : ''}`}
                 >
                    {/* Channel Header */}
-                   <div className="flex justify-between items-start mb-4 pb-4 border-b border-slate-100 relative pl-6">
-                      <div className="absolute top-0 left-0 text-slate-400 cursor-grab active:cursor-grabbing"><GripVertical size={20}/></div>
+                   <div className={`flex justify-between items-start mb-4 pb-4 border-b border-slate-100 relative ${!isReadOnly ? 'pl-6' : ''}`}>
+                      {!isReadOnly && <div className="absolute top-0 left-0 text-slate-400 cursor-grab active:cursor-grabbing"><GripVertical size={20}/></div>}
                       <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 mr-4">
                         <div>
                            <label className="block text-xs font-medium text-slate-500">Nazwa Kanału</label>
-                           <input type="text" value={channel.name} onChange={(e) => updateItem<Channel>(channel.id, "name", e.target.value, channels, setChannels)} className={`font-semibold text-lg w-full border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-white text-slate-900`} />
+                           <input disabled={isReadOnly} type="text" value={channel.name} onChange={(e) => updateItem<Channel>(channel.id, "name", e.target.value, channels, setChannels)} className={`font-semibold text-lg w-full border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-white text-slate-900 disabled:bg-transparent`} />
                         </div>
                         <div>
                            <label className="block text-xs font-medium text-slate-500">Prowizja Podstawowa (%)</label>
-                           <input type="number" value={channel.commissionPct} onChange={(e) => updateItem<Channel>(channel.id, "commissionPct", Number(e.target.value), channels, setChannels)} className={inputClass} />
+                           <input disabled={isReadOnly} type="number" value={channel.commissionPct} onChange={(e) => updateItem<Channel>(channel.id, "commissionPct", Number(e.target.value), channels, setChannels)} className={inputClass} />
                         </div>
                       </div>
-                      <button onClick={() => deleteItem(channel.id, channels, setChannels)} className="text-slate-400 hover:text-red-500"><Trash2 size={16}/></button>
+                      {!isReadOnly && <button onClick={() => deleteItem(channel.id, channels, setChannels)} className="text-slate-400 hover:text-red-500"><Trash2 size={16}/></button>}
                    </div>
                    
                    {/* Seasonal Discounts Table */}
@@ -501,9 +535,10 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                                        <div className="flex items-center gap-2">
                                           <input 
                                              type="checkbox"
+                                             disabled={isReadOnly}
                                              checked={isEnabled}
                                              onChange={(e) => updateChannelDiscount(channel.id, season.id, enabledField, e.target.checked)}
-                                             className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                             className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:opacity-50"
                                              title={`Włącz/Wyłącz ${label}`}
                                           />
                                           <input 
@@ -512,7 +547,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                                              max={100}
                                              className={`${inputClass} mt-0 py-1 text-center ${!isEnabled ? 'bg-slate-100 text-slate-400' : ''}`}
                                              value={discounts[field] as number}
-                                             disabled={!isEnabled}
+                                             disabled={!isEnabled || isReadOnly}
                                              onChange={(e) => updateChannelDiscount(channel.id, season.id, field, Number(e.target.value))}
                                           />
                                        </div>
@@ -545,7 +580,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       </div>
 
        {/* Duplicate Season Modal */}
-       {showSeasonDupModal && (
+       {showSeasonDupModal && !isReadOnly && (
         <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px] rounded-lg">
           <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full overflow-hidden border border-slate-200">
              <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">

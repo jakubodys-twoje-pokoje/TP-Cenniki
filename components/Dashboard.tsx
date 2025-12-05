@@ -2,7 +2,7 @@
 import React, { useMemo, useState } from "react";
 import { Channel, GlobalSettings, RoomType, Season } from "../types";
 import { generatePricingGrid, calculateDirectPrice, calculateChannelPrice } from "../utils/pricingEngine";
-import { TrendingUp, Users, StickyNote, ChevronDown, ChevronRight, GripVertical, Columns, RefreshCw, Loader2, AlertCircle, CloudDownload } from "lucide-react";
+import { TrendingUp, Users, StickyNote, ChevronDown, ChevronRight, GripVertical, Columns, RefreshCw, Loader2, AlertCircle, CloudDownload, Lock } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { fetchHotresOccupancy } from "../utils/hotresApi";
 
@@ -19,6 +19,7 @@ interface DashboardProps {
   onOccupancyUpdate: (roomId: string, seasonId: string, rate: number) => void;
   onReorderRooms: (rooms: RoomType[]) => void;
   onSyncAllOccupancy: () => void;
+  isReadOnly?: boolean;
 }
 
 type ColumnVisibility = {
@@ -43,6 +44,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   onOccupancyUpdate,
   onReorderRooms,
   onSyncAllOccupancy,
+  isReadOnly = false,
 }) => {
   const [occupancyFilter, setOccupancyFilter] = useState<"MAX" | number>("MAX");
   const [activeView, setActiveView] = useState<"ALL" | string>("ALL");
@@ -111,6 +113,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   };
 
   const handleCommentChange = (roomId: string, seasonId: string, newValue: string) => {
+    if (isReadOnly) return;
     const room = rooms.find(r => r.id === roomId);
     if (!room) return;
     const currentComments = room.seasonComments || {};
@@ -118,6 +121,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   };
   
   const handleFetchOccupancy = async (roomId: string, seasonId: string) => {
+    if (isReadOnly) return;
     const room = rooms.find(r => r.id === roomId);
     const season = seasons.find(s => s.id === seasonId);
     
@@ -149,6 +153,10 @@ const Dashboard: React.FC<DashboardProps> = ({
   };
 
   const handleGlobalSyncWrapper = async () => {
+    if (isReadOnly) {
+       alert("Tylko Super Admin może synchronizować dostępność dla całego obiektu (zapis do bazy).");
+       return;
+    }
     setIsGlobalSyncing(true);
     try {
       await onSyncAllOccupancy();
@@ -169,13 +177,14 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   // Drag & Drop Handlers
   const handleDragStart = (e: React.DragEvent, roomId: string) => {
+    if (isReadOnly) return;
     setDraggedRoomId(roomId);
     e.dataTransfer.effectAllowed = 'move';
   };
   const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); };
   const handleDrop = (e: React.DragEvent, targetRoomId: string) => {
     e.preventDefault();
-    if (!draggedRoomId || draggedRoomId === targetRoomId) return;
+    if (isReadOnly || !draggedRoomId || draggedRoomId === targetRoomId) return;
     const sourceIndex = rooms.findIndex(r => r.id === draggedRoomId);
     const targetIndex = rooms.findIndex(r => r.id === targetRoomId);
     if (sourceIndex === -1 || targetIndex === -1) return;
@@ -216,6 +225,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                  {selectedRoomName}
                </span>
             )}
+             {isReadOnly && <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded border border-slate-200 flex items-center gap-1"><Lock size={10}/> Tylko do odczytu</span>}
           </h2>
           <p className="text-sm text-slate-500">Widok główny: {occupancyFilter === "MAX" ? "Maksymalne obłożenie" : `${occupancyFilter} os.`}</p>
         </div>
@@ -223,8 +233,9 @@ const Dashboard: React.FC<DashboardProps> = ({
         <div className="flex items-center gap-3">
           <button 
              onClick={handleGlobalSyncWrapper}
-             disabled={isGlobalSyncing}
-             className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-md hover:bg-blue-100 transition-colors text-sm font-medium disabled:opacity-50"
+             disabled={isGlobalSyncing || isReadOnly}
+             className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-md hover:bg-blue-100 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+             title={isReadOnly ? "Brak uprawnień" : "Pobierz dostępność"}
           >
              {isGlobalSyncing ? <Loader2 size={16} className="animate-spin" /> : <CloudDownload size={16} />}
              Synchronizuj Dostępność
@@ -338,7 +349,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                 roomGroups.map(({ room, rows }) => (
                   <tbody 
                      key={room.id}
-                     draggable
+                     draggable={!isReadOnly}
                      onDragStart={(e) => handleDragStart(e, room.id)}
                      onDragOver={handleDragOver}
                      onDrop={(e) => handleDrop(e, room.id)}
@@ -356,8 +367,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                              <tr className={`hover:bg-slate-100/50 ${isExpanded ? 'bg-slate-50 border-b border-slate-100' : ''}`}>
                                 <td className="px-2 py-3 text-center align-middle">
                                    {index === 0 && (
-                                      <div className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 flex justify-center">
-                                         <GripVertical size={16} />
+                                      <div className={`text-slate-300 flex justify-center ${!isReadOnly ? 'cursor-grab active:cursor-grabbing hover:text-slate-500' : ''}`}>
+                                         {!isReadOnly && <GripVertical size={16} />}
                                       </div>
                                    )}
                                 </td>
@@ -386,14 +397,16 @@ const Dashboard: React.FC<DashboardProps> = ({
                                      >
                                         {row.occupancyRate !== undefined ? `${row.occupancyRate}%` : '-'}
                                      </span>
-                                     <button 
-                                        onClick={() => handleFetchOccupancy(row.roomId, row.seasonId)}
-                                        className="text-slate-400 hover:text-blue-500 transition-colors p-1"
-                                        title="Odśwież obłożenie z Hotres"
-                                        disabled={isLoading}
-                                     >
-                                        <RefreshCw size={14} className={isLoading ? "animate-spin text-blue-500" : ""} />
-                                     </button>
+                                     {!isReadOnly && (
+                                      <button 
+                                          onClick={() => handleFetchOccupancy(row.roomId, row.seasonId)}
+                                          className="text-slate-400 hover:text-blue-500 transition-colors p-1"
+                                          title="Odśwież obłożenie z Hotres"
+                                          disabled={isLoading}
+                                      >
+                                          <RefreshCw size={14} className={isLoading ? "animate-spin text-blue-500" : ""} />
+                                      </button>
+                                     )}
                                    </div>
                                 </td>
 
@@ -401,13 +414,13 @@ const Dashboard: React.FC<DashboardProps> = ({
                                    <input
                                       type="text"
                                       value={row.comment || ""}
+                                      disabled={isReadOnly}
                                       onChange={(e) => handleCommentChange(room.id, row.seasonId, e.target.value)}
                                       placeholder="Uwagi..."
-                                      className="w-full px-2 py-1 text-xs border border-transparent hover:border-slate-200 focus:border-blue-500 focus:bg-white bg-transparent rounded transition-all placeholder:text-slate-300"
+                                      className="w-full px-2 py-1 text-xs border border-transparent hover:border-slate-200 focus:border-blue-500 focus:bg-white bg-transparent rounded transition-all placeholder:text-slate-300 disabled:bg-transparent disabled:placeholder-slate-200"
                                    />
                                 </td>
                                 <td className="px-3 py-3 align-middle text-center text-slate-600 font-medium">
-                                   {/* Removed Input, display only */}
                                    {row.basePrice} zł
                                 </td>
                                 <td className="px-3 py-3 align-middle text-center">
@@ -537,7 +550,13 @@ const Dashboard: React.FC<DashboardProps> = ({
           </div>
           <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200 flex flex-col">
              <h3 className="text-lg font-bold text-slate-800 mb-3 flex items-center gap-2"><StickyNote size={20} className="text-amber-500"/> Notatki</h3>
-             <textarea className="flex-1 w-full min-h-[120px] p-3 border border-slate-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm text-slate-700 bg-amber-50/50 resize-none placeholder:text-slate-400" placeholder="Wpisz ważne informacje dla tego obiektu..." value={notes} onChange={(e) => onNotesChange(e.target.value)} />
+             <textarea 
+               disabled={isReadOnly}
+               className="flex-1 w-full min-h-[120px] p-3 border border-slate-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm text-slate-700 bg-amber-50/50 resize-none placeholder:text-slate-400 disabled:opacity-70 disabled:cursor-not-allowed" 
+               placeholder="Wpisz ważne informacje dla tego obiektu..." 
+               value={notes} 
+               onChange={(e) => onNotesChange(e.target.value)} 
+             />
           </div>
         </div>
       </div>
