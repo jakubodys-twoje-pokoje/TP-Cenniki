@@ -124,6 +124,23 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     );
   };
 
+  const duplicateChannel = (channelId: string) => {
+    if (isReadOnly) return;
+    const index = channels.findIndex(c => c.id === channelId);
+    if (index === -1) return;
+
+    const channelToClone = channels[index];
+    const newChannel: Channel = {
+      ...JSON.parse(JSON.stringify(channelToClone)), // Deep clone to be safe
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+      name: `${channelToClone.name} (Kopia)`,
+    };
+
+    const newChannels = [...channels];
+    newChannels.splice(index + 1, 0, newChannel); // Insert after original
+    setChannels(newChannels);
+  };
+
   const handleDuplicateSeasonsSubmit = () => {
     if (isReadOnly) return;
     if (targetPropertyId) {
@@ -518,7 +535,16 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                            <input disabled={isReadOnly} type="number" value={channel.commissionPct} onChange={(e) => updateItem<Channel>(channel.id, "commissionPct", Number(e.target.value), channels, setChannels)} className={inputClass} />
                         </div>
                       </div>
-                      {!isReadOnly && <button onClick={() => deleteItem(channel.id, channels, setChannels)} className="text-slate-400 hover:text-red-500"><Trash2 size={16}/></button>}
+                      {!isReadOnly && (
+                        <div className="flex gap-2">
+                          <button onClick={() => duplicateChannel(channel.id)} className="text-slate-400 hover:text-indigo-500" title="Duplikuj kanał">
+                            <Copy size={16} />
+                          </button>
+                          <button onClick={() => deleteItem(channel.id, channels, setChannels)} className="text-slate-400 hover:text-red-500" title="Usuń kanał">
+                            <Trash2 size={16}/>
+                          </button>
+                        </div>
+                      )}
                    </div>
                    
                    {/* Seasonal Discounts Table */}
