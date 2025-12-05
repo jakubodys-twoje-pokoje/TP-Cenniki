@@ -221,6 +221,47 @@ const App: React.FC = () => {
     };
   }, [properties, activePropertyId, session, isLoading]);
 
+  // Helper logic to sync occupancy for a property
+  const syncPropertyOccupancy = async (propId: string) => {
+    const prop = properties.find(p => p.id === propId);
+    if (!prop || !prop.oid) return;
+
+    console.log(`Syncing occupancy for property ${prop.name} (${prop.oid})`);
+    
+    // Clone rooms to avoid direct mutation
+    let updatedRooms = deepClone(prop.rooms);
+    let hasUpdates = false;
+
+    for (const season of prop.seasons) {
+      const occupancyMap = await fetchSeasonOccupancyMap(prop.oid, season.startDate, season.endDate);
+      
+      updatedRooms = updatedRooms.map(room => {
+        if (room.tid && occupancyMap[room.tid] !== undefined) {
+            const newRate = occupancyMap[room.tid];
+            const currentRates = room.seasonOccupancy || {};
+            if (currentRates[season.id] !== newRate) {
+              hasUpdates = true;
+              return {
+                ...room,
+                seasonOccupancy: {
+                  ...currentRates,
+                  [season.id]: newRate
+                }
+              };
+            }
+        }
+        return room;
+      });
+    }
+
+    if (hasUpdates) {
+       setProperties(prev => prev.map(p => 
+        p.id === propId ? { ...p, rooms: updatedRooms } : p
+      ));
+    }
+  };
+
+
   // 3. Auto-Refresh Occupancy (30 min interval)
   useEffect(() => {
     if (!session || isLoading || !activePropertyId) return;
@@ -230,50 +271,11 @@ const App: React.FC = () => {
       const thirtyMinutes = 30 * 60 * 1000;
       const prop = properties.find(p => p.id === activePropertyId);
 
-      // Conditions:
-      // 1. Property exists and has OID
-      // 2. Time elapsed > 30 mins OR never fetched
-      // 3. Not currently refreshing
       if (prop && prop.oid && (now - lastOccupancyFetch > thirtyMinutes) && !isOccupancyRefreshing) {
-        console.log("Triggering auto-refresh for occupancy...");
         setIsOccupancyRefreshing(true);
-        
         try {
-          // Clone rooms to avoid direct mutation during loop
-          let updatedRooms = deepClone(prop.rooms);
-          let hasUpdates = false;
-
-          // Iterate seasons to fetch bulk data
-          for (const season of prop.seasons) {
-            // Fetch map for this season (returns { tid: percentage })
-            const occupancyMap = await fetchSeasonOccupancyMap(prop.oid, season.startDate, season.endDate);
-            
-            // Update rooms that match TIDs found in map
-            updatedRooms = updatedRooms.map(room => {
-              if (room.tid && occupancyMap[room.tid] !== undefined) {
-                 const newRate = occupancyMap[room.tid];
-                 const currentRates = room.seasonOccupancy || {};
-                 // Only mark update if value changed
-                 if (currentRates[season.id] !== newRate) {
-                   hasUpdates = true;
-                   return {
-                     ...room,
-                     seasonOccupancy: {
-                       ...currentRates,
-                       [season.id]: newRate
-                     }
-                   };
-                 }
-              }
-              return room;
-            });
-          }
-
-          if (hasUpdates) {
-             updateActiveProperty({ rooms: updatedRooms });
-          }
+          await syncPropertyOccupancy(activePropertyId);
           setLastOccupancyFetch(now);
-
         } catch (e) {
           console.error("Auto-refresh occupancy failed", e);
         } finally {
@@ -283,9 +285,7 @@ const App: React.FC = () => {
     };
 
     checkAndFetchOccupancy();
-    // Set up an interval to check periodically (e.g., every 1 minute check if 30 mins elapsed)
     const intervalId = setInterval(checkAndFetchOccupancy, 60000); 
-
     return () => clearInterval(intervalId);
   }, [session, activePropertyId, properties, lastOccupancyFetch, isOccupancyRefreshing, isLoading]);
 
@@ -319,6 +319,31 @@ const App: React.FC = () => {
 
   const handleReorderRooms = (reorderedRooms: RoomType[]) => {
     updateActiveProperty({ rooms: reorderedRooms });
+  };
+
+  const handleDuplicateSeasons = (targetPropertyId: string) => {
+    if (!activeProperty) return;
+    const targetProp = properties.find(p => p.id === targetPropertyId);
+    if (!targetProp) return;
+
+    // Deep clone seasons and OBP settings from active property
+    const seasonsCopy = deepClone(activeProperty.seasons);
+    const obpCopy = deepClone(activeProperty.settings.seasonalObp);
+
+    setProperties(prev => prev.map(p => {
+       if (p.id === targetPropertyId) {
+          return {
+             ...p,
+             seasons: seasonsCopy,
+             settings: {
+                ...p.settings,
+                seasonalObp: obpCopy
+             }
+          }
+       }
+       return p;
+    }));
+    alert("Sezony zostały skopiowane pomyślnie.");
   };
 
   const handleCreateProperty = async () => {
@@ -758,6 +783,7 @@ const App: React.FC = () => {
               onRoomUpdate={handleRoomUpdate}
               onOccupancyUpdate={handleOccupancyUpdate}
               onReorderRooms={handleReorderRooms}
+              onSyncAllOccupancy={() => syncPropertyOccupancy(activePropertyId)}
             />
           ) : (
             <SettingsPanel 
@@ -778,6 +804,8 @@ const App: React.FC = () => {
               onTabChange={setActiveSettingsTab}
               onDeleteProperty={() => handleDeleteProperty(activePropertyId)}
               onDuplicateProperty={handleDuplicateProperty}
+              otherProperties={properties.filter(p => p.id !== activePropertyId)}
+              onDuplicateSeasons={handleDuplicateSeasons}
             />
           )}
         </div>

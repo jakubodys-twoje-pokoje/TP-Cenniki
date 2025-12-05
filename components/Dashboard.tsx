@@ -1,8 +1,7 @@
-
 import React, { useMemo, useState } from "react";
 import { Channel, GlobalSettings, RoomType, Season } from "../types";
 import { generatePricingGrid, calculateDirectPrice, calculateChannelPrice } from "../utils/pricingEngine";
-import { TrendingUp, Users, StickyNote, ChevronDown, ChevronRight, GripVertical, Columns, RefreshCw, Loader2, AlertCircle } from "lucide-react";
+import { TrendingUp, Users, StickyNote, ChevronDown, ChevronRight, GripVertical, Columns, RefreshCw, Loader2, AlertCircle, CloudDownload } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { fetchHotresOccupancy } from "../utils/hotresApi";
 
@@ -18,6 +17,7 @@ interface DashboardProps {
   onRoomUpdate: (roomId: string, updates: Partial<RoomType>) => void;
   onOccupancyUpdate: (roomId: string, seasonId: string, rate: number) => void;
   onReorderRooms: (rooms: RoomType[]) => void;
+  onSyncAllOccupancy: () => void;
 }
 
 type ColumnVisibility = {
@@ -41,6 +41,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   onRoomUpdate,
   onOccupancyUpdate,
   onReorderRooms,
+  onSyncAllOccupancy,
 }) => {
   const [occupancyFilter, setOccupancyFilter] = useState<"MAX" | number>("MAX");
   const [activeView, setActiveView] = useState<"ALL" | string>("ALL");
@@ -53,6 +54,9 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   // Loading state for occupancy fetching: "roomId-seasonId"
   const [occupancyLoading, setOccupancyLoading] = useState<Set<string>>(new Set());
+
+  // Global sync loading
+  const [isGlobalSyncing, setIsGlobalSyncing] = useState(false);
 
   // Column Visibility State
   const [columnVisibility, setColumnVisibility] = useState<ColumnVisibility>({
@@ -105,13 +109,6 @@ const Dashboard: React.FC<DashboardProps> = ({
     setOccupancyFilter(val);
   };
 
-  const handleBasePriceChange = (roomId: string, seasonId: string, newValue: number) => {
-    const room = rooms.find(r => r.id === roomId);
-    if (!room) return;
-    const currentMap = room.seasonBasePrices || {};
-    onRoomUpdate(roomId, { seasonBasePrices: { ...currentMap, [seasonId]: newValue } });
-  };
-
   const handleCommentChange = (roomId: string, seasonId: string, newValue: string) => {
     const room = rooms.find(r => r.id === roomId);
     if (!room) return;
@@ -147,6 +144,15 @@ const Dashboard: React.FC<DashboardProps> = ({
         next.delete(key);
         return next;
       });
+    }
+  };
+
+  const handleGlobalSyncWrapper = async () => {
+    setIsGlobalSyncing(true);
+    try {
+      await onSyncAllOccupancy();
+    } finally {
+      setIsGlobalSyncing(false);
     }
   };
 
@@ -214,6 +220,17 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
         
         <div className="flex items-center gap-3">
+          <button 
+             onClick={handleGlobalSyncWrapper}
+             disabled={isGlobalSyncing}
+             className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-md hover:bg-blue-100 transition-colors text-sm font-medium disabled:opacity-50"
+          >
+             {isGlobalSyncing ? <Loader2 size={16} className="animate-spin" /> : <CloudDownload size={16} />}
+             Synchronizuj Dostępność
+          </button>
+
+          <div className="h-8 w-px bg-slate-200 hidden md:block"></div>
+
           {activeView !== "ALL" && (
             <div className="relative">
               <button 
@@ -379,13 +396,9 @@ const Dashboard: React.FC<DashboardProps> = ({
                                       className="w-full px-2 py-1 text-xs border border-transparent hover:border-slate-200 focus:border-blue-500 focus:bg-white bg-transparent rounded transition-all placeholder:text-slate-300"
                                    />
                                 </td>
-                                <td className="px-3 py-3 align-middle text-center">
-                                   <input 
-                                      type="number" 
-                                      value={row.basePrice} 
-                                      onChange={(e) => handleBasePriceChange(room.id, row.seasonId, Number(e.target.value))}
-                                      className="w-20 px-2 py-1 text-sm text-center border border-slate-200 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-slate-700 bg-white shadow-sm"
-                                   />
+                                <td className="px-3 py-3 align-middle text-center text-slate-600 font-medium">
+                                   {/* Removed Input, display only */}
+                                   {row.basePrice} zł
                                 </td>
                                 <td className="px-3 py-3 align-middle text-center">
                                    <div className="flex items-center justify-center gap-1">

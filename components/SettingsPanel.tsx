@@ -1,7 +1,6 @@
-
 import React, { useState } from "react";
-import { Channel, ChannelDiscountProfile, GlobalSettings, RoomType, Season, SettingsTab } from "../types";
-import { Plus, Trash2, X, Copy, GripVertical } from "lucide-react";
+import { Channel, ChannelDiscountProfile, GlobalSettings, Property, RoomType, Season, SettingsTab } from "../types";
+import { Plus, Trash2, X, Copy, GripVertical, ArrowRightLeft, Check, AlertCircle } from "lucide-react";
 
 interface SettingsPanelProps {
   propertyName: string;
@@ -20,6 +19,8 @@ interface SettingsPanelProps {
   onTabChange: (tab: SettingsTab) => void;
   onDeleteProperty: () => void;
   onDuplicateProperty: () => void;
+  otherProperties: Property[];
+  onDuplicateSeasons: (targetPropertyId: string) => void;
 }
 
 const SettingsPanel: React.FC<SettingsPanelProps> = ({
@@ -39,10 +40,16 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   onTabChange,
   onDeleteProperty,
   onDuplicateProperty,
+  otherProperties,
+  onDuplicateSeasons,
 }) => {
   // Drag and Drop State
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [draggedListType, setDraggedListType] = useState<string | null>(null);
+
+  // Duplicate Seasons Modal State
+  const [showSeasonDupModal, setShowSeasonDupModal] = useState(false);
+  const [targetPropertyId, setTargetPropertyId] = useState<string>("");
 
   // Generic Handlers for Arrays
   const deleteItem = <T extends { id: string }>(
@@ -106,6 +113,14 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
         [seasonId]: { ...current, [field]: value }
       }
     });
+  };
+
+  const handleDuplicateSeasonsSubmit = () => {
+    if (targetPropertyId) {
+      onDuplicateSeasons(targetPropertyId);
+      setShowSeasonDupModal(false);
+      setTargetPropertyId("");
+    }
   };
 
   // Sort Handlers
@@ -190,7 +205,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const inputClass = "block w-full rounded-md border border-slate-300 bg-white text-slate-900 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2";
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-slate-200 h-full flex flex-col">
+    <div className="bg-white rounded-lg shadow-sm border border-slate-200 h-full flex flex-col relative">
       <div className="p-4 border-b border-slate-200">
         <h2 className="text-xl font-bold text-slate-800">Konfiguracja</h2>
         <p className="text-sm text-slate-500">Zarządzaj ofertą, cenami i kanałami sprzedaży.</p>
@@ -326,6 +341,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                       <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase">Nazwa</th>
                       <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase">Maks. Osób</th>
                       <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase">TID</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase">Cena Bazowa</th>
                       <th className="px-3 py-2"></th>
                     </tr>
                   </thead>
@@ -343,6 +359,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                         <td className="px-3 py-2"><input type="text" value={room.name} onChange={(e) => updateItem<RoomType>(room.id, "name", e.target.value, rooms, setRooms)} className={`w-full ${inputClass}`} /></td>
                         <td className="px-3 py-2"><input type="number" value={room.maxOccupancy} onChange={(e) => updateItem<RoomType>(room.id, "maxOccupancy", Number(e.target.value), rooms, setRooms)} className={`w-20 ${inputClass}`} /></td>
                         <td className="px-3 py-2"><input type="text" value={room.tid || ""} onChange={(e) => updateItem<RoomType>(room.id, "tid", e.target.value, rooms, setRooms)} className={`w-24 ${inputClass}`} /></td>
+                        <td className="px-3 py-2"><input type="number" value={room.basePricePeak} onChange={(e) => updateItem<RoomType>(room.id, "basePricePeak", Number(e.target.value), rooms, setRooms)} className={`w-24 ${inputClass}`} /></td>
                         <td className="px-3 py-2 text-right"><button onClick={() => deleteItem(room.id, rooms, setRooms)} className="text-red-500 hover:text-red-700"><Trash2 size={16}/></button></td>
                       </tr>
                     ))}
@@ -358,7 +375,14 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
           <div className="space-y-4">
              <div className="flex justify-between items-center">
                <h3 className="text-lg font-medium">Reguły Sezonowe</h3>
-               <button onClick={addSeason} className="flex items-center gap-1 text-sm bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700"><Plus size={16}/> Dodaj Sezon</button>
+               <div className="flex gap-2">
+                 <button onClick={() => setShowSeasonDupModal(true)} className="flex items-center gap-1 text-sm bg-indigo-50 text-indigo-600 border border-indigo-200 px-3 py-1.5 rounded hover:bg-indigo-100">
+                   <ArrowRightLeft size={16}/> Duplikuj Sezony
+                 </button>
+                 <button onClick={addSeason} className="flex items-center gap-1 text-sm bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700">
+                   <Plus size={16}/> Dodaj Sezon
+                 </button>
+               </div>
             </div>
             {seasons.map((season, index) => (
               <div 
@@ -503,6 +527,47 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
           </div>
         )}
       </div>
+
+       {/* Duplicate Season Modal */}
+       {showSeasonDupModal && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px] rounded-lg">
+          <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full overflow-hidden border border-slate-200">
+             <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h3 className="font-bold text-slate-800">Duplikuj Sezony</h3>
+                <button onClick={() => setShowSeasonDupModal(false)} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+             </div>
+             <div className="p-6">
+                <p className="text-sm text-slate-600 mb-4">
+                   Wybierz obiekt, do którego chcesz skopiować sezony i ustawienia OBP z <strong>{propertyName}</strong>.
+                   <br/><span className="text-xs text-red-500 font-medium">Uwaga: Sezony w obiekcie docelowym zostaną nadpisane.</span>
+                </p>
+                
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Obiekt Docelowy</label>
+                <select 
+                   className={inputClass} 
+                   value={targetPropertyId}
+                   onChange={(e) => setTargetPropertyId(e.target.value)}
+                >
+                   <option value="">-- Wybierz Obiekt --</option>
+                   {otherProperties.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                   ))}
+                </select>
+             </div>
+             <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2">
+                <button onClick={() => setShowSeasonDupModal(false)} className="px-3 py-2 text-sm text-slate-600 hover:bg-slate-200 rounded">Anuluj</button>
+                <button 
+                  onClick={handleDuplicateSeasonsSubmit}
+                  disabled={!targetPropertyId}
+                  className="px-3 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                   <Check size={16}/> Wykonaj
+                </button>
+             </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
