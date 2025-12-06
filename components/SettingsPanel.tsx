@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Channel, ChannelDiscountProfile, GlobalSettings, Property, RoomType, Season, SettingsTab } from "../types";
-import { Plus, Trash2, X, Copy, GripVertical, ArrowRightLeft, Check, AlertCircle, Lock, ToggleLeft, ToggleRight } from "lucide-react";
+import { Plus, Trash2, X, Copy, GripVertical, ArrowRightLeft, Check, AlertCircle, Lock, ToggleLeft, ToggleRight, Layers } from "lucide-react";
 
 interface SettingsPanelProps {
   propertyName: string;
@@ -22,6 +22,7 @@ interface SettingsPanelProps {
   otherProperties: Property[];
   onDuplicateSeasons: (targetPropertyId: string) => void;
   onDuplicateChannel: (sourceChannel: Channel, targetPropertyId: string) => void;
+  onDuplicateAllChannels: (targetPropertyId: string) => void;
   isReadOnly?: boolean;
 }
 
@@ -45,6 +46,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   otherProperties,
   onDuplicateSeasons,
   onDuplicateChannel,
+  onDuplicateAllChannels,
   isReadOnly = false,
 }) => {
   // Drag and Drop State
@@ -55,9 +57,13 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const [showSeasonDupModal, setShowSeasonDupModal] = useState(false);
   const [targetPropertyId, setTargetPropertyId] = useState<string>("");
 
-  // Duplicate Channel Modal State
+  // Duplicate Single Channel Modal State
   const [channelToDuplicate, setChannelToDuplicate] = useState<Channel | null>(null);
   const [targetChannelPropertyId, setTargetChannelPropertyId] = useState<string>("");
+
+  // Duplicate ALL Channels Modal State
+  const [showAllChannelsDupModal, setShowAllChannelsDupModal] = useState(false);
+  const [targetAllChannelsPropId, setTargetAllChannelsPropId] = useState<string>("");
 
   // Generic Handlers for Arrays
   const deleteItem = <T extends { id: string }>(
@@ -161,6 +167,15 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       onDuplicateChannel(channelToDuplicate, targetChannelPropertyId);
       setChannelToDuplicate(null);
       setTargetChannelPropertyId("");
+    }
+  };
+
+  const handleDuplicateAllChannelsSubmit = () => {
+    if (isReadOnly) return;
+    if (targetAllChannelsPropId) {
+      onDuplicateAllChannels(targetAllChannelsPropId);
+      setShowAllChannelsDupModal(false);
+      setTargetAllChannelsPropId("");
     }
   };
 
@@ -524,7 +539,16 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
           <div className="space-y-4">
              <div className="flex justify-between items-center">
                <h3 className="text-lg font-medium">Kanały Sprzedaży (OTA)</h3>
-               {!isReadOnly && <button onClick={addChannel} className="flex items-center gap-1 text-sm bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700"><Plus size={16}/> Dodaj Kanał</button>}
+               {!isReadOnly && (
+                <div className="flex gap-2">
+                  <button onClick={() => setShowAllChannelsDupModal(true)} className="flex items-center gap-1 text-sm bg-indigo-50 text-indigo-600 border border-indigo-200 px-3 py-1.5 rounded hover:bg-indigo-100">
+                    <Layers size={16}/> Duplikuj Wszystkie
+                  </button>
+                  <button onClick={addChannel} className="flex items-center gap-1 text-sm bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700">
+                    <Plus size={16}/> Dodaj Kanał
+                  </button>
+                </div>
+               )}
             </div>
             <div className="space-y-6">
               {channels.map((channel, index) => (
@@ -682,7 +706,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
         </div>
       )}
 
-      {/* Duplicate Channel Modal */}
+      {/* Duplicate Single Channel Modal */}
       {channelToDuplicate && !isReadOnly && (
         <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px] rounded-lg">
           <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full overflow-hidden border border-slate-200">
@@ -715,6 +739,46 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   className="px-3 py-2 text-sm bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                    <Check size={16}/> Kopiuj
+                </button>
+             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Duplicate ALL Channels Modal */}
+      {showAllChannelsDupModal && !isReadOnly && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px] rounded-lg">
+          <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full overflow-hidden border border-slate-200">
+             <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h3 className="font-bold text-slate-800">Duplikuj Wszystkie Kanały</h3>
+                <button onClick={() => setShowAllChannelsDupModal(false)} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+             </div>
+             <div className="p-6">
+                <p className="text-sm text-slate-600 mb-4">
+                   Wybierz obiekt, do którego chcesz skopiować <strong>wszystkie</strong> kanały z <strong>{propertyName}</strong>.
+                   <br/><span className="text-xs text-red-500 font-medium">Uwaga: Kanały w obiekcie docelowym zostaną nadpisane.</span>
+                </p>
+                
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Obiekt Docelowy</label>
+                <select 
+                   className={inputClass} 
+                   value={targetAllChannelsPropId}
+                   onChange={(e) => setTargetAllChannelsPropId(e.target.value)}
+                >
+                   <option value="">-- Wybierz Obiekt --</option>
+                   {otherProperties.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                   ))}
+                </select>
+             </div>
+             <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2">
+                <button onClick={() => setShowAllChannelsDupModal(false)} className="px-3 py-2 text-sm text-slate-600 hover:bg-slate-200 rounded">Anuluj</button>
+                <button 
+                  onClick={handleDuplicateAllChannelsSubmit}
+                  disabled={!targetAllChannelsPropId}
+                  className="px-3 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                   <Check size={16}/> Wykonaj
                 </button>
              </div>
           </div>

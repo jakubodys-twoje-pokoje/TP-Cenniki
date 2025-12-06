@@ -454,6 +454,42 @@ const App: React.FC = () => {
     alert(`Kanał "${sourceChannel.name}" został skopiowany do wybranego obiektu.`);
   };
 
+  const handleDuplicateAllChannelsToProperty = async (targetPropertyId: string) => {
+    if (userPermissions.role !== 'super_admin') return;
+    if (!activeProperty) return;
+    
+    const targetProp = properties.find(p => p.id === targetPropertyId);
+    if (!targetProp) return;
+
+    // Deep clone ALL channels from active property, regenerate IDs
+    const clonedChannels = deepClone(activeProperty.channels).map(c => ({
+        ...c,
+        id: Date.now().toString() + Math.random().toString(36).substr(2, 5)
+    }));
+
+    const updatedTargetProp = {
+        ...targetProp,
+        channels: clonedChannels
+    };
+
+    setProperties(prev => prev.map(p => 
+        p.id === targetPropertyId ? updatedTargetProp : p
+    ));
+
+    // Hard save
+    setSyncStatus('saving');
+    lastServerState.current[targetPropertyId] = JSON.stringify(updatedTargetProp);
+    await supabase.from('properties').upsert({
+        id: targetPropertyId,
+        content: updatedTargetProp,
+        updated_at: new Date().toISOString()
+    });
+    setSyncStatus('synced');
+    setTimeout(() => setSyncStatus('idle'), 2000);
+
+    alert(`Wszystkie kanały zostały skopiowane do "${targetProp.name}". Poprzednie kanały w tym obiekcie zostały usunięte.`);
+  };
+
   const handleCreateProperty = async () => {
     if (userPermissions.role !== 'super_admin') return;
 
@@ -995,6 +1031,7 @@ const App: React.FC = () => {
               otherProperties={properties.filter(p => p.id !== activePropertyId)}
               onDuplicateSeasons={handleDuplicateSeasons}
               onDuplicateChannel={handleDuplicateChannelToProperty}
+              onDuplicateAllChannels={handleDuplicateAllChannelsToProperty}
               isReadOnly={isReadOnly}
             />
           )}
