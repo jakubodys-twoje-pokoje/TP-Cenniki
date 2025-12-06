@@ -30,6 +30,14 @@ const defaultDiscounts = (
   };
 };
 
+const defaultLabels = {
+  mobile: "Mobile",
+  genius: "Genius",
+  seasonal: "Sezon",
+  firstMinute: "First Min",
+  lastMinute: "Last Min",
+};
+
 export const INITIAL_CHANNELS: Channel[] = [
   {
     id: "booking",
@@ -37,6 +45,7 @@ export const INITIAL_CHANNELS: Channel[] = [
     commissionPct: 20,
     color: "#003580",
     seasonDiscounts: defaultDiscounts(10, 10, 0, 0, 0), // 10% mobile, 10% genius
+    discountLabels: { ...defaultLabels }
   },
   {
     id: "airbnb",
@@ -44,6 +53,7 @@ export const INITIAL_CHANNELS: Channel[] = [
     commissionPct: 16,
     color: "#FF5A5F",
     seasonDiscounts: defaultDiscounts(0, 0, 0, 15, 0), // Example first minute
+    discountLabels: { ...defaultLabels }
   },
   {
     id: "noclegi",
@@ -51,6 +61,7 @@ export const INITIAL_CHANNELS: Channel[] = [
     commissionPct: 12,
     color: "#34D399",
     seasonDiscounts: defaultDiscounts(0, 0, 0, 0, 0),
+    discountLabels: { ...defaultLabels }
   },
   {
     id: "noclegowo",
@@ -58,6 +69,7 @@ export const INITIAL_CHANNELS: Channel[] = [
     commissionPct: 10,
     color: "#FBBF24",
     seasonDiscounts: defaultDiscounts(0, 0, 0, 0, 0),
+    discountLabels: { ...defaultLabels }
   },
 ];
 

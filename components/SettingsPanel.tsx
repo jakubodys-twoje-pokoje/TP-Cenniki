@@ -1,5 +1,6 @@
+
 import React, { useState } from "react";
-import { Channel, ChannelDiscountProfile, GlobalSettings, Property, RoomType, Season, SettingsTab } from "../types";
+import { Channel, ChannelDiscountProfile, ChannelDiscountLabels, GlobalSettings, Property, RoomType, Season, SettingsTab } from "../types";
 import { Plus, Trash2, X, Copy, GripVertical, ArrowRightLeft, Check, AlertCircle, Lock, ToggleLeft, ToggleRight, Layers } from "lucide-react";
 
 interface SettingsPanelProps {
@@ -99,6 +100,20 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
           [seasonId]: isActive
         }
       };
+    }));
+  };
+
+  const updateChannelLabel = (channelId: string, key: keyof ChannelDiscountLabels, value: string) => {
+    if (isReadOnly) return;
+    setChannels(channels.map(c => {
+      if (c.id !== channelId) return c;
+      return {
+        ...c,
+        discountLabels: {
+          ...c.discountLabels,
+          [key]: value
+        } as ChannelDiscountLabels
+      }
     }));
   };
 
@@ -245,6 +260,13 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       commissionPct: 15,
       color: "#64748b",
       seasonDiscounts: {},
+      discountLabels: {
+        mobile: "Mobile",
+        genius: "Genius",
+        seasonal: "Sezon",
+        firstMinute: "First Min",
+        lastMinute: "Last Min"
+      }
     };
     setChannels([...channels, newChannel]);
   };
@@ -551,7 +573,17 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                )}
             </div>
             <div className="space-y-6">
-              {channels.map((channel, index) => (
+              {channels.map((channel, index) => {
+                // Determine Labels or defaults
+                const labels = channel.discountLabels || {
+                  mobile: "Mobile",
+                  genius: "Genius",
+                  seasonal: "Sezon",
+                  firstMinute: "First Min",
+                  lastMinute: "Last Min"
+                };
+
+                return (
                 <div 
                   key={channel.id} 
                   draggable={!isReadOnly}
@@ -596,11 +628,53 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                            <thead>
                               <tr className="text-xs text-slate-500 text-left">
                                  <th className="py-2 pr-2 font-medium">Sezon</th>
-                                 <th className="py-2 px-2 font-medium" title="Zniżka dla urz. mobilnych">Mobile %</th>
-                                 <th className="py-2 px-2 font-medium" title="Zniżka Genius">Genius %</th>
-                                 <th className="py-2 px-2 font-medium" title="Zniżka Sezonowa">Sezon %</th>
-                                 <th className="py-2 px-2 font-medium" title="First Minute">First Min %</th>
-                                 <th className="py-2 px-2 font-medium" title="Last Minute">Last Min %</th>
+                                 
+                                 {/* Editable Headers for Discount Types */}
+                                 <th className="py-2 px-2 font-medium">
+                                    <input 
+                                      disabled={isReadOnly}
+                                      value={labels.mobile}
+                                      onChange={(e) => updateChannelLabel(channel.id, 'mobile', e.target.value)}
+                                      className="bg-transparent border-b border-transparent hover:border-slate-400 focus:border-blue-500 focus:outline-none w-20 text-slate-600 font-bold"
+                                      title="Edytuj nazwę zniżki"
+                                    /> %
+                                 </th>
+                                 <th className="py-2 px-2 font-medium">
+                                    <input 
+                                      disabled={isReadOnly}
+                                      value={labels.genius}
+                                      onChange={(e) => updateChannelLabel(channel.id, 'genius', e.target.value)}
+                                      className="bg-transparent border-b border-transparent hover:border-slate-400 focus:border-blue-500 focus:outline-none w-20 text-slate-600 font-bold"
+                                      title="Edytuj nazwę zniżki"
+                                    /> %
+                                 </th>
+                                 <th className="py-2 px-2 font-medium">
+                                    <input 
+                                      disabled={isReadOnly}
+                                      value={labels.seasonal}
+                                      onChange={(e) => updateChannelLabel(channel.id, 'seasonal', e.target.value)}
+                                      className="bg-transparent border-b border-transparent hover:border-slate-400 focus:border-blue-500 focus:outline-none w-20 text-slate-600 font-bold"
+                                      title="Edytuj nazwę zniżki"
+                                    /> %
+                                 </th>
+                                 <th className="py-2 px-2 font-medium">
+                                    <input 
+                                      disabled={isReadOnly}
+                                      value={labels.firstMinute}
+                                      onChange={(e) => updateChannelLabel(channel.id, 'firstMinute', e.target.value)}
+                                      className="bg-transparent border-b border-transparent hover:border-slate-400 focus:border-blue-500 focus:outline-none w-20 text-slate-600 font-bold"
+                                      title="Edytuj nazwę zniżki"
+                                    /> %
+                                 </th>
+                                 <th className="py-2 px-2 font-medium">
+                                    <input 
+                                      disabled={isReadOnly}
+                                      value={labels.lastMinute}
+                                      onChange={(e) => updateChannelLabel(channel.id, 'lastMinute', e.target.value)}
+                                      className="bg-transparent border-b border-transparent hover:border-slate-400 focus:border-blue-500 focus:outline-none w-20 text-slate-600 font-bold"
+                                      title="Edytuj nazwę zniżki"
+                                    /> %
+                                 </th>
                               </tr>
                            </thead>
                            <tbody className="divide-y divide-slate-200">
@@ -660,7 +734,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                       </div>
                    </div>
                 </div>
-              ))}
+              );
+              })}
             </div>
           </div>
         )}

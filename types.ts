@@ -23,6 +23,14 @@ export interface ChannelDiscountProfile {
   lastMinuteEnabled: boolean;
 }
 
+export interface ChannelDiscountLabels {
+  mobile: string;
+  genius: string;
+  seasonal: string;
+  firstMinute: string;
+  lastMinute: string;
+}
+
 export interface Channel {
   id: string;
   name: string;
@@ -30,6 +38,8 @@ export interface Channel {
   color: string;
   // Key is season.id, value is the discount profile
   seasonDiscounts: Record<string, ChannelDiscountProfile>;
+  // Custom labels for the discount columns
+  discountLabels?: ChannelDiscountLabels;
 }
 
 export interface RoomType {

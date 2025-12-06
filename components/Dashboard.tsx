@@ -221,6 +221,19 @@ const Dashboard: React.FC<DashboardProps> = ({
     return `hsl(${hue}, 80%, 40%)`;
   };
 
+  // Get active channel info for dynamic labels
+  const currentChannel = useMemo(() => {
+    return channels.find(c => c.id === activeView);
+  }, [channels, activeView]);
+
+  const channelLabels = currentChannel?.discountLabels || {
+    mobile: "Mobile",
+    genius: "Genius",
+    seasonal: "Sezon",
+    firstMinute: "First Min",
+    lastMinute: "Last Min"
+  };
+
   return (
     <div className="h-full flex flex-col space-y-6">
       
@@ -266,11 +279,11 @@ const Dashboard: React.FC<DashboardProps> = ({
                   <div className="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg border border-slate-200 z-20 p-2">
                       <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 px-2">Pokaż kolumny</div>
                       {[
-                        { k: 'mobile', label: 'Zniżka Mobile' },
-                        { k: 'genius', label: 'Zniżka Genius' },
-                        { k: 'seasonal', label: 'Zniżka Sezonowa' },
-                        { k: 'firstMinute', label: 'First Minute' },
-                        { k: 'lastMinute', label: 'Last Minute' },
+                        { k: 'mobile', label: channelLabels.mobile },
+                        { k: 'genius', label: channelLabels.genius },
+                        { k: 'seasonal', label: channelLabels.seasonal },
+                        { k: 'firstMinute', label: channelLabels.firstMinute },
+                        { k: 'lastMinute', label: channelLabels.lastMinute },
                         { k: 'commission', label: 'Prowizja (Kwota)' },
                       ].map((item) => (
                         <label key={item.k} className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 rounded cursor-pointer">
@@ -360,11 +373,11 @@ const Dashboard: React.FC<DashboardProps> = ({
 
                   {activeView !== "ALL" && activeView !== "SUMMARY" && (
                      <>
-                        {columnVisibility.mobile && <th className="px-3 py-3 text-right font-bold text-slate-500 uppercase tracking-wider text-blue-600">Mobile</th>}
-                        {columnVisibility.genius && <th className="px-3 py-3 text-right font-bold text-slate-500 uppercase tracking-wider text-purple-600">Genius</th>}
-                        {columnVisibility.seasonal && <th className="px-3 py-3 text-right font-bold text-slate-500 uppercase tracking-wider text-green-600">Sezon</th>}
-                        {columnVisibility.firstMinute && <th className="px-3 py-3 text-right font-bold text-slate-500 uppercase tracking-wider text-amber-600">1st Min</th>}
-                        {columnVisibility.lastMinute && <th className="px-3 py-3 text-right font-bold text-slate-500 uppercase tracking-wider text-red-600">Last Min</th>}
+                        {columnVisibility.mobile && <th className="px-3 py-3 text-right font-bold text-slate-500 uppercase tracking-wider text-blue-600">{channelLabels.mobile}</th>}
+                        {columnVisibility.genius && <th className="px-3 py-3 text-right font-bold text-slate-500 uppercase tracking-wider text-purple-600">{channelLabels.genius}</th>}
+                        {columnVisibility.seasonal && <th className="px-3 py-3 text-right font-bold text-slate-500 uppercase tracking-wider text-green-600">{channelLabels.seasonal}</th>}
+                        {columnVisibility.firstMinute && <th className="px-3 py-3 text-right font-bold text-slate-500 uppercase tracking-wider text-amber-600">{channelLabels.firstMinute}</th>}
+                        {columnVisibility.lastMinute && <th className="px-3 py-3 text-right font-bold text-slate-500 uppercase tracking-wider text-red-600">{channelLabels.lastMinute}</th>}
                         <th className="px-3 py-3 text-right font-bold text-slate-500 uppercase tracking-wider bg-orange-50/50 text-orange-700">W OTA</th>
                         {columnVisibility.commission && <th className="px-3 py-3 text-right font-bold text-slate-500 uppercase tracking-wider">Prowizja</th>}
                         <th className="px-3 py-3 text-right font-bold text-slate-500 uppercase tracking-wider bg-green-50/50 text-green-800">Netto</th>
