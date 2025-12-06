@@ -29,6 +29,7 @@ type ColumnVisibility = {
   firstMinute: boolean;
   lastMinute: boolean;
   commission: boolean;
+  pif: boolean; // Pay In Full toggle
 };
 
 const Dashboard: React.FC<DashboardProps> = ({
@@ -72,6 +73,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     firstMinute: false,
     lastMinute: false,
     commission: true,
+    pif: false, // Default hidden
   });
   const [isColumnMenuOpen, setIsColumnMenuOpen] = useState(false);
 
@@ -275,7 +277,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 
           <div className="h-8 w-px bg-slate-200 hidden md:block"></div>
 
-          {activeView !== "ALL" && activeView !== "SUMMARY" && (
+          {activeView !== "ALL" && (
             <div className="relative">
               <button 
                   onClick={() => setIsColumnMenuOpen(!isColumnMenuOpen)}
@@ -288,24 +290,41 @@ const Dashboard: React.FC<DashboardProps> = ({
                   <div className="fixed inset-0 z-10" onClick={() => setIsColumnMenuOpen(false)}></div>
                   <div className="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg border border-slate-200 z-20 p-2">
                       <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 px-2">Pokaż kolumny</div>
-                      {[
-                        { k: 'mobile', label: channelLabels.mobile },
-                        { k: 'genius', label: channelLabels.genius },
-                        { k: 'seasonal', label: channelLabels.seasonal },
-                        { k: 'firstMinute', label: channelLabels.firstMinute },
-                        { k: 'lastMinute', label: channelLabels.lastMinute },
-                        { k: 'commission', label: 'Prowizja (Kwota)' },
-                      ].map((item) => (
-                        <label key={item.k} className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 rounded cursor-pointer">
-                            <input 
-                              type="checkbox" 
-                              checked={columnVisibility[item.k as keyof ColumnVisibility]}
-                              onChange={() => toggleColumn(item.k as keyof ColumnVisibility)}
-                              className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                            />
-                            <span className="text-sm text-slate-700">{item.label}</span>
-                        </label>
-                      ))}
+                      
+                      {activeView !== "SUMMARY" && (
+                        <>
+                          {[
+                            { k: 'mobile', label: channelLabels.mobile },
+                            { k: 'genius', label: channelLabels.genius },
+                            { k: 'seasonal', label: channelLabels.seasonal },
+                            { k: 'firstMinute', label: channelLabels.firstMinute },
+                            { k: 'lastMinute', label: channelLabels.lastMinute },
+                            { k: 'commission', label: 'Prowizja (Kwota)' },
+                          ].map((item) => (
+                            <label key={item.k} className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 rounded cursor-pointer">
+                                <input 
+                                  type="checkbox" 
+                                  checked={columnVisibility[item.k as keyof ColumnVisibility]}
+                                  onChange={() => toggleColumn(item.k as keyof ColumnVisibility)}
+                                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                />
+                                <span className="text-sm text-slate-700">{item.label}</span>
+                            </label>
+                          ))}
+                        </>
+                      )}
+                      
+                      {/* Booking PIF Toggle (Visible in Summary and Booking detailed view) */}
+                      <label className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 rounded cursor-pointer border-t border-slate-100 mt-1">
+                          <input 
+                            type="checkbox" 
+                            checked={columnVisibility.pif}
+                            onChange={() => toggleColumn('pif')}
+                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="text-sm text-slate-700 font-medium">PIF (Booking)</span>
+                      </label>
+
                   </div>
                 </>
               )}
@@ -342,7 +361,7 @@ const Dashboard: React.FC<DashboardProps> = ({
           <div className="flex border-b border-slate-200 overflow-x-auto">
              <button onClick={() => setActiveView("ALL")} className={`px-4 py-3 text-sm font-medium whitespace-nowrap ${activeView === "ALL" ? 'border-b-2 border-blue-600 text-blue-600' : 'text-slate-600 hover:bg-slate-50'}`}>Ceny Bezpośrednie (Baza)</button>
              
-             {/* New Summary Tab */}
+             {/* Summary Tab */}
              <button onClick={() => setActiveView("SUMMARY")} className={`px-4 py-3 text-sm font-medium whitespace-nowrap flex items-center gap-2 ${activeView === "SUMMARY" ? 'border-b-2 border-blue-600 text-blue-600' : 'text-slate-600 hover:bg-slate-50'}`}>
                 <TableProperties size={14}/> Podsumowanie
              </button>
@@ -375,9 +394,18 @@ const Dashboard: React.FC<DashboardProps> = ({
                   
                   {activeView === "SUMMARY" && (
                      channels.map(c => (
-                       <th key={c.id} className="px-3 py-3 text-right font-bold text-slate-500 uppercase tracking-wider border-l border-slate-200" style={{color: c.color}}>
-                          {c.name}
-                       </th>
+                       <React.Fragment key={c.id}>
+                         <th className="px-3 py-3 text-right font-bold text-slate-500 uppercase tracking-wider border-l border-slate-200" style={{color: c.color}}>
+                            {c.name}
+                         </th>
+                         {/* PIF Columns for Booking */}
+                         {c.id.includes('booking') && columnVisibility.pif && (
+                            <>
+                              <th className="px-3 py-3 text-right font-bold text-slate-500 uppercase tracking-wider border-l border-slate-100" style={{color: c.color}}>PIF 5%</th>
+                              <th className="px-3 py-3 text-right font-bold text-slate-500 uppercase tracking-wider border-l border-slate-100" style={{color: c.color}}>PIF 10%</th>
+                            </>
+                         )}
+                       </React.Fragment>
                      ))
                   )}
 
@@ -388,7 +416,17 @@ const Dashboard: React.FC<DashboardProps> = ({
                         {columnVisibility.seasonal && <th className="px-3 py-3 text-right font-bold text-slate-500 uppercase tracking-wider text-green-600">{channelLabels.seasonal}</th>}
                         {columnVisibility.firstMinute && <th className="px-3 py-3 text-right font-bold text-slate-500 uppercase tracking-wider text-amber-600">{channelLabels.firstMinute}</th>}
                         {columnVisibility.lastMinute && <th className="px-3 py-3 text-right font-bold text-slate-500 uppercase tracking-wider text-red-600">{channelLabels.lastMinute}</th>}
+                        
                         <th className="px-3 py-3 text-right font-bold text-slate-500 uppercase tracking-wider bg-orange-50/50 text-orange-700">W OTA</th>
+                        
+                        {/* Booking PIF columns for detailed view */}
+                        {activeView.includes('booking') && columnVisibility.pif && (
+                           <>
+                              <th className="px-3 py-3 text-right font-bold text-slate-500 uppercase tracking-wider bg-blue-50/30 text-blue-800">PIF 5%</th>
+                              <th className="px-3 py-3 text-right font-bold text-slate-500 uppercase tracking-wider bg-blue-50/30 text-blue-800">PIF 10%</th>
+                           </>
+                        )}
+
                         {columnVisibility.commission && <th className="px-3 py-3 text-right font-bold text-slate-500 uppercase tracking-wider">Prowizja</th>}
                         <th className="px-3 py-3 text-right font-bold text-slate-500 uppercase tracking-wider bg-green-50/50 text-green-800">Netto</th>
                      </>
@@ -422,7 +460,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                            {isCollapsed ? <ChevronRight size={16}/> : <ChevronDown size={16}/>}
                            {room.name}
                         </td>
-                        <td colSpan={16} className="px-3 py-2 text-right text-xs text-slate-400 font-medium uppercase tracking-wider">
+                        {/* Dynamic colspan adjustment based on visible columns */}
+                        <td colSpan={20} className="px-3 py-2 text-right text-xs text-slate-400 font-medium uppercase tracking-wider">
                            {isCollapsed ? `${rows.length} Sezonów (Rozwiń)` : ''}
                         </td>
                      </tr>
@@ -506,9 +545,21 @@ const Dashboard: React.FC<DashboardProps> = ({
                                    channels.map(c => {
                                       const cData = row.channelCalculations[c.id];
                                       return (
-                                        <td key={c.id} className="px-3 py-3 align-middle text-right font-bold text-slate-600 border-l border-slate-100">
-                                           {cData ? `${cData.listPrice} zł` : '-'}
-                                        </td>
+                                        <React.Fragment key={c.id}>
+                                            <td className="px-3 py-3 align-middle text-right font-bold text-slate-600 border-l border-slate-100">
+                                            {cData ? `${cData.listPrice} zł` : '-'}
+                                            </td>
+                                            {c.id.includes('booking') && columnVisibility.pif && (
+                                                <>
+                                                    <td className="px-3 py-3 align-middle text-right text-xs text-slate-500 border-l border-slate-100 bg-slate-50/50">
+                                                        {cData?.pif5 ? `${cData.pif5} zł` : '-'}
+                                                    </td>
+                                                    <td className="px-3 py-3 align-middle text-right text-xs text-slate-500 border-l border-slate-100 bg-slate-50/50">
+                                                        {cData?.pif10 ? `${cData.pif10} zł` : '-'}
+                                                    </td>
+                                                </>
+                                            )}
+                                        </React.Fragment>
                                       )
                                    })
                                 )}
@@ -523,6 +574,13 @@ const Dashboard: React.FC<DashboardProps> = ({
                                       
                                       <td className="px-3 py-3 align-middle text-right font-bold text-orange-700 bg-orange-50/30 border-l border-orange-100">{channelData.listPrice} zł</td>
                                       
+                                      {activeView.includes('booking') && columnVisibility.pif && (
+                                         <>
+                                            <td className="px-3 py-3 align-middle text-right text-xs font-bold text-blue-800 bg-blue-50/30 border-l border-blue-100">{channelData.pif5 ? `${channelData.pif5} zł` : '-'}</td>
+                                            <td className="px-3 py-3 align-middle text-right text-xs font-bold text-blue-800 bg-blue-50/30 border-l border-blue-100">{channelData.pif10 ? `${channelData.pif10} zł` : '-'}</td>
+                                         </>
+                                      )}
+
                                       {columnVisibility.commission && <td className="px-3 py-3 align-middle text-right text-slate-500 text-xs">-{channelData.commission}</td>}
                                       
                                       <td className="px-3 py-3 align-middle text-right border-l border-green-100 bg-green-50/30">
@@ -539,7 +597,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                              {/* EXPANDED DETAILS */}
                              {isExpanded && (
                                <tr>
-                                 <td colSpan={activeView === "ALL" ? 10 : activeView === "SUMMARY" ? (7 + channels.length) : 18} className="bg-slate-50 p-3 shadow-inner">
+                                 <td colSpan={activeView === "ALL" ? 10 : activeView === "SUMMARY" ? 20 : 20} className="bg-slate-50 p-3 shadow-inner">
                                    <div className="ml-12 border border-slate-200 rounded-md bg-white overflow-hidden max-w-4xl">
                                      <div className="px-3 py-2 bg-slate-100 text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
                                        Szczegóły obłożenia ({room.name} - {row.seasonName})
@@ -552,12 +610,28 @@ const Dashboard: React.FC<DashboardProps> = ({
                                            {activeView !== "ALL" && activeView !== "SUMMARY" && (
                                               <>
                                                 <th className="px-3 py-2 text-right text-orange-600">Cena {channels.find(c=>c.id === activeView)?.name}</th>
+                                                
+                                                {activeView.includes('booking') && columnVisibility.pif && (
+                                                    <>
+                                                        <th className="px-3 py-2 text-right text-blue-700">PIF 5%</th>
+                                                        <th className="px-3 py-2 text-right text-blue-700">PIF 10%</th>
+                                                    </>
+                                                )}
+
                                                 <th className="px-3 py-2 text-right text-green-700">Netto</th>
                                                 <th className="px-3 py-2 text-right">Wynik</th>
                                               </>
                                            )}
                                            {activeView === "SUMMARY" && channels.map(c => (
-                                              <th key={c.id} className="px-3 py-2 text-right" style={{color: c.color}}>{c.name}</th>
+                                              <React.Fragment key={c.id}>
+                                                <th className="px-3 py-2 text-right" style={{color: c.color}}>{c.name}</th>
+                                                {c.id.includes('booking') && columnVisibility.pif && (
+                                                    <>
+                                                        <th className="px-3 py-2 text-right text-slate-400">P5%</th>
+                                                        <th className="px-3 py-2 text-right text-slate-400">P10%</th>
+                                                    </>
+                                                )}
+                                              </React.Fragment>
                                            ))}
                                          </tr>
                                        </thead>
@@ -585,6 +659,14 @@ const Dashboard: React.FC<DashboardProps> = ({
                                                {cCalc && (
                                                   <>
                                                     <td className="px-3 py-2 text-right text-orange-600">{cCalc.listPrice} zł</td>
+                                                    
+                                                    {activeView.includes('booking') && columnVisibility.pif && (
+                                                        <>
+                                                            <td className="px-3 py-2 text-right text-blue-700">{cCalc.pif5} zł</td>
+                                                            <td className="px-3 py-2 text-right text-blue-700">{cCalc.pif10} zł</td>
+                                                        </>
+                                                    )}
+
                                                     <td className="px-3 py-2 text-right text-green-700">{cCalc.estimatedNet} zł</td>
                                                     <td className="px-3 py-2 text-right">
                                                       {cCalc.isProfitable ? (
@@ -599,7 +681,17 @@ const Dashboard: React.FC<DashboardProps> = ({
                                                {/* Summary View Details */}
                                                {activeView === "SUMMARY" && channels.map(c => {
                                                   const calc = calculateChannelPrice(dPrice, c, row.seasonId);
-                                                  return <td key={c.id} className="px-3 py-2 text-right text-slate-600">{calc.listPrice} zł</td>
+                                                  return (
+                                                    <React.Fragment key={c.id}>
+                                                        <td className="px-3 py-2 text-right text-slate-600">{calc.listPrice} zł</td>
+                                                        {c.id.includes('booking') && columnVisibility.pif && (
+                                                            <>
+                                                                <td className="px-3 py-2 text-right text-slate-400 text-[10px]">{calc.pif5}</td>
+                                                                <td className="px-3 py-2 text-right text-slate-400 text-[10px]">{calc.pif10}</td>
+                                                            </>
+                                                        )}
+                                                    </React.Fragment>
+                                                  )
                                                })}
                                              </tr>
                                            );

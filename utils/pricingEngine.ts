@@ -117,7 +117,7 @@ export const calculateChannelPrice = (
   const firstVal = (listPrice - mobileVal - geniusVal - seasonalVal) * (firstMinutePct / 100);
   const lastVal = (listPrice - mobileVal - geniusVal - seasonalVal - firstVal) * (lastMinutePct / 100);
 
-  return {
+  const result: ChannelCalculation = {
     listPrice,
     estimatedNet: roundPrice(estimatedNet),
     commission: roundPrice(commissionAmount),
@@ -138,6 +138,15 @@ export const calculateChannelPrice = (
       lastMinute: lastMinutePct
     }
   };
+
+  // Logic for Booking.com PIF (Pay In Full) variations
+  // Check if channel ID contains 'booking' to apply logic
+  if (channel.id.toLowerCase().includes('booking')) {
+      result.pif5 = roundPrice(listPrice * 0.95);
+      result.pif10 = roundPrice(listPrice * 0.90);
+  }
+
+  return result;
 };
 
 export const generatePricingGrid = (
