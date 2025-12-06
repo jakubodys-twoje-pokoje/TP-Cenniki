@@ -234,6 +234,16 @@ const Dashboard: React.FC<DashboardProps> = ({
     lastMinute: "Last Min"
   };
 
+  // Helper to render discount cells with percentage
+  const renderDiscountCell = (amount: number, percentage: number, colorClass: string) => (
+    <td className={`px-3 py-3 align-middle text-right text-xs`}>
+        <div className={`flex flex-col items-end ${colorClass}`}>
+            <span>{amount > 0 ? `-${amount}` : '-'}</span>
+            {amount > 0 && <span className="text-[10px] opacity-70">({percentage}%)</span>}
+        </div>
+    </td>
+  );
+
   return (
     <div className="h-full flex flex-col space-y-6">
       
@@ -505,13 +515,16 @@ const Dashboard: React.FC<DashboardProps> = ({
 
                                 {activeView !== "ALL" && activeView !== "SUMMARY" && channelData && (
                                    <>
-                                      {columnVisibility.mobile && <td className="px-3 py-3 align-middle text-right text-blue-600 text-xs">{channelData.discountBreakdown.mobile > 0 ? `-${channelData.discountBreakdown.mobile}` : '-'}</td>}
-                                      {columnVisibility.genius && <td className="px-3 py-3 align-middle text-right text-purple-600 text-xs">{channelData.discountBreakdown.genius > 0 ? `-${channelData.discountBreakdown.genius}` : '-'}</td>}
-                                      {columnVisibility.seasonal && <td className="px-3 py-3 align-middle text-right text-green-600 text-xs">{channelData.discountBreakdown.seasonal > 0 ? `-${channelData.discountBreakdown.seasonal}` : '-'}</td>}
-                                      {columnVisibility.firstMinute && <td className="px-3 py-3 align-middle text-right text-amber-600 text-xs">{channelData.discountBreakdown.firstMinute > 0 ? `-${channelData.discountBreakdown.firstMinute}` : '-'}</td>}
-                                      {columnVisibility.lastMinute && <td className="px-3 py-3 align-middle text-right text-red-600 text-xs">{channelData.discountBreakdown.lastMinute > 0 ? `-${channelData.discountBreakdown.lastMinute}` : '-'}</td>}
+                                      {columnVisibility.mobile && renderDiscountCell(channelData.discountBreakdown.mobile, channelData.discountPercentages.mobile, 'text-blue-600')}
+                                      {columnVisibility.genius && renderDiscountCell(channelData.discountBreakdown.genius, channelData.discountPercentages.genius, 'text-purple-600')}
+                                      {columnVisibility.seasonal && renderDiscountCell(channelData.discountBreakdown.seasonal, channelData.discountPercentages.seasonal, 'text-green-600')}
+                                      {columnVisibility.firstMinute && renderDiscountCell(channelData.discountBreakdown.firstMinute, channelData.discountPercentages.firstMinute, 'text-amber-600')}
+                                      {columnVisibility.lastMinute && renderDiscountCell(channelData.discountBreakdown.lastMinute, channelData.discountPercentages.lastMinute, 'text-red-600')}
+                                      
                                       <td className="px-3 py-3 align-middle text-right font-bold text-orange-700 bg-orange-50/30 border-l border-orange-100">{channelData.listPrice} zł</td>
+                                      
                                       {columnVisibility.commission && <td className="px-3 py-3 align-middle text-right text-slate-500 text-xs">-{channelData.commission}</td>}
+                                      
                                       <td className="px-3 py-3 align-middle text-right border-l border-green-100 bg-green-50/30">
                                          <div className="flex flex-col items-end">
                                             <span className={`font-bold ${channelData.estimatedNet < row.directPrice ? 'text-red-600' : 'text-green-700'}`}>{channelData.estimatedNet} zł</span>

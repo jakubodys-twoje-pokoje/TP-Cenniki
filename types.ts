@@ -118,5 +118,12 @@ export interface ChannelCalculation {
     seasonal: number;
     firstMinute: number;
     lastMinute: number;
-  }
+  };
+  discountPercentages: {
+    mobile: number;
+    genius: number;
+    seasonal: number;
+    firstMinute: number;
+    lastMinute: number;
+  };
 }

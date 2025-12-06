@@ -75,18 +75,18 @@ export const calculateChannelPrice = (
 
   const getDisc = (val: number, enabled: boolean | undefined) => (enabled ?? true) ? val : 0;
 
-  const mobilePct = getDisc(discounts.mobile, discounts.mobileEnabled) / 100;
-  const geniusPct = getDisc(discounts.genius, discounts.geniusEnabled) / 100;
-  const seasonalPct = getDisc(discounts.seasonal, discounts.seasonalEnabled) / 100;
-  const firstMinutePct = getDisc(discounts.firstMinute, discounts.firstMinuteEnabled) / 100;
-  const lastMinutePct = getDisc(discounts.lastMinute, discounts.lastMinuteEnabled) / 100;
+  const mobilePct = getDisc(discounts.mobile, discounts.mobileEnabled);
+  const geniusPct = getDisc(discounts.genius, discounts.geniusEnabled);
+  const seasonalPct = getDisc(discounts.seasonal, discounts.seasonalEnabled);
+  const firstMinutePct = getDisc(discounts.firstMinute, discounts.firstMinuteEnabled);
+  const lastMinutePct = getDisc(discounts.lastMinute, discounts.lastMinuteEnabled);
 
   const discountFactor = 
-    (1 - mobilePct) * 
-    (1 - geniusPct) * 
-    (1 - seasonalPct) *
-    (1 - firstMinutePct) *
-    (1 - lastMinutePct);
+    (1 - (mobilePct / 100)) * 
+    (1 - (geniusPct / 100)) * 
+    (1 - (seasonalPct / 100)) *
+    (1 - (firstMinutePct / 100)) *
+    (1 - (lastMinutePct / 100));
   
   const commissionFactor = 1 - (channel.commissionPct / 100);
   
@@ -99,11 +99,11 @@ export const calculateChannelPrice = (
   const listPrice = roundPrice(rawListPrice);
 
   // Forward check to get actual estimated net
-  const priceAfterMobile = listPrice * (1 - mobilePct);
-  const priceAfterGenius = priceAfterMobile * (1 - geniusPct);
-  const priceAfterSeasonal = priceAfterGenius * (1 - seasonalPct);
-  const priceAfterFirst = priceAfterSeasonal * (1 - firstMinutePct);
-  const priceAfterLast = priceAfterFirst * (1 - lastMinutePct);
+  const priceAfterMobile = listPrice * (1 - (mobilePct / 100));
+  const priceAfterGenius = priceAfterMobile * (1 - (geniusPct / 100));
+  const priceAfterSeasonal = priceAfterGenius * (1 - (seasonalPct / 100));
+  const priceAfterFirst = priceAfterSeasonal * (1 - (firstMinutePct / 100));
+  const priceAfterLast = priceAfterFirst * (1 - (lastMinutePct / 100));
   
   const soldPrice = priceAfterLast;
   const commissionAmount = soldPrice * (channel.commissionPct / 100);
@@ -111,11 +111,11 @@ export const calculateChannelPrice = (
 
   // Calculate Breakdown Values (Approximated based on list price cascade for display)
   
-  const mobileVal = listPrice * mobilePct;
-  const geniusVal = (listPrice - mobileVal) * geniusPct;
-  const seasonalVal = (listPrice - mobileVal - geniusVal) * seasonalPct;
-  const firstVal = (listPrice - mobileVal - geniusVal - seasonalVal) * firstMinutePct;
-  const lastVal = (listPrice - mobileVal - geniusVal - seasonalVal - firstVal) * lastMinutePct;
+  const mobileVal = listPrice * (mobilePct / 100);
+  const geniusVal = (listPrice - mobileVal) * (geniusPct / 100);
+  const seasonalVal = (listPrice - mobileVal - geniusVal) * (seasonalPct / 100);
+  const firstVal = (listPrice - mobileVal - geniusVal - seasonalVal) * (firstMinutePct / 100);
+  const lastVal = (listPrice - mobileVal - geniusVal - seasonalVal - firstVal) * (lastMinutePct / 100);
 
   return {
     listPrice,
@@ -129,6 +129,13 @@ export const calculateChannelPrice = (
       seasonal: roundPrice(seasonalVal),
       firstMinute: roundPrice(firstVal),
       lastMinute: roundPrice(lastVal)
+    },
+    discountPercentages: {
+      mobile: mobilePct,
+      genius: geniusPct,
+      seasonal: seasonalPct,
+      firstMinute: firstMinutePct,
+      lastMinute: lastMinutePct
     }
   };
 };
