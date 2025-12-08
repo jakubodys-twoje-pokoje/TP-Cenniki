@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { LayoutDashboard, Settings as SettingsIcon, Menu, BedDouble, Calendar, Share2, Cog, ChevronDown, ChevronRight, Building, Plus, Trash2, Bed, CheckCircle2, Copy, Cloud, CloudOff, Loader2, RefreshCw, LogOut, Download, X, Lock } from "lucide-react";
 import SettingsPanel from "./components/SettingsPanel";
 import Dashboard from "./components/Dashboard";
+import ClientDashboard from "./components/ClientDashboard";
 import LoginScreen from "./components/LoginScreen";
 import {
   INITIAL_CHANNELS,
@@ -50,7 +51,7 @@ const App: React.FC = () => {
   // Track expanded sidebar items
   const [expandedProperties, setExpandedProperties] = useState<Set<string>>(new Set(["default"]));
 
-  // Occupancy State
+  // Occupancy State (No longer auto-refreshing)
   const [isOccupancyRefreshing, setIsOccupancyRefreshing] = useState(false);
 
   // Drag and Drop State for Sidebar
@@ -694,6 +695,7 @@ const App: React.FC = () => {
     setSidebarDragItem(null);
   };
 
+  const isClientRole = userPermissions.role === 'client';
   const isReadOnly = userPermissions.role !== 'super_admin';
 
   // --- Render Views ---
@@ -748,7 +750,7 @@ const App: React.FC = () => {
       {/* Sidebar - Added flex-col and h-full for scrolling fix */}
       <aside className={`
         fixed inset-y-0 left-0 z-30 w-64 bg-slate-900 text-white transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0
-        flex flex-col h-full
+        flex flex-col h-full print:hidden
         ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         <div className="p-6 border-b border-slate-700 flex flex-col gap-4 flex-shrink-0">
@@ -767,6 +769,27 @@ const App: React.FC = () => {
           </div>
         </div>
 
+        {isClientRole ? (
+           <div className="flex-1 p-4 text-slate-400 text-sm overflow-y-auto">
+              <p className="mb-4 text-center text-slate-500 text-xs">WYBIERZ OBIEKT</p>
+              <div className="space-y-1">
+                {properties.map(p => (
+                   <button
+                     key={p.id}
+                     onClick={() => setActivePropertyId(p.id)}
+                     className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                       activePropertyId === p.id 
+                         ? "bg-blue-600 text-white shadow-md" 
+                         : "text-slate-400 hover:bg-slate-800 hover:text-white"
+                     }`}
+                   >
+                     <Building size={18} />
+                     <span className="font-medium truncate">{p.name}</span>
+                   </button>
+                ))}
+              </div>
+           </div>
+        ) : (
         <nav className="p-4 space-y-2 flex-1 overflow-y-auto min-h-0">
           <button
             onClick={() => { setActiveTab("dashboard"); setSelectedRoomId(null); setIsSidebarOpen(false); }}
@@ -917,29 +940,31 @@ const App: React.FC = () => {
                 })}
              </div>
           </div>
-        </nav>
+        )}
 
         <div className="p-6 border-t border-slate-800 space-y-3 flex-shrink-0">
            {/* Sync Status Indicator */}
-          <div className="flex items-center justify-between">
-             <div className={`flex items-center gap-2 text-xs transition-colors h-4 ${
-                syncStatus === 'synced' ? 'text-green-400' : 
-                syncStatus === 'saving' ? 'text-yellow-400' : 
-                syncStatus === 'error' ? 'text-red-400' : 'text-slate-500 opacity-0'
-             }`}>
-               {syncStatus === 'synced' && <><CheckCircle2 size={12} /> <span>Zapisano w chmurze</span></>}
-               {syncStatus === 'saving' && <><Loader2 size={12} className="animate-spin" /> <span>Zapisywanie...</span></>}
-               {syncStatus === 'error' && <><CloudOff size={12} /> <span>Błąd zapisu</span></>}
-             </div>
-             
-             <button 
-               onClick={handleManualSync}
-               className="text-slate-500 hover:text-white transition-colors p-1"
-               title="Wymuś synchronizację"
-             >
-               <RefreshCw size={12} className={isLoading ? "animate-spin" : ""} />
-             </button>
-          </div>
+          {!isClientRole && (
+            <div className="flex items-center justify-between">
+               <div className={`flex items-center gap-2 text-xs transition-colors h-4 ${
+                  syncStatus === 'synced' ? 'text-green-400' : 
+                  syncStatus === 'saving' ? 'text-yellow-400' : 
+                  syncStatus === 'error' ? 'text-red-400' : 'text-slate-500 opacity-0'
+               }`}>
+                 {syncStatus === 'synced' && <><CheckCircle2 size={12} /> <span>Zapisano w chmurze</span></>}
+                 {syncStatus === 'saving' && <><Loader2 size={12} className="animate-spin" /> <span>Zapisywanie...</span></>}
+                 {syncStatus === 'error' && <><CloudOff size={12} /> <span>Błąd zapisu</span></>}
+               </div>
+               
+               <button 
+                 onClick={handleManualSync}
+                 className="text-slate-500 hover:text-white transition-colors p-1"
+                 title="Wymuś synchronizację"
+               >
+                 <RefreshCw size={12} className={isLoading ? "animate-spin" : ""} />
+               </button>
+            </div>
+          )}
 
           <button 
             onClick={handleLogout}
@@ -958,7 +983,7 @@ const App: React.FC = () => {
       {/* Main Content */}
       <main className="flex-1 flex flex-col min-w-0 h-screen">
         {/* Mobile Header */}
-        <header className="md:hidden bg-white border-b border-slate-200 p-4 flex items-center justify-between z-10">
+        <header className="md:hidden bg-white border-b border-slate-200 p-4 flex items-center justify-between z-10 print:hidden">
           <span className="font-bold text-slate-800">{activeProperty.name}</span>
           <button onClick={() => setIsSidebarOpen(true)} className="text-slate-600">
             <Menu size={24} />
@@ -966,49 +991,60 @@ const App: React.FC = () => {
         </header>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-hidden p-4 md:p-8">
-          {activeTab === "dashboard" ? (
-            <Dashboard 
-              key={activeProperty.id} 
-              rooms={activeProperty.rooms} 
-              seasons={activeProperty.seasons} 
-              channels={activeProperty.channels}
-              settings={activeProperty.settings}
-              propertyOid={activeProperty.oid || ""}
-              selectedRoomId={selectedRoomId}
-              notes={activeProperty.notes || ""}
-              onNotesChange={(n) => updateActiveProperty({ notes: n })}
-              onRoomUpdate={handleRoomUpdate}
-              onOccupancyUpdate={handleOccupancyUpdate}
-              onReorderRooms={handleReorderRooms}
-              onSyncAllOccupancy={() => syncPropertyOccupancy(activePropertyId)}
-              isReadOnly={isReadOnly}
-            />
+        <div className="flex-1 overflow-hidden p-4 md:p-8 print:p-0 print:overflow-visible">
+          {isClientRole ? (
+             <ClientDashboard 
+               rooms={activeProperty.rooms}
+               seasons={activeProperty.seasons}
+               channels={activeProperty.channels}
+               settings={activeProperty.settings}
+             />
           ) : (
-            <SettingsPanel 
-              key={activeProperty.id}
-              propertyName={activeProperty.name}
-              onPropertyNameChange={(name) => updateActiveProperty({ name })}
-              propertyOid={activeProperty.oid || ""}
-              onPropertyOidChange={(oid) => updateActiveProperty({ oid })}
-              settings={activeProperty.settings}
-              setSettings={(s) => updateActiveProperty({ settings: s })}
-              channels={activeProperty.channels}
-              setChannels={(c) => updateActiveProperty({ channels: c })}
-              rooms={activeProperty.rooms}
-              setRooms={(r) => updateActiveProperty({ rooms: r })}
-              seasons={activeProperty.seasons}
-              setSeasons={(s) => updateActiveProperty({ seasons: s })}
-              activeTab={activeSettingsTab}
-              onTabChange={setActiveSettingsTab}
-              onDeleteProperty={() => handleDeleteProperty(activePropertyId)}
-              onDuplicateProperty={handleDuplicateProperty}
-              otherProperties={properties.filter(p => p.id !== activePropertyId)}
-              onDuplicateSeasons={handleDuplicateSeasons}
-              onDuplicateChannel={handleDuplicateChannelToProperty}
-              onDuplicateAllChannels={handleDuplicateAllChannelsToProperty}
-              isReadOnly={isReadOnly}
-            />
+            <>
+              {activeTab === "dashboard" ? (
+                <Dashboard 
+                  key={activeProperty.id} 
+                  rooms={activeProperty.rooms} 
+                  seasons={activeProperty.seasons} 
+                  channels={activeProperty.channels}
+                  settings={activeProperty.settings}
+                  propertyOid={activeProperty.oid || ""}
+                  selectedRoomId={selectedRoomId}
+                  notes={activeProperty.notes || ""}
+                  onNotesChange={(n) => updateActiveProperty({ notes: n })}
+                  onRoomUpdate={handleRoomUpdate}
+                  onOccupancyUpdate={handleOccupancyUpdate}
+                  onReorderRooms={handleReorderRooms}
+                  onSyncAllOccupancy={() => syncPropertyOccupancy(activePropertyId)}
+                  isReadOnly={isReadOnly}
+                />
+              ) : (
+                <SettingsPanel 
+                  key={activeProperty.id}
+                  propertyName={activeProperty.name}
+                  onPropertyNameChange={(name) => updateActiveProperty({ name })}
+                  propertyOid={activeProperty.oid || ""}
+                  onPropertyOidChange={(oid) => updateActiveProperty({ oid })}
+                  settings={activeProperty.settings}
+                  setSettings={(s) => updateActiveProperty({ settings: s })}
+                  channels={activeProperty.channels}
+                  setChannels={(c) => updateActiveProperty({ channels: c })}
+                  rooms={activeProperty.rooms}
+                  setRooms={(r) => updateActiveProperty({ rooms: r })}
+                  seasons={activeProperty.seasons}
+                  setSeasons={(s) => updateActiveProperty({ seasons: s })}
+                  activeTab={activeSettingsTab}
+                  onTabChange={setActiveSettingsTab}
+                  onDeleteProperty={() => handleDeleteProperty(activePropertyId)}
+                  onDuplicateProperty={handleDuplicateProperty}
+                  otherProperties={properties.filter(p => p.id !== activePropertyId)}
+                  onDuplicateSeasons={handleDuplicateSeasons}
+                  onDuplicateChannel={handleDuplicateChannelToProperty}
+                  onDuplicateAllChannels={handleDuplicateAllChannelsToProperty}
+                  isReadOnly={isReadOnly}
+                />
+              )}
+            </>
           )}
         </div>
       </main>
