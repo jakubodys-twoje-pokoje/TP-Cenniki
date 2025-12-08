@@ -50,8 +50,7 @@ const App: React.FC = () => {
   // Track expanded sidebar items
   const [expandedProperties, setExpandedProperties] = useState<Set<string>>(new Set(["default"]));
 
-  // Occupancy Auto-Refresh State
-  const [lastOccupancyFetch, setLastOccupancyFetch] = useState<number>(0);
+  // Occupancy State
   const [isOccupancyRefreshing, setIsOccupancyRefreshing] = useState(false);
 
   // Drag and Drop State for Sidebar
@@ -297,70 +296,46 @@ const App: React.FC = () => {
     if (!prop || !prop.oid) return;
 
     console.log(`Syncing occupancy for property ${prop.name} (${prop.oid})`);
+    setIsOccupancyRefreshing(true); // START LOADING
     
-    let updatedRooms = deepClone(prop.rooms);
-    let hasUpdates = false;
+    try {
+      let updatedRooms = deepClone(prop.rooms);
+      let hasUpdates = false;
 
-    for (const season of prop.seasons) {
-      const occupancyMap = await fetchSeasonOccupancyMap(prop.oid, season.startDate, season.endDate);
-      
-      updatedRooms = updatedRooms.map(room => {
-        if (room.tid && occupancyMap[room.tid] !== undefined) {
-            const newRate = occupancyMap[room.tid];
-            const currentRates = room.seasonOccupancy || {};
-            if (currentRates[season.id] !== newRate) {
-              hasUpdates = true;
-              return {
-                ...room,
-                seasonOccupancy: {
-                  ...currentRates,
-                  [season.id]: newRate
-                }
-              };
-            }
-        }
-        return room;
-      });
-    }
+      for (const season of prop.seasons) {
+        const occupancyMap = await fetchSeasonOccupancyMap(prop.oid, season.startDate, season.endDate);
+        
+        updatedRooms = updatedRooms.map(room => {
+          if (room.tid && occupancyMap[room.tid] !== undefined) {
+              const newRate = occupancyMap[room.tid];
+              const currentRates = room.seasonOccupancy || {};
+              if (currentRates[season.id] !== newRate) {
+                hasUpdates = true;
+                return {
+                  ...room,
+                  seasonOccupancy: {
+                    ...currentRates,
+                    [season.id]: newRate
+                  }
+                };
+              }
+          }
+          return room;
+        });
+      }
 
-    if (hasUpdates) {
-       setProperties(prev => prev.map(p => 
-        p.id === propId ? { ...p, rooms: updatedRooms } : p
-      ));
+      if (hasUpdates) {
+         setProperties(prev => prev.map(p => 
+          p.id === propId ? { ...p, rooms: updatedRooms } : p
+        ));
+      }
+    } catch (error) {
+        console.error("Manual occupancy sync failed:", error);
+        alert("Błąd podczas synchronizacji dostępności.");
+    } finally {
+        setIsOccupancyRefreshing(false); // STOP LOADING
     }
   };
-
-
-  // 3. Auto-Refresh Occupancy (60 min interval)
-  useEffect(() => {
-    if (!session || isLoading || !activePropertyId) return;
-
-    const checkAndFetchOccupancy = async () => {
-      // Only Super Admin runs the background sync to avoid conflicts
-      if (userPermissions.role !== 'super_admin') return;
-
-      const now = Date.now();
-      const sixtyMinutes = 60 * 60 * 1000;
-      const prop = properties.find(p => p.id === activePropertyId);
-
-      if (prop && prop.oid && (now - lastOccupancyFetch > sixtyMinutes) && !isOccupancyRefreshing) {
-        setIsOccupancyRefreshing(true);
-        try {
-          await syncPropertyOccupancy(activePropertyId);
-          setLastOccupancyFetch(now);
-        } catch (e) {
-          console.error("Auto-refresh occupancy failed", e);
-        } finally {
-          setIsOccupancyRefreshing(false);
-        }
-      }
-    };
-
-    checkAndFetchOccupancy();
-    const intervalId = setInterval(checkAndFetchOccupancy, 60000); 
-    return () => clearInterval(intervalId);
-  }, [session, activePropertyId, properties, lastOccupancyFetch, isOccupancyRefreshing, isLoading, userPermissions]);
-
 
   const activeProperty = properties.find(p => p.id === activePropertyId) || properties[0];
 

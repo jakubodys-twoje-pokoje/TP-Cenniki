@@ -1,8 +1,7 @@
-
 import React, { useMemo, useState } from "react";
 import { Channel, GlobalSettings, RoomType, Season } from "../types";
 import { generatePricingGrid, calculateDirectPrice, calculateChannelPrice } from "../utils/pricingEngine";
-import { TrendingUp, Users, StickyNote, ChevronDown, ChevronRight, GripVertical, Columns, RefreshCw, Loader2, AlertCircle, CloudDownload, Lock, TableProperties, ChevronUp } from "lucide-react";
+import { TrendingUp, Users, StickyNote, ChevronDown, ChevronRight, GripVertical, Columns, RefreshCw, Loader2, AlertCircle, CloudDownload, Lock, TableProperties, ChevronUp, Home, Filter } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { fetchHotresOccupancy } from "../utils/hotresApi";
 
@@ -50,6 +49,10 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [occupancyFilter, setOccupancyFilter] = useState<"MAX" | number>("MAX");
   const [activeView, setActiveView] = useState<"ALL" | "SUMMARY" | string>("ALL");
   
+  // Dashboard Filters
+  const [typeFilter, setTypeFilter] = useState<string>("ALL");
+  const [capacityFilter, setCapacityFilter] = useState<string>("ALL");
+
   // Drag and drop state
   const [draggedRoomId, setDraggedRoomId] = useState<string | null>(null);
 
@@ -77,26 +80,65 @@ const Dashboard: React.FC<DashboardProps> = ({
   });
   const [isColumnMenuOpen, setIsColumnMenuOpen] = useState(false);
 
-  // Generate the flat grid based on GLOBAL filter
+  // Determine Type helper
+  const getRoomType = (name: string) => {
+      const lower = name.toLowerCase();
+      if (lower.includes("domek")) return "Domek";
+      if (lower.includes("apartament")) return "Apartament";
+      if (lower.includes("studio")) return "Studio";
+      if (lower.includes("pokój")) return "Pokój";
+      return "Inne";
+  };
+
+  // Extract unique types and capacities for filters
+  const uniqueTypes = useMemo(() => {
+    const types = new Set<string>();
+    rooms.forEach(r => types.add(getRoomType(r.name)));
+    return Array.from(types).sort();
+  }, [rooms]);
+
+  const uniqueCapacities = useMemo(() => {
+      const caps = new Set<number>();
+      rooms.forEach(r => caps.add(r.maxOccupancy));
+      return Array.from(caps).sort((a, b) => a - b);
+  }, [rooms]);
+
+  // Generate the flat grid based on GLOBAL filter AND Dashboard Filters
   const pricingGrid = useMemo(() => {
-    const activeRooms = selectedRoomId 
+    let activeRooms = selectedRoomId 
       ? rooms.filter(r => r.id === selectedRoomId)
       : rooms;
 
+    // Apply Dashboard Filters
+    if (typeFilter !== "ALL") {
+        activeRooms = activeRooms.filter(r => getRoomType(r.name) === typeFilter);
+    }
+    if (capacityFilter !== "ALL") {
+        activeRooms = activeRooms.filter(r => r.maxOccupancy === Number(capacityFilter));
+    }
+
     return generatePricingGrid(activeRooms, seasons, channels, settings, occupancyFilter, {});
-  }, [rooms, seasons, channels, settings, occupancyFilter, selectedRoomId]);
+  }, [rooms, seasons, channels, settings, occupancyFilter, selectedRoomId, typeFilter, capacityFilter]);
 
   // Group grid by Room
   const roomGroups = useMemo(() => {
-     const activeRooms = selectedRoomId 
+     let activeRooms = selectedRoomId 
       ? rooms.filter(r => r.id === selectedRoomId)
       : rooms;
+
+     // Apply same filtering to the groups
+     if (typeFilter !== "ALL") {
+        activeRooms = activeRooms.filter(r => getRoomType(r.name) === typeFilter);
+     }
+     if (capacityFilter !== "ALL") {
+        activeRooms = activeRooms.filter(r => r.maxOccupancy === Number(capacityFilter));
+     }
 
      return activeRooms.map(room => ({
         room,
         rows: pricingGrid.filter(r => r.roomId === room.id)
      }));
-  }, [rooms, pricingGrid, selectedRoomId]);
+  }, [rooms, pricingGrid, selectedRoomId, typeFilter, capacityFilter]);
 
   // Charts data
   const chartData = useMemo(() => {
@@ -264,7 +306,7 @@ const Dashboard: React.FC<DashboardProps> = ({
           <p className="text-sm text-slate-500">Widok główny: {occupancyFilter === "MAX" ? "Maksymalne obłożenie" : `${occupancyFilter} os.`}</p>
         </div>
         
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <button 
              onClick={handleGlobalSyncWrapper}
              disabled={isGlobalSyncing || isReadOnly}
@@ -277,11 +319,46 @@ const Dashboard: React.FC<DashboardProps> = ({
 
           <div className="h-8 w-px bg-slate-200 hidden md:block"></div>
 
+          {/* New Filters */}
+          <div className="flex items-center gap-2">
+             <div className="relative group">
+                <div className="flex items-center gap-1 px-3 py-1.5 bg-white border border-slate-300 rounded-md text-sm text-slate-600 hover:border-slate-400 cursor-pointer shadow-sm">
+                   <Home size={14} className="text-slate-400" />
+                   <select 
+                      value={typeFilter} 
+                      onChange={(e) => setTypeFilter(e.target.value)}
+                      className="appearance-none bg-transparent outline-none cursor-pointer pr-6 font-medium text-slate-700"
+                   >
+                      <option value="ALL">Wszystkie typy</option>
+                      {uniqueTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                   </select>
+                   <ChevronDown size={12} className="absolute right-2 pointer-events-none text-slate-400" />
+                </div>
+             </div>
+
+             <div className="relative group">
+                <div className="flex items-center gap-1 px-3 py-1.5 bg-white border border-slate-300 rounded-md text-sm text-slate-600 hover:border-slate-400 cursor-pointer shadow-sm">
+                   <Users size={14} className="text-slate-400" />
+                   <select 
+                      value={capacityFilter} 
+                      onChange={(e) => setCapacityFilter(e.target.value)}
+                      className="appearance-none bg-transparent outline-none cursor-pointer pr-6 font-medium text-slate-700"
+                   >
+                      <option value="ALL">Wszystkie pojemności</option>
+                      {uniqueCapacities.map(c => <option key={c} value={c}>Max {c} os.</option>)}
+                   </select>
+                   <ChevronDown size={12} className="absolute right-2 pointer-events-none text-slate-400" />
+                </div>
+             </div>
+          </div>
+
+          <div className="h-8 w-px bg-slate-200 hidden md:block"></div>
+
           {activeView !== "ALL" && (
             <div className="relative">
               <button 
                   onClick={() => setIsColumnMenuOpen(!isColumnMenuOpen)}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50 text-sm font-medium transition-colors"
+                  className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50 text-sm font-medium transition-colors shadow-sm"
               >
                   <Columns size={16} /> Widok <ChevronDown size={14} />
               </button>
@@ -709,7 +786,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                 );
                 })
               ) : (
-                <tbody><tr><td colSpan={15} className="px-4 py-8 text-center text-slate-500">Brak danych.</td></tr></tbody>
+                <tbody><tr><td colSpan={15} className="px-4 py-8 text-center text-slate-500">Brak danych spełniających kryteria.</td></tr></tbody>
               )}
             </table>
           </div>
