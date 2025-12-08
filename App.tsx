@@ -940,6 +940,7 @@ const App: React.FC = () => {
                 })}
              </div>
           </div>
+        </nav>
         )}
 
         <div className="p-6 border-t border-slate-800 space-y-3 flex-shrink-0">
