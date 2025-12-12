@@ -140,8 +140,9 @@ export const calculateChannelPrice = (
   };
 
   // Logic for Booking.com PIF (Pay In Full) variations
-  // Check if channel ID contains 'booking' to apply logic
-  if (channel.id.toLowerCase().includes('booking')) {
+  // Check if channel ID OR Name contains 'booking' to apply logic (for duplicate channels)
+  const isBooking = channel.id.toLowerCase().includes('booking') || channel.name.toLowerCase().includes('booking');
+  if (isBooking) {
       result.pif5 = roundPrice(listPrice * 0.95);
       result.pif10 = roundPrice(listPrice * 0.90);
   }

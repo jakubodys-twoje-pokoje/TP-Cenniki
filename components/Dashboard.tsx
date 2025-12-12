@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState } from "react";
 import { Channel, GlobalSettings, RoomType, Season } from "../types";
 import { generatePricingGrid, calculateDirectPrice, calculateChannelPrice } from "../utils/pricingEngine";
@@ -270,6 +271,11 @@ const Dashboard: React.FC<DashboardProps> = ({
     return channels.find(c => c.id === activeView);
   }, [channels, activeView]);
 
+  const isCurrentChannelBooking = useMemo(() => {
+    if (!currentChannel) return false;
+    return currentChannel.id.toLowerCase().includes('booking') || currentChannel.name.toLowerCase().includes('booking');
+  }, [currentChannel]);
+
   const channelLabels = currentChannel?.discountLabels || {
     mobile: "Mobile",
     genius: "Genius",
@@ -470,20 +476,22 @@ const Dashboard: React.FC<DashboardProps> = ({
                   <th className="px-3 py-3 text-right font-bold text-slate-500 uppercase tracking-wider bg-blue-50/50 text-blue-700">Direct</th>
                   
                   {activeView === "SUMMARY" && (
-                     channels.map(c => (
+                     channels.map(c => {
+                       const isBooking = c.id.toLowerCase().includes('booking') || c.name.toLowerCase().includes('booking');
+                       return (
                        <React.Fragment key={c.id}>
                          <th className="px-3 py-3 text-right font-bold text-slate-500 uppercase tracking-wider border-l border-slate-200" style={{color: c.color}}>
                             {c.name}
                          </th>
                          {/* PIF Columns for Booking */}
-                         {c.id.includes('booking') && columnVisibility.pif && (
+                         {isBooking && columnVisibility.pif && (
                             <>
                               <th className="px-3 py-3 text-right font-bold text-slate-500 uppercase tracking-wider border-l border-slate-100" style={{color: c.color}}>PIF 5%</th>
                               <th className="px-3 py-3 text-right font-bold text-slate-500 uppercase tracking-wider border-l border-slate-100" style={{color: c.color}}>PIF 10%</th>
                             </>
                          )}
                        </React.Fragment>
-                     ))
+                     )})
                   )}
 
                   {activeView !== "ALL" && activeView !== "SUMMARY" && (
@@ -497,7 +505,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                         <th className="px-3 py-3 text-right font-bold text-slate-500 uppercase tracking-wider bg-orange-50/50 text-orange-700">W OTA</th>
                         
                         {/* Booking PIF columns for detailed view */}
-                        {activeView.includes('booking') && columnVisibility.pif && (
+                        {isCurrentChannelBooking && columnVisibility.pif && (
                            <>
                               <th className="px-3 py-3 text-right font-bold text-slate-500 uppercase tracking-wider bg-blue-50/30 text-blue-800">PIF 5%</th>
                               <th className="px-3 py-3 text-right font-bold text-slate-500 uppercase tracking-wider bg-blue-50/30 text-blue-800">PIF 10%</th>
@@ -621,12 +629,13 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 {activeView === "SUMMARY" && (
                                    channels.map(c => {
                                       const cData = row.channelCalculations[c.id];
+                                      const isBooking = c.id.toLowerCase().includes('booking') || c.name.toLowerCase().includes('booking');
                                       return (
                                         <React.Fragment key={c.id}>
                                             <td className="px-3 py-3 align-middle text-right font-bold text-slate-600 border-l border-slate-100">
                                             {cData ? `${cData.listPrice} zł` : '-'}
                                             </td>
-                                            {c.id.includes('booking') && columnVisibility.pif && (
+                                            {isBooking && columnVisibility.pif && (
                                                 <>
                                                     <td className="px-3 py-3 align-middle text-right text-xs text-slate-500 border-l border-slate-100 bg-slate-50/50">
                                                         {cData?.pif5 ? `${cData.pif5} zł` : '-'}
@@ -651,7 +660,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                       
                                       <td className="px-3 py-3 align-middle text-right font-bold text-orange-700 bg-orange-50/30 border-l border-orange-100">{channelData.listPrice} zł</td>
                                       
-                                      {activeView.includes('booking') && columnVisibility.pif && (
+                                      {isCurrentChannelBooking && columnVisibility.pif && (
                                          <>
                                             <td className="px-3 py-3 align-middle text-right text-xs font-bold text-blue-800 bg-blue-50/30 border-l border-blue-100">{channelData.pif5 ? `${channelData.pif5} zł` : '-'}</td>
                                             <td className="px-3 py-3 align-middle text-right text-xs font-bold text-blue-800 bg-blue-50/30 border-l border-blue-100">{channelData.pif10 ? `${channelData.pif10} zł` : '-'}</td>
@@ -688,7 +697,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                               <>
                                                 <th className="px-3 py-2 text-right text-orange-600">Cena {channels.find(c=>c.id === activeView)?.name}</th>
                                                 
-                                                {activeView.includes('booking') && columnVisibility.pif && (
+                                                {isCurrentChannelBooking && columnVisibility.pif && (
                                                     <>
                                                         <th className="px-3 py-2 text-right text-blue-700">PIF 5%</th>
                                                         <th className="px-3 py-2 text-right text-blue-700">PIF 10%</th>
@@ -699,17 +708,19 @@ const Dashboard: React.FC<DashboardProps> = ({
                                                 <th className="px-3 py-2 text-right">Wynik</th>
                                               </>
                                            )}
-                                           {activeView === "SUMMARY" && channels.map(c => (
+                                           {activeView === "SUMMARY" && channels.map(c => {
+                                              const isBooking = c.id.toLowerCase().includes('booking') || c.name.toLowerCase().includes('booking');
+                                              return (
                                               <React.Fragment key={c.id}>
                                                 <th className="px-3 py-2 text-right" style={{color: c.color}}>{c.name}</th>
-                                                {c.id.includes('booking') && columnVisibility.pif && (
+                                                {isBooking && columnVisibility.pif && (
                                                     <>
                                                         <th className="px-3 py-2 text-right text-slate-400">P5%</th>
                                                         <th className="px-3 py-2 text-right text-slate-400">P10%</th>
                                                     </>
                                                 )}
                                               </React.Fragment>
-                                           ))}
+                                           )})}
                                          </tr>
                                        </thead>
                                        <tbody className="divide-y divide-slate-100">
@@ -737,7 +748,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                                   <>
                                                     <td className="px-3 py-2 text-right text-orange-600">{cCalc.listPrice} zł</td>
                                                     
-                                                    {activeView.includes('booking') && columnVisibility.pif && (
+                                                    {isCurrentChannelBooking && columnVisibility.pif && (
                                                         <>
                                                             <td className="px-3 py-2 text-right text-blue-700">{cCalc.pif5} zł</td>
                                                             <td className="px-3 py-2 text-right text-blue-700">{cCalc.pif10} zł</td>
@@ -758,10 +769,11 @@ const Dashboard: React.FC<DashboardProps> = ({
                                                {/* Summary View Details */}
                                                {activeView === "SUMMARY" && channels.map(c => {
                                                   const calc = calculateChannelPrice(dPrice, c, row.seasonId);
+                                                  const isBooking = c.id.toLowerCase().includes('booking') || c.name.toLowerCase().includes('booking');
                                                   return (
                                                     <React.Fragment key={c.id}>
                                                         <td className="px-3 py-2 text-right text-slate-600">{calc.listPrice} zł</td>
-                                                        {c.id.includes('booking') && columnVisibility.pif && (
+                                                        {isBooking && columnVisibility.pif && (
                                                             <>
                                                                 <td className="px-3 py-2 text-right text-slate-400 text-[10px]">{calc.pif5}</td>
                                                                 <td className="px-3 py-2 text-right text-slate-400 text-[10px]">{calc.pif10}</td>

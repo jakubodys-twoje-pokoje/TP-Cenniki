@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { RoomType, Season, Channel, GlobalSettings } from '../types';
 import { calculateDirectPrice, calculateChannelPrice } from '../utils/pricingEngine';
@@ -50,13 +51,14 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({
       
       const channelPrices = channels.map(channel => {
         const calc = calculateChannelPrice(directPrice, channel, selectedSeason.id);
+        const isBooking = channel.id.toLowerCase().includes('booking') || channel.name.toLowerCase().includes('booking');
         return {
           id: channel.id,
           price: calc.listPrice,
           color: channel.color,
           pif5: calc.pif5,
           pif10: calc.pif10,
-          isBooking: channel.id.toLowerCase().includes('booking')
+          isBooking: isBooking
         };
       });
 
@@ -168,19 +170,21 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({
                   <th className="px-6 py-4 font-bold uppercase tracking-wider text-xs">Pokój / Apartament</th>
                   <th className="px-6 py-4 font-bold uppercase tracking-wider text-center w-32 text-xs">Pojemność</th>
                   <th className="px-6 py-4 font-bold uppercase tracking-wider text-right text-blue-700 w-40 text-xs bg-blue-50/50 print:bg-transparent">Cena Direct</th>
-                  {channels.filter(c => visibleChannels.has(c.id)).map(c => (
+                  {channels.filter(c => visibleChannels.has(c.id)).map(c => {
+                    const isBooking = c.id.toLowerCase().includes('booking') || c.name.toLowerCase().includes('booking');
+                    return (
                     <React.Fragment key={c.id}>
                       <th className="px-6 py-4 font-bold uppercase tracking-wider text-right w-40 text-xs" style={{color: c.color}}>
                         {c.name}
                       </th>
-                      {showPif && c.id.toLowerCase().includes('booking') && (
+                      {showPif && isBooking && (
                         <>
                           <th className="px-4 py-4 font-bold uppercase tracking-wider text-right w-24 text-[10px] text-slate-400">PIF 5%</th>
                           <th className="px-4 py-4 font-bold uppercase tracking-wider text-right w-24 text-[10px] text-slate-400">PIF 10%</th>
                         </>
                       )}
                     </React.Fragment>
-                  ))}
+                  )})}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 print:divide-slate-200">
