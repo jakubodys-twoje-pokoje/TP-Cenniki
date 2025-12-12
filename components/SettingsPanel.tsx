@@ -532,16 +532,25 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     <button onClick={() => deleteItem(season.id, seasons, setSeasons)} className="absolute top-2 right-2 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><X size={16}/></button>
                   </>
                 )}
-                {/* Updated Grid Layout to include RID */}
                 <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-4 ${!isReadOnly ? 'pl-6' : ''}`}>
                   <div className="md:col-span-3">
                     <label className="block text-xs font-medium text-slate-500">Nazwa Sezonu</label>
                     <input disabled={isReadOnly} type="text" value={season.name} onChange={(e) => updateItem<Season>(season.id, "name", e.target.value, seasons, setSeasons)} className={inputClass} />
                   </div>
+                  
+                  {/* New RID Field */}
                   <div className="md:col-span-2">
                     <label className="block text-xs font-medium text-slate-500">RID (Rate ID)</label>
-                    <input disabled={isReadOnly} type="text" value={season.rid || ""} onChange={(e) => updateItem<Season>(season.id, "rid", e.target.value, seasons, setSeasons)} className={inputClass} placeholder="Hotres ID" />
+                    <input 
+                      disabled={isReadOnly} 
+                      type="text" 
+                      value={season.rid || ""} 
+                      onChange={(e) => updateItem<Season>(season.id, "rid", e.target.value, seasons, setSeasons)} 
+                      className={inputClass} 
+                      placeholder="Hotres ID" 
+                    />
                   </div>
+
                   <div className="md:col-span-2">
                      <label className="block text-xs font-medium text-slate-500">Mnożnik (np. 1.0)</label>
                     <input disabled={isReadOnly} type="number" step="0.05" value={season.multiplier} onChange={(e) => updateItem<Season>(season.id, "multiplier", Number(e.target.value), seasons, setSeasons)} className={inputClass} />

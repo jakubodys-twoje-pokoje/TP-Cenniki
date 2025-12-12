@@ -1,5 +1,4 @@
 
-
 export type SettingsTab = "global" | "rooms" | "seasons" | "channels";
 
 export type UserRole = 'super_admin' | 'admin' | 'client';
@@ -78,7 +77,7 @@ export interface RoomType {
 export interface Season {
   id: string;
   name: string;
-  rid?: string; // Rate ID (for export)
+  rid?: string; // Rate ID (for export mapping)
   startDate: string;
   endDate: string;
   multiplier: number;
