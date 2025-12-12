@@ -29,13 +29,13 @@ const UPDATE_PRICES_URL = "https://panel.hotres.pl/api_updateprices";
 const USER = "admin@twojepokoje.com.pl";
 const PASS = "Admin123@@";
 
-// Using corsproxy.io. Usage: https://corsproxy.io/?https://target...
+// Using corsproxy.io. Usage: https://corsproxy.io/?<encoded_url>
 const PROXY_URL = "https://corsproxy.io/?";
 
 const fetchWithProxy = async (url: string, options?: RequestInit) => {
-  // corsproxy.io expects the target URL directly after the '?'
-  // We do NOT encodeURIComponent the whole URL because corsproxy handles it raw often better
-  const proxiedUrl = PROXY_URL + url;
+  // We MUST encode the target URL component so that special characters (like ? & @) 
+  // are treated as part of the path by the proxy, not as query params for the proxy itself.
+  const proxiedUrl = PROXY_URL + encodeURIComponent(url);
   return fetch(proxiedUrl, options);
 };
 
