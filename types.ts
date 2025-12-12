@@ -78,6 +78,7 @@ export interface RoomType {
 export interface Season {
   id: string;
   name: string;
+  rid?: string; // Rate ID (for export)
   startDate: string;
   endDate: string;
   multiplier: number;

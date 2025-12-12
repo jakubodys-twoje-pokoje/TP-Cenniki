@@ -1,4 +1,5 @@
 
+
 import React, { useState } from "react";
 import { Channel, ChannelDiscountProfile, ChannelDiscountLabels, GlobalSettings, Property, RoomType, Season, SettingsTab } from "../types";
 import { Plus, Trash2, X, Copy, GripVertical, ArrowRightLeft, Check, AlertCircle, Lock, ToggleLeft, ToggleRight, Layers } from "lucide-react";
@@ -243,6 +244,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     newSeason: Season = {
       id: newId,
       name: "Nowy Sezon",
+      rid: "",
       startDate: new Date().toISOString().split('T')[0],
       endDate: new Date().toISOString().split('T')[0],
       multiplier: 1.0,
@@ -530,20 +532,25 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     <button onClick={() => deleteItem(season.id, seasons, setSeasons)} className="absolute top-2 right-2 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><X size={16}/></button>
                   </>
                 )}
-                <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 ${!isReadOnly ? 'pl-6' : ''}`}>
-                  <div className="md:col-span-2">
+                {/* Updated Grid Layout to include RID */}
+                <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-4 ${!isReadOnly ? 'pl-6' : ''}`}>
+                  <div className="md:col-span-3">
                     <label className="block text-xs font-medium text-slate-500">Nazwa Sezonu</label>
                     <input disabled={isReadOnly} type="text" value={season.name} onChange={(e) => updateItem<Season>(season.id, "name", e.target.value, seasons, setSeasons)} className={inputClass} />
                   </div>
-                  <div>
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-medium text-slate-500">RID (Rate ID)</label>
+                    <input disabled={isReadOnly} type="text" value={season.rid || ""} onChange={(e) => updateItem<Season>(season.id, "rid", e.target.value, seasons, setSeasons)} className={inputClass} placeholder="Hotres ID" />
+                  </div>
+                  <div className="md:col-span-2">
                      <label className="block text-xs font-medium text-slate-500">Mnożnik (np. 1.0)</label>
                     <input disabled={isReadOnly} type="number" step="0.05" value={season.multiplier} onChange={(e) => updateItem<Season>(season.id, "multiplier", Number(e.target.value), seasons, setSeasons)} className={inputClass} />
                   </div>
-                  <div>
+                  <div className="md:col-span-2">
                      <label className="block text-xs font-medium text-slate-500">Min. Nocy</label>
                     <input disabled={isReadOnly} type="number" min="1" value={season.minNights ?? 2} onChange={(e) => updateItem<Season>(season.id, "minNights", Number(e.target.value), seasons, setSeasons)} className={inputClass} />
                   </div>
-                  <div>
+                  <div className="md:col-span-3">
                     <label className="block text-xs font-medium text-slate-500">Zakres Dat</label>
                     <div className="flex gap-2">
                       <input disabled={isReadOnly} type="date" value={season.startDate} onChange={(e) => updateItem<Season>(season.id, "startDate", e.target.value, seasons, setSeasons)} className={`${inputClass} text-xs px-1`} />
