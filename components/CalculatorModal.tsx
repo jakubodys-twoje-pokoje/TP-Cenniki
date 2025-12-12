@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { Channel, GlobalSettings, RoomType, Season } from '../types';
 import { calculateChannelPrice, calculateDirectPrice } from '../utils/pricingEngine';
-import { X, Calculator, TrendingUp, Users, Info, CheckCircle2 } from 'lucide-react';
+import { X, Calculator, TrendingUp, Users, Info } from 'lucide-react';
 
 interface CalculatorModalProps {
   rooms: RoomType[];
@@ -23,23 +23,26 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
   const [targetNet, setTargetNet] = useState<number>(200);
   const [selectedRoomId, setSelectedRoomId] = useState<string>(rooms[0]?.id || "");
   const [selectedSeasonId, setSelectedSeasonId] = useState<string>(seasons[0]?.id || "");
-  const [occupancy, setOccupancy] = useState<number | "MAX">("MAX");
+  
+  // Note: We removed the Occupancy Dropdown. 
+  // We assume the Target Net is desired for the MAXIMUM occupancy (Standard Rate).
+  // The OBP table then shows how this price drops for fewer people.
 
   const selectedRoom = rooms.find(r => r.id === selectedRoomId);
   const selectedSeason = seasons.find(s => s.id === selectedSeasonId);
 
-  // Determine Max Occupancy for selector
   const maxOcc = selectedRoom?.maxOccupancy || 2;
-  const currentOccupancy = occupancy === "MAX" ? maxOcc : occupancy;
+  const currentOccupancy = maxOcc; // Always calculate base for MAX occupancy
 
   // --- CALCULATION LOGIC ---
   const calculationResult = useMemo(() => {
     if (!selectedRoom || !selectedSeason) return null;
 
-    // 1. Direct Price Target
+    // 1. Direct Price Target (For Max Occupancy)
     const desiredDirectPrice = targetNet;
 
     // 2. Reverse Calculate Base Price
+    // At Max Occupancy, OBP Deduction is typically 0, but we keep logic generic
     let obpDeduction = 0;
     const isObpActive = selectedRoom.seasonalObpActive?.[selectedSeason.id] ?? true;
     const minObp = selectedRoom.minObpOccupancy || 1;
@@ -64,7 +67,7 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
         basePricePeak: requiredBasePrice // fallback
     };
     
-    // 4. Calculate Channels for the SELECTED occupancy (Detailed Breakdown)
+    // 4. Calculate Channels for MAX occupancy (Detailed Breakdown)
     const actualDirectPrice = calculateDirectPrice(virtualRoom, selectedSeason, currentOccupancy, settings);
 
     const channelResults = channels.map(channel => {
@@ -104,7 +107,7 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
       channelResults,
       obpLadder
     };
-  }, [targetNet, selectedRoomId, selectedSeasonId, occupancy, rooms, seasons, channels, settings]);
+  }, [targetNet, selectedRoomId, selectedSeasonId, currentOccupancy, rooms, seasons, channels, settings]);
 
 
   const renderDiscountCell = (amount: number, percentage: number, colorClass: string, label: string) => {
@@ -119,6 +122,8 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
       );
   };
 
+  const inputBaseClass = "w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-bold text-slate-700 text-lg h-[50px]";
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-6xl max-h-[95vh] flex flex-col overflow-hidden border border-slate-200">
@@ -131,7 +136,7 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
             </div>
             <div>
               <h2 className="text-lg font-bold text-slate-800">Kalkulator Ceny</h2>
-              <p className="text-xs text-slate-500">Wylicz cenę bazową na podstawie oczekiwanego zarobku.</p>
+              <p className="text-xs text-slate-500">Symulacja na podstawie kwoty netto dla pełnego obłożenia.</p>
             </div>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
@@ -142,54 +147,40 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
         <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
            
            {/* Inputs Panel */}
-           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-50 p-4 rounded-lg border border-slate-200 shadow-sm">
-              <div className="col-span-1 md:col-span-1">
-                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Cel Netto (Na rękę)</label>
+           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-sm">
+              <div className="col-span-1">
+                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Chcę zarobić (Netto)</label>
                  <div className="relative">
                     <input 
                       type="number" 
                       min="1"
                       value={targetNet}
                       onChange={(e) => setTargetNet(Number(e.target.value))}
-                      className="w-full pl-3 pr-8 py-2 border border-blue-300 rounded-md focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-bold text-emerald-700 text-lg"
+                      className={`${inputBaseClass} text-emerald-700 border-emerald-300 focus:ring-emerald-500 focus:border-emerald-500 pl-4 pr-12`}
                     />
-                    <span className="absolute right-3 top-3 text-xs text-slate-400 font-bold">PLN</span>
+                    <span className="absolute right-4 top-3 text-sm text-slate-400 font-bold">PLN</span>
                  </div>
               </div>
 
-              <div className="col-span-1 md:col-span-1">
-                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Obiekt / Pokój</label>
+              <div className="col-span-1">
+                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Obiekt / Pokój</label>
                  <select 
                    value={selectedRoomId}
                    onChange={(e) => setSelectedRoomId(e.target.value)}
-                   className="w-full px-3 py-2.5 border border-slate-300 rounded-md focus:ring-blue-500 text-sm"
+                   className={inputBaseClass}
                  >
                     {rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                  </select>
               </div>
 
-              <div className="col-span-1 md:col-span-1">
-                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Sezon</label>
+              <div className="col-span-1">
+                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Sezon</label>
                  <select 
                    value={selectedSeasonId}
                    onChange={(e) => setSelectedSeasonId(e.target.value)}
-                   className="w-full px-3 py-2.5 border border-slate-300 rounded-md focus:ring-blue-500 text-sm"
+                   className={inputBaseClass}
                  >
                     {seasons.map(s => <option key={s.id} value={s.id}>{s.name} (x{s.multiplier})</option>)}
-                 </select>
-              </div>
-
-              <div className="col-span-1 md:col-span-1">
-                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Obłożenie (Cel)</label>
-                 <select 
-                   value={occupancy}
-                   onChange={(e) => setOccupancy(e.target.value === "MAX" ? "MAX" : Number(e.target.value))}
-                   className="w-full px-3 py-2.5 border border-slate-300 rounded-md focus:ring-blue-500 text-sm"
-                 >
-                    <option value="MAX">Maksymalne ({maxOcc} os.)</option>
-                    {Array.from({length: maxOcc}, (_, i) => i + 1).map(n => (
-                        <option key={n} value={n}>{n} os.</option>
-                    ))}
                  </select>
               </div>
            </div>
@@ -198,57 +189,49 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
            {calculationResult && (
              <div className="space-y-6">
                 
-                {/* Result Strip */}
-                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
-                   <div className="flex items-center gap-3">
-                      <CheckCircle2 size={24} className="text-emerald-600"/>
-                      <div className="text-emerald-900">
-                         <span className="font-semibold">Wynik: </span> 
-                         Aby zarobić <span className="font-bold">{targetNet} zł</span> netto przy {currentOccupancy} os., ustaw Cenę Bazową na:
-                      </div>
-                   </div>
-                   <div className="text-3xl font-bold text-emerald-700 bg-white px-4 py-1 rounded shadow-sm border border-emerald-100">
-                      {calculationResult.requiredBasePrice} zł
-                   </div>
-                </div>
-
                 {/* Full OBP Matrix */}
-                <div className="bg-white border border-slate-200 rounded-lg overflow-hidden shadow-sm">
-                   <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
-                      <div className="flex items-center gap-2 text-xs font-bold text-slate-600 uppercase">
-                         <TrendingUp size={16} className="text-blue-600"/> 
-                         Symulacja OBP dla wszystkich kanałów
+                <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                   <div className="px-5 py-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+                      <div className="flex items-center gap-2">
+                         <div className="text-sm font-bold text-slate-700 uppercase flex items-center gap-2">
+                            <TrendingUp size={18} className="text-blue-600"/> 
+                            Symulacja OBP
+                         </div>
+                         <div className="h-4 w-px bg-slate-300 mx-2"></div>
+                         <div className="text-sm text-slate-600">
+                            Wymagana Cena Bazowa: <span className="font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">{calculationResult.requiredBasePrice} zł</span>
+                         </div>
                       </div>
                       <div className="text-[10px] text-slate-400 font-normal">
-                         Górna wartość: Cena na liście (Brutto) • Dolna wartość: Twoje Netto
+                         Góra: Cena Brutto • Dół: Twoje Netto
                       </div>
                    </div>
                    <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-slate-100 text-sm">
                        <thead>
                           <tr className="bg-white text-slate-500 text-xs">
-                             <th className="px-4 py-3 text-left w-24">Obłożenie</th>
-                             <th className="px-4 py-3 text-right bg-blue-50/30 text-blue-700">Direct / WWW</th>
+                             <th className="px-4 py-3 text-left w-24 bg-slate-50/50">Obłożenie</th>
+                             <th className="px-4 py-3 text-right bg-blue-50/20 text-blue-700 border-l border-slate-100">Direct / WWW</th>
                              {calculationResult.obpLadder[0]?.channelPrices.map(c => (
-                                <th key={c.id} className="px-4 py-3 text-right" style={{color: c.color}}>{c.name}</th>
+                                <th key={c.id} className="px-4 py-3 text-right border-l border-slate-100" style={{color: c.color}}>{c.name}</th>
                              ))}
                           </tr>
                        </thead>
                        <tbody className="divide-y divide-slate-50">
                           {calculationResult.obpLadder.map((row) => (
-                             <tr key={row.occupancy} className={row.occupancy === currentOccupancy ? "bg-emerald-50/40" : "hover:bg-slate-50"}>
-                                <td className="px-4 py-3 font-medium text-slate-700 flex items-center gap-2">
+                             <tr key={row.occupancy} className={row.occupancy === currentOccupancy ? "bg-emerald-50/30" : "hover:bg-slate-50"}>
+                                <td className="px-4 py-3 font-medium text-slate-700 flex items-center gap-2 bg-slate-50/30">
                                    <Users size={14} className="text-slate-400"/> {row.occupancy} os.
-                                   {row.occupancy === currentOccupancy && <span className="text-[9px] bg-emerald-100 text-emerald-700 px-1 rounded font-bold">CEL</span>}
+                                   {row.occupancy === currentOccupancy && <span className="text-[9px] bg-emerald-100 text-emerald-700 px-1 rounded font-bold">MAX</span>}
                                 </td>
                                 {/* Direct Column */}
-                                <td className="px-4 py-3 text-right bg-blue-50/30 font-bold text-blue-700 border-l border-blue-50">
+                                <td className="px-4 py-3 text-right font-bold text-blue-700 border-l border-slate-100 bg-blue-50/10">
                                    {row.directPrice} zł
                                    <div className="text-[10px] text-blue-400 font-normal mt-0.5">Netto: {row.directPrice}</div>
                                 </td>
                                 {/* Channel Columns */}
                                 {row.channelPrices.map(c => (
-                                   <td key={c.id} className="px-4 py-3 text-right border-l border-slate-50">
+                                   <td key={c.id} className="px-4 py-3 text-right border-l border-slate-100">
                                       <div className="font-bold text-slate-700">{c.listPrice} zł</div>
                                       <div className={`text-[10px] font-medium mt-0.5 ${c.net < row.directPrice ? 'text-red-500' : 'text-emerald-600'}`}>
                                          Netto: {c.net}
@@ -263,10 +246,10 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
                 </div>
 
                 {/* Detailed Breakdown Table (For Target Occupancy Only) */}
-                <div className="bg-white border border-slate-200 rounded-lg overflow-hidden shadow-sm">
-                   <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase flex justify-between items-center">
-                      <span>Szczegóły kalkulacji (Dla {currentOccupancy} os.)</span>
-                      <span className="normal-case font-normal text-slate-400 flex items-center gap-1"><Info size={12}/> Składowe ceny dla OTAs</span>
+                <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                   <div className="px-5 py-4 bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase flex justify-between items-center">
+                      <span>Struktura Cen (Dla {currentOccupancy} os.)</span>
+                      <span className="normal-case font-normal text-slate-400 flex items-center gap-1"><Info size={12}/> Zniżki i Prowizje</span>
                    </div>
                    <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-slate-100 text-sm">
@@ -283,7 +266,7 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
-                            {/* Channels Only - Direct removed as requested */}
+                            {/* Channels Only */}
                             {calculationResult.channelResults.map(({ channel, calc }) => {
                                 const otherDiscountsVal = calc.discountBreakdown.firstMinute + calc.discountBreakdown.lastMinute;
                                 const otherDiscountsPct = calc.discountPercentages.firstMinute + calc.discountPercentages.lastMinute;
