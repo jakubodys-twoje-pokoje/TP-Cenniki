@@ -1,5 +1,4 @@
 
-
 import React, { useState } from "react";
 import { Channel, ChannelDiscountProfile, ChannelDiscountLabels, GlobalSettings, Property, RoomType, Season, SettingsTab } from "../types";
 import { Plus, Trash2, X, Copy, GripVertical, ArrowRightLeft, Check, AlertCircle, Lock, ToggleLeft, ToggleRight, Layers, CloudUpload, Loader2 } from "lucide-react";
@@ -94,6 +93,20 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     setList(
       list.map((item) => (item.id === id ? { ...item, [field]: value } : item))
     );
+  };
+
+  const updateSeasonRid = (seasonId: string, channelKey: string, rid: string) => {
+    if (isReadOnly) return;
+    setSeasons(seasons.map(s => {
+      if (s.id !== seasonId) return s;
+      return {
+        ...s,
+        channelRids: {
+          ...(s.channelRids || {}),
+          [channelKey]: rid
+        }
+      }
+    }));
   };
 
   const updateRoomSeasonalObp = (roomId: string, seasonId: string, isActive: boolean) => {
@@ -208,19 +221,19 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       return;
     }
     
-    // Quick validation
-    const missingTid = rooms.some(r => !r.tid);
-    const missingRid = seasons.some(s => !s.rid);
+    // Check if at least one RID is set somewhere
+    const hasAnyRid = seasons.some(s => 
+      s.channelRids?.['direct'] || channels.some(c => s.channelRids?.[c.id])
+    );
 
-    if (missingTid || missingRid) {
-      if (!confirm("Uwaga: Niektóre pokoje nie mają TID lub sezony nie mają RID. Zostaną one pominięte w eksporcie. Kontynuować?")) {
-        return;
-      }
+    if (!hasAnyRid) {
+      alert("Błąd: Nie zdefiniowano żadnych ID cenników (RID) w sezonach.");
+      return;
     }
 
     setIsExporting(true);
     try {
-      await updateHotresPrices(propertyOid, rooms, seasons, settings);
+      await updateHotresPrices(propertyOid, rooms, seasons, channels, settings);
       alert("Sukces! Cenniki zostały wysłane do Hotres.");
     } catch (error: any) {
       alert("Błąd eksportu: " + error.message);
@@ -235,23 +248,18 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       alert("Błąd: Brak numeru OID obiektu w ustawieniach ogólnych.");
       return;
     }
-    if (!season.rid) {
-      alert("Błąd: Ten sezon nie ma wpisanego RID (Rate ID). Uzupełnij go przed wysyłką.");
-      return;
-    }
 
-    // Quick validation for rooms TIDs
-    const missingTid = rooms.some(r => !r.tid);
-    if (missingTid) {
-      if (!confirm("Uwaga: Niektóre pokoje nie mają TID i zostaną pominięte w eksporcie. Kontynuować?")) {
-        return;
-      }
+    const hasAnyRid = season.channelRids?.['direct'] || channels.some(c => season.channelRids?.[c.id]);
+
+    if (!hasAnyRid) {
+      alert("Błąd: Ten sezon nie ma zmapowanych żadnych cenników (RID).");
+      return;
     }
 
     setExportingSeasonId(season.id);
     try {
       // Send array with single season
-      await updateHotresPrices(propertyOid, rooms, [season], settings);
+      await updateHotresPrices(propertyOid, rooms, [season], channels, settings);
       alert(`Sukces! Sezon "${season.name}" został zaktualizowany w Hotres.`);
     } catch (error: any) {
       alert("Błąd eksportu: " + error.message);
@@ -309,7 +317,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     newSeason: Season = {
       id: newId,
       name: "Nowy Sezon",
-      rid: "",
+      channelRids: {},
       startDate: new Date().toISOString().split('T')[0],
       endDate: new Date().toISOString().split('T')[0],
       multiplier: 1.0,
@@ -621,40 +629,72 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     </div>
                   </>
                 )}
-                <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-4 ${!isReadOnly ? 'pl-6' : ''}`}>
-                  <div className="md:col-span-3">
-                    <label className="block text-xs font-medium text-slate-500">Nazwa Sezonu</label>
-                    <input disabled={isReadOnly} type="text" value={season.name} onChange={(e) => updateItem<Season>(season.id, "name", e.target.value, seasons, setSeasons)} className={inputClass} />
-                  </div>
+                <div className={`grid grid-cols-1 md:grid-cols-12 gap-4 ${!isReadOnly ? 'pl-6' : ''}`}>
                   
-                  {/* New RID Field */}
-                  <div className="md:col-span-2">
-                    <label className="block text-xs font-medium text-slate-500">RID (Rate ID)</label>
-                    <input 
-                      disabled={isReadOnly} 
-                      type="text" 
-                      value={season.rid || ""} 
-                      onChange={(e) => updateItem<Season>(season.id, "rid", e.target.value, seasons, setSeasons)} 
-                      className={inputClass} 
-                      placeholder="Hotres ID" 
-                    />
+                  {/* Left Column: Basic Info */}
+                  <div className="md:col-span-8 grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="md:col-span-1">
+                        <label className="block text-xs font-medium text-slate-500">Nazwa Sezonu</label>
+                        <input disabled={isReadOnly} type="text" value={season.name} onChange={(e) => updateItem<Season>(season.id, "name", e.target.value, seasons, setSeasons)} className={inputClass} />
+                      </div>
+
+                      <div className="md:col-span-1">
+                        <label className="block text-xs font-medium text-slate-500">Mnożnik</label>
+                        <input disabled={isReadOnly} type="number" step="0.05" value={season.multiplier} onChange={(e) => updateItem<Season>(season.id, "multiplier", Number(e.target.value), seasons, setSeasons)} className={inputClass} />
+                      </div>
+
+                      <div className="md:col-span-1">
+                         <label className="block text-xs font-medium text-slate-500">Min. Nocy</label>
+                        <input disabled={isReadOnly} type="number" min="1" value={season.minNights ?? 2} onChange={(e) => updateItem<Season>(season.id, "minNights", Number(e.target.value), seasons, setSeasons)} className={inputClass} />
+                      </div>
+
+                      <div className="md:col-span-3">
+                        <label className="block text-xs font-medium text-slate-500">Zakres Dat</label>
+                        <div className="flex gap-2">
+                          <input disabled={isReadOnly} type="date" value={season.startDate} onChange={(e) => updateItem<Season>(season.id, "startDate", e.target.value, seasons, setSeasons)} className={`${inputClass} text-xs px-1`} />
+                          <input disabled={isReadOnly} type="date" value={season.endDate} onChange={(e) => updateItem<Season>(season.id, "endDate", e.target.value, seasons, setSeasons)} className={`${inputClass} text-xs px-1`} />
+                        </div>
+                      </div>
                   </div>
 
-                  <div className="md:col-span-2">
-                     <label className="block text-xs font-medium text-slate-500">Mnożnik (np. 1.0)</label>
-                    <input disabled={isReadOnly} type="number" step="0.05" value={season.multiplier} onChange={(e) => updateItem<Season>(season.id, "multiplier", Number(e.target.value), seasons, setSeasons)} className={inputClass} />
-                  </div>
-                  <div className="md:col-span-2">
-                     <label className="block text-xs font-medium text-slate-500">Min. Nocy</label>
-                    <input disabled={isReadOnly} type="number" min="1" value={season.minNights ?? 2} onChange={(e) => updateItem<Season>(season.id, "minNights", Number(e.target.value), seasons, setSeasons)} className={inputClass} />
-                  </div>
-                  <div className="md:col-span-3">
-                    <label className="block text-xs font-medium text-slate-500">Zakres Dat</label>
-                    <div className="flex gap-2">
-                      <input disabled={isReadOnly} type="date" value={season.startDate} onChange={(e) => updateItem<Season>(season.id, "startDate", e.target.value, seasons, setSeasons)} className={`${inputClass} text-xs px-1`} />
-                      <input disabled={isReadOnly} type="date" value={season.endDate} onChange={(e) => updateItem<Season>(season.id, "endDate", e.target.value, seasons, setSeasons)} className={`${inputClass} text-xs px-1`} />
+                  {/* Right Column: Rate IDs Mapping */}
+                  <div className="md:col-span-4 bg-white p-3 rounded border border-slate-200">
+                    <h4 className="text-xs font-bold text-slate-500 uppercase mb-2 border-b border-slate-100 pb-1">Mapowanie Cenników (RID)</h4>
+                    <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                      
+                      {/* Direct (Default) */}
+                      <div className="flex items-center gap-2">
+                         <label className="text-[10px] font-medium text-slate-600 w-24 truncate" title="Direct (Strona www)">Direct (Baza)</label>
+                         <input 
+                           type="text" 
+                           disabled={isReadOnly}
+                           placeholder="ID Cennika"
+                           value={season.channelRids?.['direct'] || season.rid || ""} // Fallback to old 'rid'
+                           onChange={(e) => updateSeasonRid(season.id, 'direct', e.target.value)}
+                           className={`${inputClass} py-1 text-xs`}
+                         />
+                      </div>
+
+                      {/* Dynamic Channels */}
+                      {channels.map(ch => (
+                        <div key={ch.id} className="flex items-center gap-2">
+                           <label className="text-[10px] font-medium text-slate-600 w-24 truncate flex items-center gap-1" title={ch.name}>
+                              <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{backgroundColor: ch.color}}></span>
+                              {ch.name}
+                           </label>
+                           <input 
+                             type="text" 
+                             disabled={isReadOnly}
+                             placeholder={`RID dla ${ch.name}`}
+                             value={season.channelRids?.[ch.id] || ""}
+                             onChange={(e) => updateSeasonRid(season.id, ch.id, e.target.value)}
+                             className={`${inputClass} py-1 text-xs`}
+                           />
+                        </div>
+                      ))}
                     </div>
                   </div>
+
                 </div>
               </div>
             ))}

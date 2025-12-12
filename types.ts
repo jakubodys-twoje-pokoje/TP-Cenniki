@@ -77,7 +77,11 @@ export interface RoomType {
 export interface Season {
   id: string;
   name: string;
-  rid?: string; // Rate ID (for export mapping)
+  // Replaces single 'rid'.
+  // Keys: 'direct' | channel.id
+  // Values: Hotres Rate ID string
+  channelRids: Record<string, string>; 
+  rid?: string; // DEPRECATED: Kept for migration safety
   startDate: string;
   endDate: string;
   multiplier: number;
@@ -139,6 +143,6 @@ export interface ChannelCalculation {
   pif10?: number; // 10% discount
   
   // Pay In Full variations (Calculated from Direct Price)
-  pif5Direct?: number;
   pif10Direct?: number;
+  pif5Direct?: number;
 }

@@ -188,10 +188,19 @@ const App: React.FC = () => {
 
   // Function to process loaded properties and update refs
   const processLoadedProperties = (props: Property[]) => {
-    props.forEach(p => {
+    // Migration: Ensure channelRids exists on seasons if loading old data
+    const migratedProps = props.map(p => ({
+       ...p,
+       seasons: p.seasons.map(s => ({
+          ...s,
+          channelRids: s.channelRids || (s.rid ? { 'direct': s.rid } : {})
+       }))
+    }));
+
+    migratedProps.forEach(p => {
       lastServerState.current[p.id] = JSON.stringify(p);
     });
-    setProperties(props);
+    setProperties(migratedProps);
   };
 
   const fetchProperties = async (currentUserEmail?: string, overridePerms?: UserPermissions) => {
@@ -298,6 +307,14 @@ const App: React.FC = () => {
             // Ensure rooms are sorted when receiving update
             if (newContent.rooms) {
                newContent.rooms.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+            }
+            
+            // Handle Migration on Live Update too
+            if (newContent.seasons) {
+               newContent.seasons = newContent.seasons.map(s => ({
+                   ...s,
+                   channelRids: s.channelRids || (s.rid ? { 'direct': s.rid } : {})
+               }));
             }
 
             lastServerState.current[newId] = JSON.stringify(newContent);

@@ -1,5 +1,4 @@
 
-
 import { Channel, GlobalSettings, RoomType, Season } from "./types";
 
 export const INITIAL_SETTINGS: GlobalSettings = {
@@ -84,7 +83,7 @@ export const INITIAL_SEASONS: Season[] = [
   {
     id: "s1",
     name: "Majówka",
-    rid: "",
+    channelRids: {},
     startDate: "2025-05-01",
     endDate: "2025-05-05",
     multiplier: 1.1,
@@ -93,7 +92,7 @@ export const INITIAL_SEASONS: Season[] = [
   {
     id: "s2",
     name: "Przed szczytem",
-    rid: "",
+    channelRids: {},
     startDate: "2025-05-06",
     endDate: "2025-06-25",
     multiplier: 0.85,
@@ -102,7 +101,7 @@ export const INITIAL_SEASONS: Season[] = [
   {
     id: "s3",
     name: "Open'er Festival",
-    rid: "",
+    channelRids: {},
     startDate: "2025-06-26",
     endDate: "2025-07-02",
     multiplier: 1.5,
@@ -111,7 +110,7 @@ export const INITIAL_SEASONS: Season[] = [
   {
     id: "s4",
     name: "Szczyt (Lipiec/Sierpień)",
-    rid: "",
+    channelRids: {},
     startDate: "2025-07-03",
     endDate: "2025-08-17",
     multiplier: 1.0,
@@ -120,7 +119,7 @@ export const INITIAL_SEASONS: Season[] = [
   {
     id: "s5",
     name: "Koniec Wakacji",
-    rid: "",
+    channelRids: {},
     startDate: "2025-08-18",
     endDate: "2025-08-31",
     multiplier: 0.9,
