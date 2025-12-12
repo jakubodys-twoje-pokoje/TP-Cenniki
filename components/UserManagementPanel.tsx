@@ -64,7 +64,8 @@ const UserManagementPanel: React.FC<UserManagementPanelProps> = ({ properties, o
     setStatusMessage(null);
 
     try {
-      // 1. Create Permission Entry in Database
+      // 1. Create Permission Entry in Database FIRST
+      // We do this first so if auth fails (e.g. user already exists), we at least updated permissions
       const { error: dbError } = await supabase
         .from('user_roles')
         .upsert({
@@ -75,8 +76,24 @@ const UserManagementPanel: React.FC<UserManagementPanelProps> = ({ properties, o
 
       if (dbError) throw new Error("Błąd zapisu uprawnień: " + dbError.message);
 
-      // 2. Create Auth User (Using secondary client trick)
-      const tempClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      // 2. Create Auth User (Using ISOLATED secondary client)
+      // FIX: We explicitly mock 'storage' to prevent the client from touching localStorage.
+      // This ensures the new session is completely thrown away and doesn't trigger the main App's onAuthStateChange.
+      const dummyStorage = {
+        getItem: () => null,
+        setItem: () => {},
+        removeItem: () => {},
+      };
+
+      const tempClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+          detectSessionInUrl: false,
+          storage: dummyStorage // Critical: Redirect storage to void
+        }
+      });
+
       const { error: authError } = await tempClient.auth.signUp({
         email: email.trim(),
         password: password,
@@ -87,6 +104,8 @@ const UserManagementPanel: React.FC<UserManagementPanelProps> = ({ properties, o
         if (authError.message.includes('already registered')) {
           // If user exists in Auth but not DB, step 1 fixed it. Just notify.
           setStatusMessage({ type: 'success', text: 'Zaktualizowano uprawnienia dla istniejącego użytkownika.' });
+        } else if (authError.message.includes('Signups not allowed')) {
+          throw new Error("Rejestracja jest wyłączona w Supabase. Włącz 'Enable Email Signup' w Authentication -> Providers -> Email.");
         } else {
           throw new Error("Błąd tworzenia konta: " + authError.message);
         }
