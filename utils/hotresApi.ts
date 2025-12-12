@@ -195,8 +195,8 @@ export const updateHotresPrices = async (
         till: season.endDate,
         baseprice: basePrice,
         min: season.minNights || 1,
-        cta: 0,
-        ctd: 0,
+        // cta: 0, REMOVED
+        // ctd: 0, REMOVED
         child: 0 // Explicitly set child price to 0
       };
 
