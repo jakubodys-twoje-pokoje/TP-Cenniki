@@ -29,11 +29,13 @@ const UPDATE_PRICES_URL = "https://panel.hotres.pl/api_updateprices";
 const USER = "admin@twojepokoje.com.pl";
 const PASS = "Admin123@@";
 
-// Using a CORS proxy to bypass browser restrictions since Hotres doesn't support CORS headers
-const PROXY_URL = "https://corsproxy.io/?";
+// Switch to thingproxy as it handles raw forwarding well.
+// Note: Proxies can be unstable. In production, a dedicated backend is recommended.
+const PROXY_URL = "https://thingproxy.freeboard.io/fetch/";
 
 const fetchWithProxy = async (url: string, options?: RequestInit) => {
-  const proxiedUrl = PROXY_URL + encodeURIComponent(url);
+  // Thingproxy usage: https://thingproxy.freeboard.io/fetch/https://target...
+  const proxiedUrl = PROXY_URL + url;
   return fetch(proxiedUrl, options);
 };
 
