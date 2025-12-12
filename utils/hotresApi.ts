@@ -29,6 +29,14 @@ const UPDATE_PRICES_URL = "https://panel.hotres.pl/api_updateprices";
 const USER = "admin@twojepokoje.com.pl";
 const PASS = "Admin123@@";
 
+// Using a CORS proxy to bypass browser restrictions since Hotres doesn't support CORS headers
+const PROXY_URL = "https://corsproxy.io/?";
+
+const fetchWithProxy = async (url: string, options?: RequestInit) => {
+  const proxiedUrl = PROXY_URL + encodeURIComponent(url);
+  return fetch(proxiedUrl, options);
+};
+
 // Helper to calculate percentage from dates array
 const calculatePercentage = (dates: HotresDay[]): number => {
   if (!dates || dates.length === 0) return 0;
@@ -50,7 +58,7 @@ export const fetchHotresOccupancy = async (
   const url = `${BASE_URL}?user=${encodeURIComponent(USER)}&password=${encodeURIComponent(PASS)}&oid=${oid}&type_id=${tid}&from=${startDate}&till=${endDate}`;
 
   try {
-    const response = await fetch(url);
+    const response = await fetchWithProxy(url);
     if (!response.ok) throw new Error(`Błąd API: ${response.status}`);
 
     const data: HotresResponseItem[] = await response.json();
@@ -79,7 +87,7 @@ export const fetchSeasonOccupancyMap = async (
   const url = `${BASE_URL}?user=${encodeURIComponent(USER)}&password=${encodeURIComponent(PASS)}&oid=${oid}&from=${startDate}&till=${endDate}`;
 
   try {
-    const response = await fetch(url);
+    const response = await fetchWithProxy(url);
     if (!response.ok) throw new Error(`Błąd API: ${response.status}`);
 
     const data: HotresResponseItem[] = await response.json();
@@ -108,7 +116,7 @@ export const fetchHotresRooms = async (oid: string): Promise<RoomType[]> => {
   const url = `${ROOMS_URL}?user=${encodeURIComponent(USER)}&password=${encodeURIComponent(PASS)}&oid=${oid}`;
 
   try {
-    const response = await fetch(url);
+    const response = await fetchWithProxy(url);
     if (!response.ok) throw new Error(`Błąd API: ${response.status}`);
 
     const data: HotresRoomResponse[] = await response.json();
@@ -206,7 +214,7 @@ export const updateHotresPrices = async (
   const url = `${UPDATE_PRICES_URL}?${params.toString()}`;
 
   try {
-    const response = await fetch(url, {
+    const response = await fetchWithProxy(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

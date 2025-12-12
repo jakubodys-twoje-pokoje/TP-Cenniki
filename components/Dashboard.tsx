@@ -1,4 +1,5 @@
 
+
 import React, { useMemo, useState } from "react";
 import { Channel, GlobalSettings, RoomType, Season } from "../types";
 import { generatePricingGrid, calculateDirectPrice, calculateChannelPrice } from "../utils/pricingEngine";
@@ -561,10 +562,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                         return (
                            <React.Fragment key={row.seasonId}>
                              <tr className={`hover:bg-slate-100/50 ${isExpanded ? 'bg-slate-50 border-b border-slate-100' : ''}`}>
-                                <td className="px-2 py-3"></td> {/* Empty space for indentation */}
-                                <td className="px-3 py-3 align-middle opacity-50">
-                                   {/* Room Name placeholder */}
-                                </td>
+                                <td className="px-2 py-3"></td>
+                                <td className="px-3 py-3 align-middle opacity-50"></td>
                                 <td className="px-3 py-3 align-middle text-slate-600">
                                    <span className="text-xs font-semibold">{row.seasonName}</span>
                                 </td>
@@ -827,16 +826,20 @@ const Dashboard: React.FC<DashboardProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
             <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><TrendingUp size={20} className="text-blue-600"/> Średnie Stawki</h3>
-            <div className="h-48">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="name" tick={{fontSize: 10}} interval={0} />
-                  <YAxis tick={{fontSize: 10}} />
-                  <Tooltip contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} cursor={{fill: '#f1f5f9'}} />
-                  <Bar dataKey="avgDirect" name="Śr. Cena Bezp." fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={40} />
-                </BarChart>
-              </ResponsiveContainer>
+            <div className="h-48 min-h-[200px]">
+              {chartData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="name" tick={{fontSize: 10}} interval={0} />
+                    <YAxis tick={{fontSize: 10}} />
+                    <Tooltip contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} cursor={{fill: '#f1f5f9'}} />
+                    <Bar dataKey="avgDirect" name="Śr. Cena Bezp." fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={40} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-slate-400 text-sm">Brak danych do wykresu</div>
+              )}
             </div>
           </div>
           <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200 flex flex-col">
