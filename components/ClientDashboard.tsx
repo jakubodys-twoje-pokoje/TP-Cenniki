@@ -109,6 +109,33 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({
 
   return (
     <div className="h-full flex flex-col bg-white">
+      {/* Print Styles Injection */}
+      <style>{`
+        @media print {
+          @page {
+            size: landscape;
+            margin: 5mm;
+          }
+          body {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            background: white !important;
+          }
+          .printable-content {
+             zoom: 0.70; /* Scale content to fit width */
+             width: 100%;
+          }
+          /* Ensure expanded rows are visible */
+          .print-visible {
+             display: table-row !important;
+          }
+          /* Hide non-printable UI elements */
+          .no-print {
+             display: none !important;
+          }
+        }
+      `}</style>
+
       {/* Controls - Hidden on Print */}
       <div className="p-4 border-b border-slate-200 flex flex-col gap-4 bg-slate-50 print:hidden">
         
@@ -202,7 +229,7 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({
       </div>
 
       {/* Main Content / Printable Area */}
-      <div className="flex-1 overflow-auto p-8 print:p-0 print:overflow-visible">
+      <div className="flex-1 overflow-auto p-8 print:p-0 print:overflow-visible printable-content">
         <div className="max-w-[95%] mx-auto print:max-w-none print:w-full">
           
           {/* Header */}
@@ -218,7 +245,7 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({
           {activeView === 'OVERVIEW' && (
               <div className="mb-6 border-b pb-4 print:mb-4 print:pb-4">
                   <h1 className="text-2xl font-bold text-slate-800">Cennik Bezpośredni (Wszystkie Sezony)</h1>
-                  <p className="text-slate-500 text-sm mt-1">Kliknij na wiersz, aby zobaczyć ceny dla mniejszej liczby osób.</p>
+                  <p className="text-slate-500 text-sm mt-1 print:hidden">Kliknij na wiersz, aby zobaczyć ceny dla mniejszej liczby osób.</p>
               </div>
           )}
 
@@ -266,10 +293,10 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({
                                     })}
                                 </tr>
                                 {isExpanded && (
-                                    <tr className="bg-slate-50/50 print:bg-transparent">
+                                    <tr className="bg-slate-50/50 print:bg-transparent print-visible">
                                         <td colSpan={3 + seasons.length} className="p-0">
                                             <div className="px-12 py-4 border-b border-slate-100">
-                                                <div className="bg-white border border-slate-200 rounded-lg overflow-hidden shadow-inner">
+                                                <div className="bg-white border border-slate-200 rounded-lg overflow-hidden shadow-inner print:border print:border-slate-300">
                                                     <table className="w-full text-xs">
                                                         <thead className="bg-slate-50 text-slate-500">
                                                             <tr>
@@ -290,7 +317,7 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({
                                                                     <td className="px-3 py-2 flex items-center gap-2 text-slate-700 font-medium">
                                                                         <Users size={12} className="text-slate-400"/> 
                                                                         {occ} os.
-                                                                        {occ === room.maxOccupancy && <span className="text-[9px] bg-blue-100 text-blue-600 px-1 rounded ml-1">Max</span>}
+                                                                        {occ === room.maxOccupancy && <span className="text-[9px] bg-blue-100 text-blue-600 px-1 rounded ml-1 print:hidden">Max</span>}
                                                                     </td>
                                                                     {seasons.map((s, i) => {
                                                                         const color = getSeasonColor(i);

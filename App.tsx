@@ -787,7 +787,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="flex h-screen bg-slate-50 overflow-hidden">
+    <div className="flex h-screen bg-slate-50 overflow-hidden print:overflow-visible print:h-auto print:block">
       {/* Sidebar - Added flex-col and h-full for scrolling fix */}
       <aside className={`
         fixed inset-y-0 left-0 z-30 w-64 bg-slate-900 text-white transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0
@@ -1034,7 +1034,7 @@ const App: React.FC = () => {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col min-w-0 h-screen">
+      <main className="flex-1 flex flex-col min-w-0 h-screen print:h-auto print:block print:overflow-visible">
         {/* Mobile Header */}
         <header className="md:hidden bg-white border-b border-slate-200 p-4 flex items-center justify-between z-10 print:hidden">
           <span className="font-bold text-slate-800">{activeProperty?.name || "Panel"}</span>
@@ -1044,7 +1044,7 @@ const App: React.FC = () => {
         </header>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-hidden p-4 md:p-8 print:p-0 print:overflow-visible">
+        <div className="flex-1 overflow-hidden p-4 md:p-8 print:p-0 print:overflow-visible print:h-auto">
           {isClientRole ? (
              activeProperty ? (
                <ClientDashboard 
