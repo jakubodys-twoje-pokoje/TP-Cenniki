@@ -43,6 +43,8 @@ export interface Channel {
   name: string;
   commissionPct: number; // 0-100
   color: string;
+  // Global Rate ID for this channel in Hotres
+  rid?: string; 
   // Key is season.id, value is the discount profile
   seasonDiscounts: Record<string, ChannelDiscountProfile>;
   // Custom labels for the discount columns
@@ -77,10 +79,9 @@ export interface RoomType {
 export interface Season {
   id: string;
   name: string;
-  // Replaces single 'rid'.
-  // Keys: 'direct' | channel.id
-  // Values: Hotres Rate ID string
-  channelRids: Record<string, string>; 
+  // DEPRECATED: channelRids is no longer used, we use Channel.rid instead.
+  // Kept temporarily for type safety during migration if needed, but logic ignores it.
+  channelRids?: Record<string, string>; 
   rid?: string; // DEPRECATED: Kept for migration safety
   startDate: string;
   endDate: string;

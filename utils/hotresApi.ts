@@ -183,69 +183,65 @@ export const updateHotresPrices = async (
 
   const validRooms = rooms.filter(r => r.tid && r.tid.trim() !== "");
   
-  // Filter seasons that have at least one RID defined (channel)
-  const validSeasons = seasons.filter(s => 
-     s.channelRids && Object.keys(s.channelRids).length > 0
-  );
+  // Filter channels that have a RID configured
+  const validChannels = channels.filter(c => c.rid && c.rid.trim() !== "");
 
   if (validRooms.length === 0) throw new Error("Brak pokoi ze zdefiniowanym TID.");
-  if (validSeasons.length === 0) throw new Error("Brak sezonów z jakimkolwiek zdefiniowanym RID.");
+  if (validChannels.length === 0) throw new Error("Brak kanałów ze zdefiniowanym RID.");
 
   validRooms.forEach(room => {
-    validSeasons.forEach(season => {
+    // Iterate over ALL seasons (previously we filtered by season.channelRids)
+    seasons.forEach(season => {
       
-      // We only iterate configured channels now.
-      if (season.channelRids) {
-        channels.forEach(channel => {
-           const channelRid = season.channelRids[channel.id];
-           
-           if (channelRid) {
-              // Calculate "List Price" for the channel
-              // NOTE: Hotres expects "baseprice" field. For OTA channels, we send the inflated list price.
-              // To support OBP on channels, we must calculate the List Price for EACH person count.
-              
-              const directBasePrice = calculateDirectPrice(room, season, room.maxOccupancy, settings);
-              const channelBaseCalc = calculateChannelPrice(directBasePrice, channel, season.id);
-              
-              const priceEntry: any = {
-                from: season.startDate,
-                till: season.endDate,
-                baseprice: channelBaseCalc.listPrice, // Send inflated price
-                min: season.minNights || 1,
-                child: 0
-              };
+      validChannels.forEach(channel => {
+         // Use the Global Channel RID
+         const channelRid = channel.rid;
+         
+         if (channelRid) {
+            // Calculate "List Price" for the channel
+            
+            const directBasePrice = calculateDirectPrice(room, season, room.maxOccupancy, settings);
+            const channelBaseCalc = calculateChannelPrice(directBasePrice, channel, season.id);
+            
+            const priceEntry: any = {
+              from: season.startDate,
+              till: season.endDate,
+              baseprice: channelBaseCalc.listPrice, // Send inflated price
+              min: season.minNights || 1,
+              child: 0
+            };
 
-              // Calculate OBP List Prices for Channel
-              for (let i = 1; i <= room.maxOccupancy; i++) {
-                if (i > 8) break;
-                // Get direct price for 'i' people
-                const directP = calculateDirectPrice(room, season, i, settings);
-                // Convert to Channel List Price
-                const chanCalc = calculateChannelPrice(directP, channel, season.id);
-                
-                priceEntry[`pers${i}`] = chanCalc.listPrice;
-              }
+            // Calculate OBP List Prices for Channel
+            for (let i = 1; i <= room.maxOccupancy; i++) {
+              if (i > 8) break;
+              // Get direct price for 'i' people
+              const directP = calculateDirectPrice(room, season, i, settings);
+              // Convert to Channel List Price
+              const chanCalc = calculateChannelPrice(directP, channel, season.id);
+              
+              priceEntry[`pers${i}`] = chanCalc.listPrice;
+            }
 
-              const key = `${room.tid}-${channelRid}`;
-              if (!payloadMap.has(key)) {
-                payloadMap.set(key, {
-                  type_id: parseInt(room.tid),
-                  rate_id: parseInt(channelRid),
-                  mode: "delta",
-                  prices: []
-                });
-              }
-              payloadMap.get(key)!.prices.push(priceEntry);
-           }
-        });
-      }
+            const key = `${room.tid}-${channelRid}`;
+            if (!payloadMap.has(key)) {
+              payloadMap.set(key, {
+                type_id: parseInt(room.tid),
+                rate_id: parseInt(channelRid),
+                mode: "delta",
+                prices: []
+              });
+            }
+            payloadMap.get(key)!.prices.push(priceEntry);
+         }
+      });
+      
     });
   });
 
   // Convert Map to Array
   const payload = Array.from(payloadMap.values());
 
-  if (payload.length === 0) throw new Error("Brak danych do wysłania (sprawdź czy wypełniłeś RID dla sezonów).");
+  if (payload.length === 0) throw new Error("Brak danych do wysłania (sprawdź TID pokoi oraz RID kanałów).");
 
   const url = buildUrl('/api_updateprices', {
     user: USER,

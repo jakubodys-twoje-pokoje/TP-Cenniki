@@ -44,6 +44,7 @@ export const INITIAL_CHANNELS: Channel[] = [
     name: "Booking.com",
     commissionPct: 20,
     color: "#003580",
+    rid: "",
     seasonDiscounts: defaultDiscounts(10, 10, 0, 0, 0), // 10% mobile, 10% genius
     discountLabels: { ...defaultLabels }
   },
@@ -52,6 +53,7 @@ export const INITIAL_CHANNELS: Channel[] = [
     name: "Airbnb",
     commissionPct: 16,
     color: "#FF5A5F",
+    rid: "",
     seasonDiscounts: defaultDiscounts(0, 0, 0, 15, 0), // Example first minute
     discountLabels: { ...defaultLabels }
   },
@@ -60,6 +62,7 @@ export const INITIAL_CHANNELS: Channel[] = [
     name: "Noclegi.pl",
     commissionPct: 12,
     color: "#34D399",
+    rid: "",
     seasonDiscounts: defaultDiscounts(0, 0, 0, 0, 0),
     discountLabels: { ...defaultLabels }
   },
@@ -68,6 +71,7 @@ export const INITIAL_CHANNELS: Channel[] = [
     name: "Noclegowo",
     commissionPct: 10,
     color: "#FBBF24",
+    rid: "",
     seasonDiscounts: defaultDiscounts(0, 0, 0, 0, 0),
     discountLabels: { ...defaultLabels }
   },
@@ -83,7 +87,6 @@ export const INITIAL_SEASONS: Season[] = [
   {
     id: "s1",
     name: "Majówka",
-    channelRids: {},
     startDate: "2025-05-01",
     endDate: "2025-05-05",
     multiplier: 1.1,
@@ -92,7 +95,6 @@ export const INITIAL_SEASONS: Season[] = [
   {
     id: "s2",
     name: "Przed szczytem",
-    channelRids: {},
     startDate: "2025-05-06",
     endDate: "2025-06-25",
     multiplier: 0.85,
@@ -101,7 +103,6 @@ export const INITIAL_SEASONS: Season[] = [
   {
     id: "s3",
     name: "Open'er Festival",
-    channelRids: {},
     startDate: "2025-06-26",
     endDate: "2025-07-02",
     multiplier: 1.5,
@@ -110,7 +111,6 @@ export const INITIAL_SEASONS: Season[] = [
   {
     id: "s4",
     name: "Szczyt (Lipiec/Sierpień)",
-    channelRids: {},
     startDate: "2025-07-03",
     endDate: "2025-08-17",
     multiplier: 1.0,
@@ -119,7 +119,6 @@ export const INITIAL_SEASONS: Season[] = [
   {
     id: "s5",
     name: "Koniec Wakacji",
-    channelRids: {},
     startDate: "2025-08-18",
     endDate: "2025-08-31",
     multiplier: 0.9,

@@ -1,7 +1,7 @@
 
 import React, { useState } from "react";
 import { Channel, ChannelDiscountProfile, ChannelDiscountLabels, GlobalSettings, Property, RoomType, Season, SettingsTab } from "../types";
-import { Plus, Trash2, X, Copy, GripVertical, ArrowRightLeft, Check, AlertCircle, Lock, ToggleLeft, ToggleRight, Layers, CloudUpload, Loader2 } from "lucide-react";
+import { Plus, Trash2, X, Copy, GripVertical, ArrowRightLeft, Check, AlertCircle, Lock, ToggleLeft, ToggleRight, Layers, CloudUpload, Loader2, Link as LinkIcon, Edit3 } from "lucide-react";
 import { updateHotresPrices } from "../utils/hotresApi";
 
 interface SettingsPanelProps {
@@ -67,6 +67,9 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const [showAllChannelsDupModal, setShowAllChannelsDupModal] = useState(false);
   const [targetAllChannelsPropId, setTargetAllChannelsPropId] = useState<string>("");
 
+  // RID Mapping Modal State
+  const [showRidModal, setShowRidModal] = useState(false);
+
   // Export State
   const [isExporting, setIsExporting] = useState(false);
   // Track specific season export
@@ -95,20 +98,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     );
   };
 
-  const updateSeasonRid = (seasonId: string, channelKey: string, rid: string) => {
-    if (isReadOnly) return;
-    setSeasons(seasons.map(s => {
-      if (s.id !== seasonId) return s;
-      return {
-        ...s,
-        channelRids: {
-          ...(s.channelRids || {}),
-          [channelKey]: rid
-        }
-      }
-    }));
-  };
-
   const updateRoomSeasonalObp = (roomId: string, seasonId: string, isActive: boolean) => {
     if (isReadOnly) return;
     setRooms(rooms.map(r => {
@@ -134,6 +123,14 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
           [key]: value
         } as ChannelDiscountLabels
       }
+    }));
+  };
+  
+  const updateChannelRid = (channelId: string, rid: string) => {
+    if (isReadOnly) return;
+    setChannels(channels.map(c => {
+        if (c.id !== channelId) return c;
+        return { ...c, rid: rid };
     }));
   };
 
@@ -221,13 +218,11 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       return;
     }
     
-    // Check if at least one RID is set somewhere
-    const hasAnyRid = seasons.some(s => 
-      channels.some(c => s.channelRids?.[c.id])
-    );
+    // Check if at least one RID is set
+    const hasAnyRid = channels.some(c => c.rid && c.rid.trim() !== "");
 
     if (!hasAnyRid) {
-      alert("Błąd: Nie zdefiniowano żadnych ID cenników (RID) w sezonach dla żadnego kanału.");
+      alert("Błąd: Nie zdefiniowano żadnych ID cenników (RID) w kanałach. Kliknij przycisk 'Mapowanie RID' i uzupełnij dane.");
       return;
     }
 
@@ -249,10 +244,10 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       return;
     }
 
-    const hasAnyRid = channels.some(c => season.channelRids?.[c.id]);
+    const hasAnyRid = channels.some(c => c.rid && c.rid.trim() !== "");
 
     if (!hasAnyRid) {
-      alert("Błąd: Ten sezon nie ma zmapowanych żadnych cenników (RID) dla kanałów.");
+      alert("Błąd: Nie zdefiniowano żadnych ID cenników (RID) w kanałach.");
       return;
     }
 
@@ -317,7 +312,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     newSeason: Season = {
       id: newId,
       name: "Nowy Sezon",
-      channelRids: {},
       startDate: new Date().toISOString().split('T')[0],
       endDate: new Date().toISOString().split('T')[0],
       multiplier: 1.0,
@@ -334,6 +328,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       name: "Nowy Kanał",
       commissionPct: 15,
       color: "#64748b",
+      rid: "",
       seasonDiscounts: {},
       discountLabels: {
         mobile: "Mobile",
@@ -581,15 +576,28 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                <h3 className="text-lg font-medium">Reguły Sezonowe</h3>
                {!isReadOnly && (
                 <div className="flex gap-2">
+                   {/* RID Mapping Button */}
+                   <button 
+                    onClick={() => setShowRidModal(true)}
+                    className="flex items-center gap-1 text-sm bg-white text-slate-600 border border-slate-300 px-3 py-1.5 rounded hover:bg-slate-50 shadow-sm"
+                   >
+                     <LinkIcon size={16} />
+                     Mapowanie ID Cenników (RID)
+                   </button>
+
+                   <div className="h-8 w-px bg-slate-200 mx-1"></div>
+
                    <button 
                     onClick={handleExportToHotres}
                     disabled={isExporting}
                     className="flex items-center gap-1 text-sm bg-orange-600 text-white px-3 py-1.5 rounded hover:bg-orange-700 disabled:opacity-70 disabled:cursor-not-allowed shadow-sm"
                    >
                      {isExporting ? <Loader2 size={16} className="animate-spin" /> : <CloudUpload size={16} />}
-                     Wyślij do Hotres (Wszystkie)
+                     Wyślij do Hotres
                    </button>
+                   
                    <div className="h-8 w-px bg-slate-200 mx-1"></div>
+                   
                   <button onClick={() => setShowSeasonDupModal(true)} className="flex items-center gap-1 text-sm bg-indigo-50 text-indigo-600 border border-indigo-200 px-3 py-1.5 rounded hover:bg-indigo-100">
                     <ArrowRightLeft size={16}/> Duplikuj Sezony
                   </button>
@@ -631,8 +639,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 )}
                 <div className={`grid grid-cols-1 md:grid-cols-12 gap-4 ${!isReadOnly ? 'pl-6' : ''}`}>
                   
-                  {/* Left Column: Basic Info */}
-                  <div className="md:col-span-8 grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Basic Info */}
+                  <div className="md:col-span-12 grid grid-cols-1 md:grid-cols-4 gap-4">
                       <div className="md:col-span-1">
                         <label className="block text-xs font-medium text-slate-500">Nazwa Sezonu</label>
                         <input disabled={isReadOnly} type="text" value={season.name} onChange={(e) => updateItem<Season>(season.id, "name", e.target.value, seasons, setSeasons)} className={inputClass} />
@@ -648,7 +656,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                         <input disabled={isReadOnly} type="number" min="1" value={season.minNights ?? 2} onChange={(e) => updateItem<Season>(season.id, "minNights", Number(e.target.value), seasons, setSeasons)} className={inputClass} />
                       </div>
 
-                      <div className="md:col-span-3">
+                      <div className="md:col-span-1">
                         <label className="block text-xs font-medium text-slate-500">Zakres Dat</label>
                         <div className="flex gap-2">
                           <input disabled={isReadOnly} type="date" value={season.startDate} onChange={(e) => updateItem<Season>(season.id, "startDate", e.target.value, seasons, setSeasons)} className={`${inputClass} text-xs px-1`} />
@@ -656,33 +664,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                         </div>
                       </div>
                   </div>
-
-                  {/* Right Column: Rate IDs Mapping */}
-                  <div className="md:col-span-4 bg-white p-3 rounded border border-slate-200">
-                    <h4 className="text-xs font-bold text-slate-500 uppercase mb-2 border-b border-slate-100 pb-1">Mapowanie Cenników (RID)</h4>
-                    <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-                      
-                      {/* Dynamic Channels */}
-                      {channels.map(ch => (
-                        <div key={ch.id} className="flex items-center gap-2">
-                           <label className="text-[10px] font-medium text-slate-600 w-24 truncate flex items-center gap-1" title={ch.name}>
-                              <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{backgroundColor: ch.color}}></span>
-                              {ch.name}
-                           </label>
-                           <input 
-                             type="text" 
-                             disabled={isReadOnly}
-                             placeholder={`RID dla ${ch.name}`}
-                             value={season.channelRids?.[ch.id] || ""}
-                             onChange={(e) => updateSeasonRid(season.id, ch.id, e.target.value)}
-                             className={`${inputClass} py-1 text-xs`}
-                           />
-                        </div>
-                      ))}
-                      {channels.length === 0 && <p className="text-xs text-slate-400 italic">Brak kanałów. Dodaj je w zakładce "Kanały".</p>}
-                    </div>
-                  </div>
-
                 </div>
               </div>
             ))}
@@ -728,7 +709,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                    {/* Channel Header */}
                    <div className={`flex justify-between items-start mb-4 pb-4 border-b border-slate-100 relative ${!isReadOnly ? 'pl-6' : ''}`}>
                       {!isReadOnly && <div className="absolute top-0 left-0 text-slate-400 cursor-grab active:cursor-grabbing"><GripVertical size={20}/></div>}
-                      <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 mr-4">
+                      <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4 mr-4">
                         <div>
                            <label className="block text-xs font-medium text-slate-500">Nazwa Kanału</label>
                            <input disabled={isReadOnly} type="text" value={channel.name} onChange={(e) => updateItem<Channel>(channel.id, "name", e.target.value, channels, setChannels)} className={`font-semibold text-lg w-full border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-white text-slate-900 disabled:bg-transparent`} />
@@ -736,6 +717,10 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                         <div>
                            <label className="block text-xs font-medium text-slate-500">Prowizja Podstawowa (%)</label>
                            <input disabled={isReadOnly} type="number" value={channel.commissionPct} onChange={(e) => updateItem<Channel>(channel.id, "commissionPct", Number(e.target.value), channels, setChannels)} className={inputClass} />
+                        </div>
+                        <div>
+                           <label className="block text-xs font-medium text-slate-500">Rate ID (Hotres)</label>
+                           <input disabled={isReadOnly} type="text" value={channel.rid || ""} onChange={(e) => updateItem<Channel>(channel.id, "rid", e.target.value, channels, setChannels)} className={inputClass} placeholder="np. 1234" />
                         </div>
                       </div>
                       {!isReadOnly && (
@@ -911,6 +896,51 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 </button>
              </div>
           </div>
+        </div>
+      )}
+
+      {/* RID Mapping Modal */}
+      {showRidModal && !isReadOnly && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px] rounded-lg">
+           <div className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200">
+             <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h3 className="font-bold text-slate-800 flex items-center gap-2"><LinkIcon size={18} /> Mapowanie ID Cenników</h3>
+                <button onClick={() => setShowRidModal(false)} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+             </div>
+             <div className="p-6">
+               <p className="text-sm text-slate-600 mb-4">
+                 Wpisz ID Cennika (Rate ID) z panelu Hotres dla każdego kanału.
+                 <br/><span className="text-xs text-slate-400">Te wartości są przypisane globalnie do kanału (niezależnie od sezonu).</span>
+               </p>
+
+               <div className="space-y-3">
+                  {channels.map(channel => (
+                     <div key={channel.id} className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold" style={{backgroundColor: channel.color}}>
+                           {channel.name.substring(0, 2).toUpperCase()}
+                        </div>
+                        <div className="flex-1">
+                           <label className="block text-xs font-bold text-slate-700">{channel.name}</label>
+                           <input 
+                              type="text" 
+                              value={channel.rid || ""}
+                              onChange={(e) => updateChannelRid(channel.id, e.target.value)}
+                              placeholder="np. 1234"
+                              className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded focus:border-blue-500 focus:outline-none"
+                           />
+                        </div>
+                     </div>
+                  ))}
+                  {channels.length === 0 && <p className="text-slate-400 italic text-sm text-center">Brak zdefiniowanych kanałów.</p>}
+               </div>
+
+             </div>
+             <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+                <button onClick={() => setShowRidModal(false)} className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 shadow-sm">
+                   Zatwierdź
+                </button>
+             </div>
+           </div>
         </div>
       )}
 
