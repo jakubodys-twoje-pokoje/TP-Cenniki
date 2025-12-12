@@ -29,14 +29,10 @@ const UPDATE_PRICES_URL = "https://panel.hotres.pl/api_updateprices";
 const USER = "admin@twojepokoje.com.pl";
 const PASS = "Admin123@@";
 
-// Using corsproxy.io. Usage: https://corsproxy.io/?<encoded_url>
-const PROXY_URL = "https://corsproxy.io/?";
-
-const fetchWithProxy = async (url: string, options?: RequestInit) => {
-  // We MUST encode the target URL component so that special characters (like ? & @) 
-  // are treated as part of the path by the proxy, not as query params for the proxy itself.
-  const proxiedUrl = PROXY_URL + encodeURIComponent(url);
-  return fetch(proxiedUrl, options);
+// BEZPOŚREDNIE WYWOŁANIE - BEZ PROXY
+// Uwaga: Może powodować błędy CORS w przeglądarce, jeśli serwer Hotres nie zezwala na żądania z innej domeny.
+const fetchDirect = async (url: string, options?: RequestInit) => {
+  return fetch(url, options);
 };
 
 // Helper to calculate percentage from dates array
@@ -60,7 +56,7 @@ export const fetchHotresOccupancy = async (
   const url = `${BASE_URL}?user=${encodeURIComponent(USER)}&password=${encodeURIComponent(PASS)}&oid=${oid}&type_id=${tid}&from=${startDate}&till=${endDate}`;
 
   try {
-    const response = await fetchWithProxy(url);
+    const response = await fetchDirect(url);
     if (!response.ok) throw new Error(`Błąd API: ${response.status}`);
 
     const data: HotresResponseItem[] = await response.json();
@@ -89,7 +85,7 @@ export const fetchSeasonOccupancyMap = async (
   const url = `${BASE_URL}?user=${encodeURIComponent(USER)}&password=${encodeURIComponent(PASS)}&oid=${oid}&from=${startDate}&till=${endDate}`;
 
   try {
-    const response = await fetchWithProxy(url);
+    const response = await fetchDirect(url);
     if (!response.ok) throw new Error(`Błąd API: ${response.status}`);
 
     const data: HotresResponseItem[] = await response.json();
@@ -118,7 +114,7 @@ export const fetchHotresRooms = async (oid: string): Promise<RoomType[]> => {
   const url = `${ROOMS_URL}?user=${encodeURIComponent(USER)}&password=${encodeURIComponent(PASS)}&oid=${oid}`;
 
   try {
-    const response = await fetchWithProxy(url);
+    const response = await fetchDirect(url);
     if (!response.ok) throw new Error(`Błąd API: ${response.status}`);
 
     const data: HotresRoomResponse[] = await response.json();
@@ -216,7 +212,7 @@ export const updateHotresPrices = async (
   const url = `${UPDATE_PRICES_URL}?${params.toString()}`;
 
   try {
-    const response = await fetchWithProxy(url, {
+    const response = await fetchDirect(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -225,8 +221,7 @@ export const updateHotresPrices = async (
     });
 
     if (!response.ok) {
-      // 404 from Proxy often means target URL not found or Proxy error
-      throw new Error(`Błąd HTTP (Proxy/Hotres): ${response.status}`);
+      throw new Error(`Błąd HTTP: ${response.status}`);
     }
 
     const result = await response.json();
