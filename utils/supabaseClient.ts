@@ -8,11 +8,4 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 // Tworzymy klienta
 // Jeśli nie podasz kluczy, aplikacja będzie działać w trybie "tylko odczyt" lub wyrzuci błąd przy zapisie.
-// Added explicit Accept header to prevent 406 errors in some environments
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  global: {
-    headers: {
-      'Accept': 'application/json'
-    }
-  }
-});
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);

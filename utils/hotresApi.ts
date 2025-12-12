@@ -29,13 +29,13 @@ const UPDATE_PRICES_URL = "https://panel.hotres.pl/api_updateprices";
 const USER = "admin@twojepokoje.com.pl";
 const PASS = "Admin123@@";
 
-// Switch to thingproxy as it handles raw forwarding well.
-// Note: Proxies can be unstable. In production, a dedicated backend is recommended.
-const PROXY_URL = "https://thingproxy.freeboard.io/fetch/";
+// Using CodeTabs proxy which is often more reliable for simple JSON forwarding
+const PROXY_URL = "https://api.codetabs.com/v1/proxy?quest=";
 
 const fetchWithProxy = async (url: string, options?: RequestInit) => {
-  // Thingproxy usage: https://thingproxy.freeboard.io/fetch/https://target...
-  const proxiedUrl = PROXY_URL + url;
+  // CodeTabs requires the target URL to be appended. 
+  // Note: API keys passed in URL parameters are visible to the proxy owner.
+  const proxiedUrl = PROXY_URL + encodeURIComponent(url);
   return fetch(proxiedUrl, options);
 };
 
@@ -216,6 +216,9 @@ export const updateHotresPrices = async (
   const url = `${UPDATE_PRICES_URL}?${params.toString()}`;
 
   try {
+    // For updateprices, we are sending POST data. CodeTabs supports this if we use fetch options.
+    // However, sending complex JSON via GET proxy is tricky.
+    // Let's try sending standard POST through the proxy.
     const response = await fetchWithProxy(url, {
       method: 'POST',
       headers: {
@@ -225,10 +228,14 @@ export const updateHotresPrices = async (
     });
 
     if (!response.ok) {
-      throw new Error(`Błąd HTTP: ${response.status}`);
+      // If proxy fails with 404, it might mean the proxy service is down or doesn't allow POST.
+      // But usually CodeTabs allows it.
+      throw new Error(`Błąd HTTP (Proxy/Hotres): ${response.status}`);
     }
 
     const result = await response.json();
+    
+    // Check Hotres specific error structure
     if (result.result !== 'success') {
        throw new Error(`Hotres API Error: ${JSON.stringify(result)}`);
     }

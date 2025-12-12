@@ -826,8 +826,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
             <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><TrendingUp size={20} className="text-blue-600"/> Średnie Stawki</h3>
-            {/* Added style to ensure non-zero height for recharts to mount correctly */}
-            <div className="h-48 min-h-[200px] w-full" style={{ width: '100%', height: 200 }}>
+            <div className="h-64 w-full"> {/* Fixed height to fix Recharts loading issue */}
               {chartData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={chartData}>
