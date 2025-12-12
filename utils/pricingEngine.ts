@@ -145,6 +145,10 @@ export const calculateChannelPrice = (
   if (isBooking) {
       result.pif5 = roundPrice(listPrice * 0.95);
       result.pif10 = roundPrice(listPrice * 0.90);
+      
+      // Calculate PIF based on Direct Price ("Małe ceny")
+      result.pif5Direct = roundPrice(directPrice * 0.95);
+      result.pif10Direct = roundPrice(directPrice * 0.90);
   }
 
   return result;

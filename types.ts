@@ -126,7 +126,11 @@ export interface ChannelCalculation {
     firstMinute: number;
     lastMinute: number;
   };
-  // Booking.com Pay In Full variations
+  // Booking.com Pay In Full variations (Calculated from List Price)
   pif5?: number; // 5% discount
   pif10?: number; // 10% discount
+  
+  // Pay In Full variations (Calculated from Direct Price)
+  pif5Direct?: number;
+  pif10Direct?: number;
 }

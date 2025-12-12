@@ -58,6 +58,8 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({
           color: channel.color,
           pif5: calc.pif5,
           pif10: calc.pif10,
+          pif5Direct: calc.pif5Direct,
+          pif10Direct: calc.pif10Direct,
           isBooking: isBooking
         };
       });
@@ -206,8 +208,14 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({
                           </td>
                           {showPif && cp.isBooking && (
                             <>
-                              <td className="px-4 py-4 text-right font-medium text-slate-500 text-sm border-l border-slate-100 print:border-none">{cp.pif5} zł</td>
-                              <td className="px-4 py-4 text-right font-medium text-slate-500 text-sm border-l border-slate-100 print:border-none">{cp.pif10} zł</td>
+                              <td className="px-4 py-4 text-right font-medium text-slate-500 text-sm border-l border-slate-100 print:border-none align-middle">
+                                <div className="font-bold text-slate-700">{cp.pif5} zł</div>
+                                <div className="text-[10px] text-slate-400 font-normal mt-0.5">D: {cp.pif5Direct}</div>
+                              </td>
+                              <td className="px-4 py-4 text-right font-medium text-slate-500 text-sm border-l border-slate-100 print:border-none align-middle">
+                                <div className="font-bold text-slate-700">{cp.pif10} zł</div>
+                                <div className="text-[10px] text-slate-400 font-normal mt-0.5">D: {cp.pif10Direct}</div>
+                              </td>
                             </>
                           )}
                         </React.Fragment>

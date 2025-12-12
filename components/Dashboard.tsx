@@ -637,11 +637,13 @@ const Dashboard: React.FC<DashboardProps> = ({
                                             </td>
                                             {isBooking && columnVisibility.pif && (
                                                 <>
-                                                    <td className="px-3 py-3 align-middle text-right text-xs text-slate-500 border-l border-slate-100 bg-slate-50/50">
-                                                        {cData?.pif5 ? `${cData.pif5} zł` : '-'}
+                                                    <td className="px-3 py-3 align-middle text-right font-medium text-slate-600 border-l border-slate-100 bg-slate-50/50">
+                                                        <div className="font-bold">{cData?.pif5 ? `${cData.pif5} zł` : '-'}</div>
+                                                        <div className="text-[10px] text-slate-400 font-normal mt-0.5">D: {cData?.pif5Direct}</div>
                                                     </td>
-                                                    <td className="px-3 py-3 align-middle text-right text-xs text-slate-500 border-l border-slate-100 bg-slate-50/50">
-                                                        {cData?.pif10 ? `${cData.pif10} zł` : '-'}
+                                                    <td className="px-3 py-3 align-middle text-right font-medium text-slate-600 border-l border-slate-100 bg-slate-50/50">
+                                                        <div className="font-bold">{cData?.pif10 ? `${cData.pif10} zł` : '-'}</div>
+                                                        <div className="text-[10px] text-slate-400 font-normal mt-0.5">D: {cData?.pif10Direct}</div>
                                                     </td>
                                                 </>
                                             )}
@@ -662,8 +664,14 @@ const Dashboard: React.FC<DashboardProps> = ({
                                       
                                       {isCurrentChannelBooking && columnVisibility.pif && (
                                          <>
-                                            <td className="px-3 py-3 align-middle text-right text-xs font-bold text-blue-800 bg-blue-50/30 border-l border-blue-100">{channelData.pif5 ? `${channelData.pif5} zł` : '-'}</td>
-                                            <td className="px-3 py-3 align-middle text-right text-xs font-bold text-blue-800 bg-blue-50/30 border-l border-blue-100">{channelData.pif10 ? `${channelData.pif10} zł` : '-'}</td>
+                                            <td className="px-3 py-3 align-middle text-right font-bold text-blue-800 bg-blue-50/30 border-l border-blue-100">
+                                                <div>{channelData.pif5 ? `${channelData.pif5} zł` : '-'}</div>
+                                                <div className="text-[10px] text-blue-500/70 font-normal mt-0.5">D: {channelData.pif5Direct}</div>
+                                            </td>
+                                            <td className="px-3 py-3 align-middle text-right font-bold text-blue-800 bg-blue-50/30 border-l border-blue-100">
+                                                <div>{channelData.pif10 ? `${channelData.pif10} zł` : '-'}</div>
+                                                <div className="text-[10px] text-blue-500/70 font-normal mt-0.5">D: {channelData.pif10Direct}</div>
+                                            </td>
                                          </>
                                       )}
 
@@ -750,8 +758,14 @@ const Dashboard: React.FC<DashboardProps> = ({
                                                     
                                                     {isCurrentChannelBooking && columnVisibility.pif && (
                                                         <>
-                                                            <td className="px-3 py-2 text-right text-blue-700">{cCalc.pif5} zł</td>
-                                                            <td className="px-3 py-2 text-right text-blue-700">{cCalc.pif10} zł</td>
+                                                            <td className="px-3 py-2 text-right text-blue-700">
+                                                                <div>{cCalc.pif5} zł</div>
+                                                                <div className="text-[9px] text-slate-400">D:{cCalc.pif5Direct}</div>
+                                                            </td>
+                                                            <td className="px-3 py-2 text-right text-blue-700">
+                                                                <div>{cCalc.pif10} zł</div>
+                                                                <div className="text-[9px] text-slate-400">D:{cCalc.pif10Direct}</div>
+                                                            </td>
                                                         </>
                                                     )}
 
@@ -775,8 +789,14 @@ const Dashboard: React.FC<DashboardProps> = ({
                                                         <td className="px-3 py-2 text-right text-slate-600">{calc.listPrice} zł</td>
                                                         {isBooking && columnVisibility.pif && (
                                                             <>
-                                                                <td className="px-3 py-2 text-right text-slate-400 text-[10px]">{calc.pif5}</td>
-                                                                <td className="px-3 py-2 text-right text-slate-400 text-[10px]">{calc.pif10}</td>
+                                                                <td className="px-3 py-2 text-right text-slate-400 text-[10px]">
+                                                                    <div>{calc.pif5}</div>
+                                                                    <div className="opacity-50">D:{calc.pif5Direct}</div>
+                                                                </td>
+                                                                <td className="px-3 py-2 text-right text-slate-400 text-[10px]">
+                                                                    <div>{calc.pif10}</div>
+                                                                    <div className="opacity-50">D:{calc.pif10Direct}</div>
+                                                                </td>
                                                             </>
                                                         )}
                                                     </React.Fragment>
