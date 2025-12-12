@@ -16,40 +16,43 @@ interface HotresResponseItem {
 
 interface HotresRoomResponse {
   type_id: number;
-  code: string; // Used as name
-  single: string; // "0" or "1" etc
+  code: string;
+  single: string;
   double: string;
   sofa: string;
   sofa_single: string;
 }
 
-const BASE_URL = "https://panel.hotres.pl/api_availability";
-const ROOMS_URL = "https://panel.hotres.pl/api_rooms";
-const UPDATE_PRICES_URL = "https://panel.hotres.pl/api_updateprices";
 const USER = "admin@twojepokoje.com.pl";
 const PASS = "Admin123@@";
 
-// PROXY CONFIGURATION
-// Używamy corsproxy.io jako najprostszego rozwiązania działającego w Twoich innych aplikacjach.
-const PROXY_URL = "https://corsproxy.io/?";
+// Sprawdzamy czy jesteśmy w trybie deweloperskim (lokalnie)
+const IS_DEV = (import.meta as any).env.DEV;
 
-const fetchWithProxy = async (url: string, options?: RequestInit) => {
-  // Encodujemy URL docelowy, aby parametry (np. ?user=...) nie "uciekły" do proxy,
-  // lecz zostały przekazane do docelowego serwera.
-  const proxiedUrl = PROXY_URL + encodeURIComponent(url);
-  return fetch(proxiedUrl, options);
+// Funkcja budująca poprawny URL w zależności od środowiska
+const buildUrl = (endpoint: string, params: Record<string, string>) => {
+  const queryString = new URLSearchParams(params).toString();
+  
+  if (IS_DEV) {
+    // LOKALNIE: Używamy proxy zdefiniowanego w vite.config.ts
+    // Zapytanie idzie do http://localhost:5173/api_hotres/... -> Vite przekazuje do https://panel.hotres.pl/...
+    return `/api_hotres${endpoint}?${queryString}`;
+  } else {
+    // PRODUKCJA: Używamy zewnętrznego proxy, aby ominąć CORS na serwerze docelowym
+    const targetUrl = `https://panel.hotres.pl${endpoint}?${queryString}`;
+    return `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+  }
 };
 
-// Helper to calculate percentage from dates array
 const calculatePercentage = (dates: HotresDay[]): number => {
   if (!dates || dates.length === 0) return 0;
   const totalDays = dates.length;
-  // Count days where available is "0" (Booked)
   const bookedDays = dates.filter(day => day.available === "0").length;
   return Math.round((bookedDays / totalDays) * 100);
 };
 
-// Fetches occupancy for a single room (Specific TID)
+// --- API FUNCTIONS ---
+
 export const fetchHotresOccupancy = async (
   oid: string,
   tid: string,
@@ -58,10 +61,17 @@ export const fetchHotresOccupancy = async (
 ): Promise<number> => {
   if (!oid || !tid) throw new Error("Brak konfiguracji OID lub TID");
 
-  const url = `${BASE_URL}?user=${encodeURIComponent(USER)}&password=${encodeURIComponent(PASS)}&oid=${oid}&type_id=${tid}&from=${startDate}&till=${endDate}`;
+  const url = buildUrl('/api_availability', {
+    user: USER,
+    password: PASS,
+    oid: oid,
+    type_id: tid,
+    from: startDate,
+    till: endDate
+  });
 
   try {
-    const response = await fetchWithProxy(url);
+    const response = await fetch(url);
     if (!response.ok) throw new Error(`Błąd API: ${response.status}`);
 
     const data: HotresResponseItem[] = await response.json();
@@ -77,8 +87,6 @@ export const fetchHotresOccupancy = async (
   }
 };
 
-// Fetches occupancy for ALL rooms in a given season (No TID)
-// Returns a map where key is TID (string) and value is Occupancy % (number)
 export const fetchSeasonOccupancyMap = async (
   oid: string,
   startDate: string,
@@ -86,11 +94,16 @@ export const fetchSeasonOccupancyMap = async (
 ): Promise<Record<string, number>> => {
   if (!oid) throw new Error("Brak OID");
 
-  // Call without type_id to get all rooms
-  const url = `${BASE_URL}?user=${encodeURIComponent(USER)}&password=${encodeURIComponent(PASS)}&oid=${oid}&from=${startDate}&till=${endDate}`;
+  const url = buildUrl('/api_availability', {
+    user: USER,
+    password: PASS,
+    oid: oid,
+    from: startDate,
+    till: endDate
+  });
 
   try {
-    const response = await fetchWithProxy(url);
+    const response = await fetch(url);
     if (!response.ok) throw new Error(`Błąd API: ${response.status}`);
 
     const data: HotresResponseItem[] = await response.json();
@@ -107,27 +120,27 @@ export const fetchSeasonOccupancyMap = async (
     return occupancyMap;
   } catch (error) {
     console.error("Hotres Bulk Fetch Error:", error);
-    // Return empty map on error to not crash entire app flow
     return {};
   }
 };
 
-// Fetches Rooms definition from Hotres and maps to App's RoomType
 export const fetchHotresRooms = async (oid: string): Promise<RoomType[]> => {
   if (!oid) throw new Error("Brak OID");
 
-  const url = `${ROOMS_URL}?user=${encodeURIComponent(USER)}&password=${encodeURIComponent(PASS)}&oid=${oid}`;
+  const url = buildUrl('/api_rooms', {
+    user: USER,
+    password: PASS,
+    oid: oid
+  });
 
   try {
-    const response = await fetchWithProxy(url);
+    const response = await fetch(url);
     if (!response.ok) throw new Error(`Błąd API: ${response.status}`);
 
     const data: HotresRoomResponse[] = await response.json();
     if (!Array.isArray(data)) throw new Error("Nieprawidłowy format danych z Hotres (oczekiwano tablicy)");
 
     return data.map((item, index) => {
-      // Calculate Max Occupancy based on logic:
-      // single * 1 + double * 2 + sofa * 2 + sofa_single * 1
       const single = parseInt(item.single) || 0;
       const double = parseInt(item.double) || 0;
       const sofa = parseInt(item.sofa) || 0;
@@ -136,13 +149,13 @@ export const fetchHotresRooms = async (oid: string): Promise<RoomType[]> => {
       const maxOccupancy = (single * 1) + (double * 2) + (sofa * 2) + (sofaSingle * 1);
 
       return {
-        id: Date.now().toString() + index, // Generate temporary unique ID
-        name: item.code || `Pokój ${item.type_id}`, // "code - nazwa pokoju"
-        maxOccupancy: maxOccupancy > 0 ? maxOccupancy : 2, // Default to 2 if calc fails
+        id: Date.now().toString() + index,
+        name: item.code || `Pokój ${item.type_id}`,
+        maxOccupancy: maxOccupancy > 0 ? maxOccupancy : 2,
         tid: item.type_id.toString(),
-        basePricePeak: 300, // Default base price
-        minObpOccupancy: 1, // Default to 1 person min
-        obpPerPerson: 30, // Default OBP amount
+        basePricePeak: 300,
+        minObpOccupancy: 1,
+        obpPerPerson: 30,
       };
     });
 
@@ -162,40 +175,31 @@ export const updateHotresPrices = async (
 
   // Build Payload
   const payload: any[] = [];
-
-  // Filter only rooms that have TID and seasons that have RID
   const validRooms = rooms.filter(r => r.tid && r.tid.trim() !== "");
   const validSeasons = seasons.filter(s => s.rid && s.rid.trim() !== "");
 
-  if (validRooms.length === 0) throw new Error("Brak pokoi ze zdefiniowanym TID (Hotres Type ID).");
-  if (validSeasons.length === 0) throw new Error("Brak sezonów ze zdefiniowanym RID (Hotres Rate ID).");
+  if (validRooms.length === 0) throw new Error("Brak pokoi ze zdefiniowanym TID.");
+  if (validSeasons.length === 0) throw new Error("Brak sezonów ze zdefiniowanym RID.");
 
   validRooms.forEach(room => {
     validSeasons.forEach(season => {
-      // Base price is usually calculated for MAX occupancy
       const basePrice = calculateDirectPrice(room, season, room.maxOccupancy, settings);
 
-      // Create price period entry
       const priceEntry: any = {
         from: season.startDate,
         till: season.endDate,
         baseprice: basePrice,
         min: season.minNights || 1,
-        // Default flags (ignored but good practice if needed later)
         cta: 0,
         ctd: 0
       };
 
-      // Fill pers1, pers2, ... pers8 based on max occupancy
-      // Logic: pers{N} is price for N people.
       for (let i = 1; i <= room.maxOccupancy; i++) {
-        // Limit to 8 as per API spec, though standard hotels rarely exceed this
         if (i > 8) break;
         const obpPrice = calculateDirectPrice(room, season, i, settings);
         priceEntry[`pers${i}`] = obpPrice;
       }
 
-      // Construct item for this room-season combination
       payload.push({
         type_id: parseInt(room.tid),
         rate_id: parseInt(season.rid!),
@@ -207,17 +211,14 @@ export const updateHotresPrices = async (
 
   if (payload.length === 0) throw new Error("Brak danych do wysłania.");
 
-  // Prepare URL parameters
-  const params = new URLSearchParams({
+  const url = buildUrl('/api_updateprices', {
     user: USER,
     password: PASS,
     oid: oid
   });
 
-  const url = `${UPDATE_PRICES_URL}?${params.toString()}`;
-
   try {
-    const response = await fetchWithProxy(url, {
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -226,13 +227,11 @@ export const updateHotresPrices = async (
     });
 
     if (!response.ok) {
-      // 404 from Proxy often means target URL not found or Proxy error
-      throw new Error(`Błąd HTTP (Proxy/Hotres): ${response.status}`);
+      throw new Error(`Błąd HTTP: ${response.status} (Sprawdź konsolę)`);
     }
 
     const result = await response.json();
     
-    // Check Hotres specific error structure
     if (result.result !== 'success') {
        throw new Error(`Hotres API Error: ${JSON.stringify(result)}`);
     }
