@@ -29,13 +29,13 @@ const UPDATE_PRICES_URL = "https://panel.hotres.pl/api_updateprices";
 const USER = "admin@twojepokoje.com.pl";
 const PASS = "Admin123@@";
 
-// Using CodeTabs proxy which is often more reliable for simple JSON forwarding
-const PROXY_URL = "https://api.codetabs.com/v1/proxy?quest=";
+// Using corsproxy.io. Usage: https://corsproxy.io/?https://target...
+const PROXY_URL = "https://corsproxy.io/?";
 
 const fetchWithProxy = async (url: string, options?: RequestInit) => {
-  // CodeTabs requires the target URL to be appended. 
-  // Note: API keys passed in URL parameters are visible to the proxy owner.
-  const proxiedUrl = PROXY_URL + encodeURIComponent(url);
+  // corsproxy.io expects the target URL directly after the '?'
+  // We do NOT encodeURIComponent the whole URL because corsproxy handles it raw often better
+  const proxiedUrl = PROXY_URL + url;
   return fetch(proxiedUrl, options);
 };
 
@@ -216,9 +216,6 @@ export const updateHotresPrices = async (
   const url = `${UPDATE_PRICES_URL}?${params.toString()}`;
 
   try {
-    // For updateprices, we are sending POST data. CodeTabs supports this if we use fetch options.
-    // However, sending complex JSON via GET proxy is tricky.
-    // Let's try sending standard POST through the proxy.
     const response = await fetchWithProxy(url, {
       method: 'POST',
       headers: {
@@ -228,8 +225,7 @@ export const updateHotresPrices = async (
     });
 
     if (!response.ok) {
-      // If proxy fails with 404, it might mean the proxy service is down or doesn't allow POST.
-      // But usually CodeTabs allows it.
+      // 404 from Proxy often means target URL not found or Proxy error
       throw new Error(`Błąd HTTP (Proxy/Hotres): ${response.status}`);
     }
 
