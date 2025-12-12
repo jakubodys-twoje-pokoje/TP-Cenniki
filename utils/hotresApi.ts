@@ -217,6 +217,16 @@ export const updateHotresPrices = async (
     oid: oid
   });
 
+  // --- DEBUG LOGGING START ---
+  console.group("🔥 HOTRES UPDATE REQUEST DEBUG 🔥");
+  console.log("Full URL:", window.location.origin + url); // Shows local proxy URL
+  console.log("Method: POST");
+  console.log("Payload Size:", JSON.stringify(payload).length, "bytes");
+  console.log("Payload Preview (First Item):", payload[0]);
+  console.log("Payload Full:", JSON.stringify(payload));
+  console.groupEnd();
+  // --- DEBUG LOGGING END ---
+
   try {
     const response = await fetch(url, {
       method: 'POST',
@@ -227,10 +237,11 @@ export const updateHotresPrices = async (
     });
 
     if (!response.ok) {
-      throw new Error(`Błąd HTTP: ${response.status} (Sprawdź konsolę)`);
+      throw new Error(`Błąd HTTP: ${response.status} ${response.statusText} (Sprawdź zakładkę Network w DevTools)`);
     }
 
     const result = await response.json();
+    console.log("🔥 HOTRES RESPONSE:", result);
     
     if (result.result !== 'success') {
        throw new Error(`Hotres API Error: ${JSON.stringify(result)}`);
