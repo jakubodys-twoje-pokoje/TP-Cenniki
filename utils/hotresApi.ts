@@ -1,4 +1,5 @@
 
+
 import { RoomType, Season, GlobalSettings } from "../types";
 import { calculateDirectPrice } from "./pricingEngine";
 
@@ -28,16 +29,15 @@ const UPDATE_PRICES_URL = "https://panel.hotres.pl/api_updateprices";
 const USER = "admin@twojepokoje.com.pl";
 const PASS = "Admin123@@";
 
-// BEZPOŚREDNIE WYWOŁANIE - BEZ PROXY
-// Uwaga: To wywołanie najprawdopodobniej zostanie zablokowane przez CORS w przeglądarce,
-// chyba że użytkownik posiada wtyczkę 'Allow CORS' lub serwer Hotres na to zezwala.
-const fetchDirect = async (url: string, options?: RequestInit) => {
-  // Adding explicit mode: 'cors' is standard, but if server doesn't support it, it fails.
-  // We cannot use 'no-cors' for GET requests where we need the body.
-  return fetch(url, {
-    ...options,
-    mode: 'cors' 
-  });
+// PROXY CONFIGURATION
+// Using corsproxy.io as requested.
+const PROXY_URL = "https://corsproxy.io/?";
+
+const fetchWithProxy = async (url: string, options?: RequestInit) => {
+  // Encode the target URL component so that special characters (like ? & @) 
+  // are treated as part of the path by the proxy.
+  const proxiedUrl = PROXY_URL + encodeURIComponent(url);
+  return fetch(proxiedUrl, options);
 };
 
 // Helper to calculate percentage from dates array
@@ -61,7 +61,7 @@ export const fetchHotresOccupancy = async (
   const url = `${BASE_URL}?user=${encodeURIComponent(USER)}&password=${encodeURIComponent(PASS)}&oid=${oid}&type_id=${tid}&from=${startDate}&till=${endDate}`;
 
   try {
-    const response = await fetchDirect(url);
+    const response = await fetchWithProxy(url);
     if (!response.ok) throw new Error(`Błąd API: ${response.status}`);
 
     const data: HotresResponseItem[] = await response.json();
@@ -71,11 +71,8 @@ export const fetchHotresOccupancy = async (
     if (!roomData) throw new Error("Brak danych dla tego pokoju");
 
     return calculatePercentage(roomData.dates);
-  } catch (error: any) {
+  } catch (error) {
     console.error("Hotres Single Fetch Error:", error);
-    if (error.message && error.message.includes("Failed to fetch")) {
-        throw new Error("Błąd CORS (Zablokowane przez przeglądarkę). Zainstaluj wtyczkę 'Allow CORS' lub sprawdź konsolę.");
-    }
     throw error;
   }
 };
@@ -93,7 +90,7 @@ export const fetchSeasonOccupancyMap = async (
   const url = `${BASE_URL}?user=${encodeURIComponent(USER)}&password=${encodeURIComponent(PASS)}&oid=${oid}&from=${startDate}&till=${endDate}`;
 
   try {
-    const response = await fetchDirect(url);
+    const response = await fetchWithProxy(url);
     if (!response.ok) throw new Error(`Błąd API: ${response.status}`);
 
     const data: HotresResponseItem[] = await response.json();
@@ -122,7 +119,7 @@ export const fetchHotresRooms = async (oid: string): Promise<RoomType[]> => {
   const url = `${ROOMS_URL}?user=${encodeURIComponent(USER)}&password=${encodeURIComponent(PASS)}&oid=${oid}`;
 
   try {
-    const response = await fetchDirect(url);
+    const response = await fetchWithProxy(url);
     if (!response.ok) throw new Error(`Błąd API: ${response.status}`);
 
     const data: HotresRoomResponse[] = await response.json();
@@ -149,11 +146,8 @@ export const fetchHotresRooms = async (oid: string): Promise<RoomType[]> => {
       };
     });
 
-  } catch (error: any) {
+  } catch (error) {
     console.error("Hotres Rooms Fetch Error:", error);
-    if (error.message && error.message.includes("Failed to fetch")) {
-        throw new Error("Błąd CORS. Wymagana wtyczka 'Allow CORS' dla połączeń bezpośrednich.");
-    }
     throw error;
   }
 };
@@ -223,7 +217,7 @@ export const updateHotresPrices = async (
   const url = `${UPDATE_PRICES_URL}?${params.toString()}`;
 
   try {
-    const response = await fetchDirect(url, {
+    const response = await fetchWithProxy(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -232,7 +226,8 @@ export const updateHotresPrices = async (
     });
 
     if (!response.ok) {
-      throw new Error(`Błąd HTTP: ${response.status}`);
+      // 404 from Proxy often means target URL not found or Proxy error
+      throw new Error(`Błąd HTTP (Proxy/Hotres): ${response.status}`);
     }
 
     const result = await response.json();
@@ -242,11 +237,8 @@ export const updateHotresPrices = async (
        throw new Error(`Hotres API Error: ${JSON.stringify(result)}`);
     }
     
-  } catch (error: any) {
+  } catch (error) {
     console.error("Hotres Update Prices Error:", error);
-    if (error.message && error.message.includes("Failed to fetch")) {
-        throw new Error("Błąd CORS. Połączenie bezpośrednie zablokowane przez przeglądarkę.");
-    }
     throw error;
   }
 };
