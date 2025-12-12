@@ -223,7 +223,6 @@ export const updateHotresPrices = async (
   console.log("Method: POST");
   console.log("Payload Size:", JSON.stringify(payload).length, "bytes");
   console.log("Payload Preview (First Item):", payload[0]);
-  console.log("Payload Full:", JSON.stringify(payload));
   console.groupEnd();
   // --- DEBUG LOGGING END ---
 
@@ -237,7 +236,10 @@ export const updateHotresPrices = async (
     });
 
     if (!response.ok) {
-      throw new Error(`Błąd HTTP: ${response.status} ${response.statusText} (Sprawdź zakładkę Network w DevTools)`);
+      // Try to read the error body
+      const errorText = await response.text();
+      console.error("Hotres Error Body:", errorText);
+      throw new Error(`Błąd HTTP: ${response.status} ${response.statusText} - ${errorText.substring(0, 200)}`);
     }
 
     const result = await response.json();
