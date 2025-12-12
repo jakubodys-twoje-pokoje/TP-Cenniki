@@ -106,22 +106,37 @@ const App: React.FC = () => {
 
   // 0. Check Auth Session
   useEffect(() => {
+    // NUCLEAR OPTION: Safety timeout to prevent infinite "Inicjalizacja..." screen
+    // If initialization takes longer than 5 seconds, force disable loading.
+    const safetyTimer = setTimeout(() => {
+        setAuthLoading((current) => {
+            if (current) {
+                console.warn("Auth initialization timed out. Forcing UI load.");
+                return false;
+            }
+            return current;
+        });
+    }, 5000);
+
     const initSession = async () => {
       try {
+        console.log("Starting session init...");
         const { data: { session } } = await supabase.auth.getSession();
         setSession(session);
         
         if (session && session.user.email) {
-          // AWAIT permissions loading before removing the loading screen.
-          // This prevents the UI from momentarily (or permanently) flashing 'Client' role
-          // if the DB fetch fails or takes time, ensuring fallback logic completes first.
+          console.log("Session found, loading permissions...");
           const perms = await loadDynamicPermissions(session.user.email);
           await fetchProperties(session.user.email, perms);
+        } else {
+          console.log("No session found.");
         }
       } catch (error) {
         console.error("Session initialization error:", error);
       } finally {
+        console.log("Session init finished, disabling loader.");
         setAuthLoading(false);
+        clearTimeout(safetyTimer); // Clear safety timer if we finished normally
       }
     };
 
@@ -130,15 +145,22 @@ const App: React.FC = () => {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log(`Auth event: ${event}`);
       setSession(session);
       
       if (session && session.user.email) {
          // If signing in, show loading to ensure permissions are resolved before showing UI
          if (event === 'SIGNED_IN') {
              setAuthLoading(true);
-             const perms = await loadDynamicPermissions(session.user.email);
-             await fetchProperties(session.user.email, perms);
-             setAuthLoading(false);
+             // Wrap in try/finally to GUARANTEE authLoading is set to false eventually
+             try {
+                const perms = await loadDynamicPermissions(session.user.email);
+                await fetchProperties(session.user.email, perms);
+             } catch (e) {
+                console.error("Error during SIGNED_IN handling:", e);
+             } finally {
+                setAuthLoading(false);
+             }
          } else {
              // For token refresh etc, update in background
              loadDynamicPermissions(session.user.email).then((perms) => {
@@ -148,10 +170,16 @@ const App: React.FC = () => {
       } else {
          setProperties([]);
          setUserPermissions({ role: 'client', allowedPropertyIds: [] });
+         if (event === 'SIGNED_OUT') {
+            setAuthLoading(false);
+         }
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+       subscription.unsubscribe();
+       clearTimeout(safetyTimer);
+    };
   }, []);
 
   // Function to process loaded properties and update refs
@@ -761,8 +789,11 @@ const App: React.FC = () => {
 
   if (authLoading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-slate-900 text-white gap-2">
-        <Loader2 className="animate-spin" /> Inicjalizacja...
+      <div className="flex h-screen items-center justify-center bg-slate-900 text-white gap-2 flex-col">
+        <div className="flex items-center gap-2 text-xl">
+           <Loader2 className="animate-spin" /> Inicjalizacja...
+        </div>
+        <p className="text-sm text-slate-500 mt-2">Trwa łączenie z bazą danych</p>
       </div>
     );
   }
