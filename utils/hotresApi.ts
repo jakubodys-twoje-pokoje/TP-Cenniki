@@ -1,5 +1,4 @@
 
-
 import { RoomType, Season, GlobalSettings } from "../types";
 import { calculateDirectPrice } from "./pricingEngine";
 
@@ -26,19 +25,23 @@ interface HotresRoomResponse {
 const USER = "admin@twojepokoje.com.pl";
 const PASS = "Admin123@@";
 
-// Sprawdzamy czy jesteśmy w trybie deweloperskim (lokalnie)
-const IS_DEV = (import.meta as any).env.DEV;
+// Strict check for localhost.
+// import.meta.env.DEV can be unreliable depending on build tools/preview modes.
+const IS_LOCALHOST = 
+  typeof window !== 'undefined' && 
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
 // Funkcja budująca poprawny URL w zależności od środowiska
 const buildUrl = (endpoint: string, params: Record<string, string>) => {
   const queryString = new URLSearchParams(params).toString();
   
-  if (IS_DEV) {
+  if (IS_LOCALHOST) {
     // LOKALNIE: Używamy proxy zdefiniowanego w vite.config.ts
     // Zapytanie idzie do http://localhost:5173/api_hotres/... -> Vite przekazuje do https://panel.hotres.pl/...
     return `/api_hotres${endpoint}?${queryString}`;
   } else {
-    // PRODUKCJA: Używamy zewnętrznego proxy, aby ominąć CORS na serwerze docelowym
+    // PRODUKCJA: Używamy zewnętrznego proxy, aby ominąć CORS na serwerze docelowym.
+    // Zapytanie idzie bezpośrednio do panel.hotres.pl przez corsproxy.io
     const targetUrl = `https://panel.hotres.pl${endpoint}?${queryString}`;
     return `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
   }
@@ -232,7 +235,8 @@ export const updateHotresPrices = async (
 
   // --- DEBUG LOGGING START ---
   console.group("🔥 HOTRES UPDATE REQUEST DEBUG (CORRECTED) 🔥");
-  console.log("Full URL:", window.location.origin + url); 
+  console.log("Environment:", IS_LOCALHOST ? "LOCALHOST (Vite Proxy)" : "PRODUCTION (CORS Proxy)");
+  console.log("Full URL:", url); 
   console.log("Method: POST");
   console.log("Payload Size:", JSON.stringify(payload).length, "bytes");
   console.log("Payload Preview (First Item):", payload[0]);
