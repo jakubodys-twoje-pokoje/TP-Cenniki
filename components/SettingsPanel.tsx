@@ -70,6 +70,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
   // Export State
   const [isExporting, setIsExporting] = useState(false);
+  // Track specific season export
+  const [exportingSeasonId, setExportingSeasonId] = useState<string | null>(null);
 
   // Generic Handlers for Arrays
   const deleteItem = <T extends { id: string }>(
@@ -227,6 +229,36 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     }
   };
 
+  const handleExportSingleSeason = async (season: Season) => {
+    if (isReadOnly) return;
+    if (!propertyOid) {
+      alert("Błąd: Brak numeru OID obiektu w ustawieniach ogólnych.");
+      return;
+    }
+    if (!season.rid) {
+      alert("Błąd: Ten sezon nie ma wpisanego RID (Rate ID). Uzupełnij go przed wysyłką.");
+      return;
+    }
+
+    // Quick validation for rooms TIDs
+    const missingTid = rooms.some(r => !r.tid);
+    if (missingTid) {
+      if (!confirm("Uwaga: Niektóre pokoje nie mają TID i zostaną pominięte w eksporcie. Kontynuować?")) {
+        return;
+      }
+    }
+
+    setExportingSeasonId(season.id);
+    try {
+      // Send array with single season
+      await updateHotresPrices(propertyOid, rooms, [season], settings);
+      alert(`Sukces! Sezon "${season.name}" został zaktualizowany w Hotres.`);
+    } catch (error: any) {
+      alert("Błąd eksportu: " + error.message);
+    } finally {
+      setExportingSeasonId(null);
+    }
+  };
 
   // Sort Handlers
   const handleDragStart = (index: number, listType: string) => {
@@ -547,7 +579,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     className="flex items-center gap-1 text-sm bg-orange-600 text-white px-3 py-1.5 rounded hover:bg-orange-700 disabled:opacity-70 disabled:cursor-not-allowed shadow-sm"
                    >
                      {isExporting ? <Loader2 size={16} className="animate-spin" /> : <CloudUpload size={16} />}
-                     Wyślij do Hotres
+                     Wyślij do Hotres (Wszystkie)
                    </button>
                    <div className="h-8 w-px bg-slate-200 mx-1"></div>
                   <button onClick={() => setShowSeasonDupModal(true)} className="flex items-center gap-1 text-sm bg-indigo-50 text-indigo-600 border border-indigo-200 px-3 py-1.5 rounded hover:bg-indigo-100">
@@ -571,7 +603,22 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 {!isReadOnly && (
                   <>
                     <div className="absolute top-2 left-2 cursor-grab active:cursor-grabbing text-slate-400"><GripVertical size={16}/></div>
-                    <button onClick={() => deleteItem(season.id, seasons, setSeasons)} className="absolute top-2 right-2 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><X size={16}/></button>
+                    <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button 
+                        onClick={() => handleExportSingleSeason(season)}
+                        disabled={exportingSeasonId === season.id}
+                        className="p-1 text-slate-400 hover:text-orange-600 hover:bg-orange-50 rounded transition-colors"
+                        title="Wyślij tylko ten sezon do Hotres"
+                      >
+                         {exportingSeasonId === season.id ? <Loader2 size={16} className="animate-spin text-orange-600"/> : <CloudUpload size={16}/>}
+                      </button>
+                      <button 
+                        onClick={() => deleteItem(season.id, seasons, setSeasons)} 
+                        className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                      >
+                        <X size={16}/>
+                      </button>
+                    </div>
                   </>
                 )}
                 <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-4 ${!isReadOnly ? 'pl-6' : ''}`}>
