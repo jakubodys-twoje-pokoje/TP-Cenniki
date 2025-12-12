@@ -109,14 +109,13 @@ const App: React.FC = () => {
   };
 
   // ---------------------------------------------------------------------------
-  // AUTHENTICATION LOGIC (SIMPLIFIED)
+  // AUTHENTICATION LOGIC
   // ---------------------------------------------------------------------------
 
   const loadUserData = async (currentSession: any) => {
     if (!currentSession?.user?.email) return;
+    
     try {
-      // Don't set isLoading(true) here because authLoading handles the main screen
-      // If we call this later (refresh), we might want to set isLoading(true)
       const perms = await loadDynamicPermissions(currentSession.user.email);
       await fetchProperties(currentSession.user.email, perms);
     } catch (e) {
@@ -130,22 +129,29 @@ const App: React.FC = () => {
     const initializeAuth = async () => {
       try {
         console.log("Initializing Auth...");
+        // 1. Get Session
         const { data: { session: initialSession }, error } = await supabase.auth.getSession();
         
         if (error) throw error;
 
         if (mounted) {
            if (initialSession) {
-             console.log("Session found (init), loading data...");
+             console.log("Session found (init).");
              setSession(initialSession);
+             
+             // CRITICAL: Unlock the Auth Screen IMMEDIATELY.
+             // Do NOT wait for data to load. The `isLoading` state will handle the data loading screen.
+             setAuthLoading(false);
+             
+             // Now fetch data in background (or showing loading spinner via isLoading)
              await loadUserData(initialSession);
            } else {
              console.log("No session found (init).");
+             setAuthLoading(false);
            }
         }
       } catch (err) {
         console.error("Auth init error:", err);
-      } finally {
         if (mounted) setAuthLoading(false);
       }
     };
@@ -156,23 +162,20 @@ const App: React.FC = () => {
       if (!mounted) return;
       console.log(`Auth Event: ${event}`);
 
+      setSession(currentSession);
+
       if (event === 'SIGNED_IN') {
-        // Explicit sign in: Show loading, load data, hide loading
-        setSession(currentSession);
-        setAuthLoading(true);
-        await loadUserData(currentSession);
+        // Explicit sign in (e.g. from Login form)
+        // Ensure auth loading is off
         setAuthLoading(false);
+        // Load data if not already loaded
+        loadUserData(currentSession);
       } else if (event === 'SIGNED_OUT') {
-        setSession(null);
         setProperties([]);
         setUserPermissions({ role: 'client', allowedPropertyIds: [] });
         setAuthLoading(false);
       } else if (event === 'TOKEN_REFRESHED') {
-        setSession(currentSession);
-        // Do not reload data on token refresh to avoid flicker
-      } else if (event === 'INITIAL_SESSION') {
-         // Should be covered by getSession, but strictly setting session is safe
-         if (currentSession) setSession(currentSession);
+         // Token refreshed, session updated automatically by setSession above
       }
     });
 
@@ -195,9 +198,6 @@ const App: React.FC = () => {
     setIsLoading(true);
     setSyncStatus('idle');
     setLoadError(null);
-    
-    // Resolve email: Argument > Session State > Undefined
-    // const emailToUse = currentUserEmail || session?.user?.email; // Not strictly used in query but good for context
     
     const perms = overridePerms || userPermissions;
 
@@ -234,9 +234,6 @@ const App: React.FC = () => {
         
         // Safety check to ensure we have an active property ID
         if (loadedProps.length > 0) {
-            // Check if current activePropertyId exists in the loaded list
-            // If activePropertyId is "default" (initial state), switch to first loaded.
-            // If activePropertyId is set to something else but that ID is not in loadedProps (e.g. lost permission), switch.
             const exists = loadedProps.find(p => p.id === activePropertyId);
             if (!exists || activePropertyId === "default") {
                 setActivePropertyId(loadedProps[0].id);

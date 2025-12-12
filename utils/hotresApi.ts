@@ -213,7 +213,7 @@ export const updateHotresPrices = async (
         payloadMap.set(key, {
           type_id: parseInt(room.tid),
           rate_id: parseInt(season.rid!),
-          mode: "clear", // Changed from 'delta' to 'clear' to match correct request format
+          mode: "delta", // Changed back to delta
           prices: []
         });
       }
