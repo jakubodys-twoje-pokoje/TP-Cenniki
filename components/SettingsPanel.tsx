@@ -2,7 +2,8 @@
 
 import React, { useState } from "react";
 import { Channel, ChannelDiscountProfile, ChannelDiscountLabels, GlobalSettings, Property, RoomType, Season, SettingsTab } from "../types";
-import { Plus, Trash2, X, Copy, GripVertical, ArrowRightLeft, Check, AlertCircle, Lock, ToggleLeft, ToggleRight, Layers } from "lucide-react";
+import { Plus, Trash2, X, Copy, GripVertical, ArrowRightLeft, Check, AlertCircle, Lock, ToggleLeft, ToggleRight, Layers, CloudUpload, Loader2 } from "lucide-react";
+import { updateHotresPrices } from "../utils/hotresApi";
 
 interface SettingsPanelProps {
   propertyName: string;
@@ -66,6 +67,9 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   // Duplicate ALL Channels Modal State
   const [showAllChannelsDupModal, setShowAllChannelsDupModal] = useState(false);
   const [targetAllChannelsPropId, setTargetAllChannelsPropId] = useState<string>("");
+
+  // Export State
+  const [isExporting, setIsExporting] = useState(false);
 
   // Generic Handlers for Arrays
   const deleteItem = <T extends { id: string }>(
@@ -194,6 +198,35 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       setTargetAllChannelsPropId("");
     }
   };
+
+  const handleExportToHotres = async () => {
+    if (isReadOnly) return;
+    if (!propertyOid) {
+      alert("Błąd: Brak numeru OID obiektu w ustawieniach ogólnych.");
+      return;
+    }
+    
+    // Quick validation
+    const missingTid = rooms.some(r => !r.tid);
+    const missingRid = seasons.some(s => !s.rid);
+
+    if (missingTid || missingRid) {
+      if (!confirm("Uwaga: Niektóre pokoje nie mają TID lub sezony nie mają RID. Zostaną one pominięte w eksporcie. Kontynuować?")) {
+        return;
+      }
+    }
+
+    setIsExporting(true);
+    try {
+      await updateHotresPrices(propertyOid, rooms, seasons, settings);
+      alert("Sukces! Cenniki zostały wysłane do Hotres.");
+    } catch (error: any) {
+      alert("Błąd eksportu: " + error.message);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
 
   // Sort Handlers
   const handleDragStart = (index: number, listType: string) => {
@@ -508,6 +541,15 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                <h3 className="text-lg font-medium">Reguły Sezonowe</h3>
                {!isReadOnly && (
                 <div className="flex gap-2">
+                   <button 
+                    onClick={handleExportToHotres}
+                    disabled={isExporting}
+                    className="flex items-center gap-1 text-sm bg-orange-600 text-white px-3 py-1.5 rounded hover:bg-orange-700 disabled:opacity-70 disabled:cursor-not-allowed shadow-sm"
+                   >
+                     {isExporting ? <Loader2 size={16} className="animate-spin" /> : <CloudUpload size={16} />}
+                     Wyślij do Hotres
+                   </button>
+                   <div className="h-8 w-px bg-slate-200 mx-1"></div>
                   <button onClick={() => setShowSeasonDupModal(true)} className="flex items-center gap-1 text-sm bg-indigo-50 text-indigo-600 border border-indigo-200 px-3 py-1.5 rounded hover:bg-indigo-100">
                     <ArrowRightLeft size={16}/> Duplikuj Sezony
                   </button>

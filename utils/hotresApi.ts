@@ -1,5 +1,7 @@
 
-import { RoomType } from "../types";
+
+import { RoomType, Season, GlobalSettings } from "../types";
+import { calculateDirectPrice } from "./pricingEngine";
 
 interface HotresDay {
   date: string;
@@ -23,6 +25,7 @@ interface HotresRoomResponse {
 
 const BASE_URL = "https://panel.hotres.pl/api_availability";
 const ROOMS_URL = "https://panel.hotres.pl/api_rooms";
+const UPDATE_PRICES_URL = "https://panel.hotres.pl/api_updateprices";
 const USER = "admin@twojepokoje.com.pl";
 const PASS = "Admin123@@";
 
@@ -134,6 +137,94 @@ export const fetchHotresRooms = async (oid: string): Promise<RoomType[]> => {
 
   } catch (error) {
     console.error("Hotres Rooms Fetch Error:", error);
+    throw error;
+  }
+};
+
+export const updateHotresPrices = async (
+  oid: string,
+  rooms: RoomType[],
+  seasons: Season[],
+  settings: GlobalSettings
+): Promise<void> => {
+  if (!oid) throw new Error("Brak OID obiektu.");
+
+  // Build Payload
+  const payload: any[] = [];
+
+  // Filter only rooms that have TID and seasons that have RID
+  const validRooms = rooms.filter(r => r.tid && r.tid.trim() !== "");
+  const validSeasons = seasons.filter(s => s.rid && s.rid.trim() !== "");
+
+  if (validRooms.length === 0) throw new Error("Brak pokoi ze zdefiniowanym TID (Hotres Type ID).");
+  if (validSeasons.length === 0) throw new Error("Brak sezonów ze zdefiniowanym RID (Hotres Rate ID).");
+
+  validRooms.forEach(room => {
+    validSeasons.forEach(season => {
+      // Base price is usually calculated for MAX occupancy
+      const basePrice = calculateDirectPrice(room, season, room.maxOccupancy, settings);
+
+      // Create price period entry
+      const priceEntry: any = {
+        from: season.startDate,
+        till: season.endDate,
+        baseprice: basePrice,
+        min: season.minNights || 1,
+        // Default flags (ignored but good practice if needed later)
+        cta: 0,
+        ctd: 0
+      };
+
+      // Fill pers1, pers2, ... pers8 based on max occupancy
+      // Logic: pers{N} is price for N people.
+      for (let i = 1; i <= room.maxOccupancy; i++) {
+        // Limit to 8 as per API spec, though standard hotels rarely exceed this
+        if (i > 8) break;
+        const obpPrice = calculateDirectPrice(room, season, i, settings);
+        priceEntry[`pers${i}`] = obpPrice;
+      }
+
+      // Construct item for this room-season combination
+      payload.push({
+        type_id: parseInt(room.tid),
+        rate_id: parseInt(season.rid!),
+        mode: "delta",
+        prices: [priceEntry]
+      });
+    });
+  });
+
+  if (payload.length === 0) throw new Error("Brak danych do wysłania.");
+
+  // Prepare URL parameters
+  const params = new URLSearchParams({
+    user: USER,
+    password: PASS,
+    oid: oid
+  });
+
+  const url = `${UPDATE_PRICES_URL}?${params.toString()}`;
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      throw new Error(`Błąd HTTP: ${response.status}`);
+    }
+
+    const result = await response.json();
+    if (result.result !== 'success') {
+       throw new Error(`Hotres API Error: ${JSON.stringify(result)}`);
+    }
+    
+  } catch (error) {
+    console.error("Hotres Update Prices Error:", error);
     throw error;
   }
 };
