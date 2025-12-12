@@ -30,12 +30,12 @@ const USER = "admin@twojepokoje.com.pl";
 const PASS = "Admin123@@";
 
 // PROXY CONFIGURATION
-// Using corsproxy.io as requested.
+// Używamy corsproxy.io jako najprostszego rozwiązania działającego w Twoich innych aplikacjach.
 const PROXY_URL = "https://corsproxy.io/?";
 
 const fetchWithProxy = async (url: string, options?: RequestInit) => {
-  // Encode the target URL component so that special characters (like ? & @) 
-  // are treated as part of the path by the proxy.
+  // Encodujemy URL docelowy, aby parametry (np. ?user=...) nie "uciekły" do proxy,
+  // lecz zostały przekazane do docelowego serwera.
   const proxiedUrl = PROXY_URL + encodeURIComponent(url);
   return fetch(proxiedUrl, options);
 };
