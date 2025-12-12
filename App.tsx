@@ -46,7 +46,7 @@ const App: React.FC = () => {
 
   // Sync Status State
   const [syncStatus, setSyncStatus] = useState<'idle' | 'synced' | 'saving' | 'error' | 'offline'>('idle');
-  const [isLoading, setIsLoading] = useState(false); // Changed default to false, controlled by auth
+  const [isLoading, setIsLoading] = useState(false); 
   const [loadError, setLoadError] = useState<string | null>(null);
 
   // Property Data
@@ -56,7 +56,7 @@ const App: React.FC = () => {
   // Track expanded sidebar items
   const [expandedProperties, setExpandedProperties] = useState<Set<string>>(new Set(["default"]));
 
-  // Occupancy State (No longer auto-refreshing)
+  // Occupancy State
   const [isOccupancyRefreshing, setIsOccupancyRefreshing] = useState(false);
 
   // Drag and Drop State for Sidebar
@@ -71,27 +71,20 @@ const App: React.FC = () => {
   // Ref for clearing success message
   const statusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Ref to track if onAuthStateChange event has been handled to prevent race conditions with initSession
-  const authEventHandled = useRef(false);
-
   // Function to load dynamic permissions from DB
   const loadDynamicPermissions = async (email: string) => {
     // 1. PRIORITY: Check Static Config (Hardcoded Admins)
-    // This guarantees access for the owner even if the DB is unreachable.
     const staticPerms = getUserPermissions(email);
     
-    // If static config grants Admin/Super Admin rights, use them immediately.
-    // We treat the static file as the "Master Key" for these users.
     if (staticPerms.role === 'super_admin' || staticPerms.role === 'admin') {
         console.log(`Found static permissions for ${email}: ${staticPerms.role}. Skipping DB fetch.`);
         setUserPermissions(staticPerms);
         return staticPerms;
     }
 
-    // 2. If not found in static config (or just a basic client), check DB for dynamic roles
+    // 2. Check DB for dynamic roles
     try {
-      console.log(`Checking DB permissions for ${email}...`);
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('user_roles')
         .select('*')
         .eq('email', email)
@@ -99,7 +92,6 @@ const App: React.FC = () => {
         
       if (data) {
         console.log(`Loaded DB permissions for ${email}:`, data.role);
-        // If user exists in DB, use those permissions
         const dbPerms: UserPermissions = {
           role: data.role,
           allowedPropertyIds: data.allowed_property_ids || []
@@ -111,101 +103,85 @@ const App: React.FC = () => {
       console.warn("Could not fetch dynamic permissions from DB (network error or not found). Using default.", e);
     }
     
-    // 3. Final Fallback: Use whatever getUserPermissions returned (likely default Client)
-    console.log(`Falling back to default permissions for: ${email}`);
+    // 3. Fallback
     setUserPermissions(staticPerms);
     return staticPerms;
   };
 
-  // 0. Check Auth Session
-  useEffect(() => {
-    // NUCLEAR OPTION: Safety timeout to prevent infinite "Inicjalizacja..." screen
-    // If initialization takes longer than 5 seconds, force disable loading.
-    const safetyTimer = setTimeout(() => {
-        setAuthLoading((current) => {
-            if (current) {
-                console.warn("Auth initialization timed out. Forcing UI load.");
-                // Only force false if we haven't already handled an auth event
-                if (!authEventHandled.current) {
-                    return false;
-                }
-            }
-            return current;
-        });
-    }, 5000);
+  // ---------------------------------------------------------------------------
+  // AUTHENTICATION LOGIC (SIMPLIFIED)
+  // ---------------------------------------------------------------------------
 
-    const initSession = async () => {
+  const loadUserData = async (currentSession: any) => {
+    if (!currentSession?.user?.email) return;
+    try {
+      // Don't set isLoading(true) here because authLoading handles the main screen
+      // If we call this later (refresh), we might want to set isLoading(true)
+      const perms = await loadDynamicPermissions(currentSession.user.email);
+      await fetchProperties(currentSession.user.email, perms);
+    } catch (e) {
+      console.error("Error loading user data:", e);
+    }
+  };
+
+  useEffect(() => {
+    let mounted = true;
+
+    const initializeAuth = async () => {
       try {
-        console.log("Starting session init...");
+        console.log("Initializing Auth...");
         const { data: { session: initialSession }, error } = await supabase.auth.getSession();
         
         if (error) throw error;
-        
-        // Critical: Only update state if onAuthStateChange hasn't already fired/taken over.
-        if (!authEventHandled.current) {
-            setSession(initialSession);
-            
-            if (initialSession && initialSession.user.email) {
-              console.log("Session found via getSession, loading permissions...");
-              const perms = await loadDynamicPermissions(initialSession.user.email);
-              await fetchProperties(initialSession.user.email, perms);
-            } else {
-              console.log("No session found via getSession.");
-            }
-        } else {
-             console.log("Auth event already handled, ignoring getSession result.");
-        }
 
-      } catch (error) {
-        console.error("Session initialization error:", error);
-      } finally {
-        console.log("Session init finished.");
-        // Only turn off loading if onAuthStateChange hasn't already handled it
-        if (!authEventHandled.current) {
-            setAuthLoading(false);
+        if (mounted) {
+           if (initialSession) {
+             console.log("Session found (init), loading data...");
+             setSession(initialSession);
+             await loadUserData(initialSession);
+           } else {
+             console.log("No session found (init).");
+           }
         }
-        clearTimeout(safetyTimer); // Clear safety timer if we finished normally
+      } catch (err) {
+        console.error("Auth init error:", err);
+      } finally {
+        if (mounted) setAuthLoading(false);
       }
     };
 
-    initSession();
+    initializeAuth();
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log(`Auth event: ${event}`);
-      authEventHandled.current = true; // Mark event as handled to prevent initSession race condition
-      
-      setSession(session);
-      
-      if (session && session.user.email) {
-         // If signing in (or token refreshed etc), reload data
-         if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
-             // For SIGNED_IN specifically, we want to ensure loading state shows until ready
-             if (event === 'SIGNED_IN') setAuthLoading(true);
-             
-             try {
-                const perms = await loadDynamicPermissions(session.user.email);
-                await fetchProperties(session.user.email, perms);
-             } catch (e) {
-                console.error("Error loading data during auth event:", e);
-             } finally {
-                setAuthLoading(false);
-             }
-         }
-      } else {
-         // Signed out or no session
-         setProperties([]);
-         setUserPermissions({ role: 'client', allowedPropertyIds: [] });
-         setAuthLoading(false);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
+      if (!mounted) return;
+      console.log(`Auth Event: ${event}`);
+
+      if (event === 'SIGNED_IN') {
+        // Explicit sign in: Show loading, load data, hide loading
+        setSession(currentSession);
+        setAuthLoading(true);
+        await loadUserData(currentSession);
+        setAuthLoading(false);
+      } else if (event === 'SIGNED_OUT') {
+        setSession(null);
+        setProperties([]);
+        setUserPermissions({ role: 'client', allowedPropertyIds: [] });
+        setAuthLoading(false);
+      } else if (event === 'TOKEN_REFRESHED') {
+        setSession(currentSession);
+        // Do not reload data on token refresh to avoid flicker
+      } else if (event === 'INITIAL_SESSION') {
+         // Should be covered by getSession, but strictly setting session is safe
+         if (currentSession) setSession(currentSession);
       }
     });
 
     return () => {
-       subscription.unsubscribe();
-       clearTimeout(safetyTimer);
+      mounted = false;
+      subscription.unsubscribe();
     };
   }, []);
+
 
   // Function to process loaded properties and update refs
   const processLoadedProperties = (props: Property[]) => {
@@ -221,9 +197,8 @@ const App: React.FC = () => {
     setLoadError(null);
     
     // Resolve email: Argument > Session State > Undefined
-    const emailToUse = currentUserEmail || session?.user?.email;
+    // const emailToUse = currentUserEmail || session?.user?.email; // Not strictly used in query but good for context
     
-    // Use override perms if provided (to avoid async race condition with state)
     const perms = overridePerms || userPermissions;
 
     try {
@@ -245,7 +220,7 @@ const App: React.FC = () => {
            loadedProps = loadedProps.filter(p => allowedIds.includes(p.id));
         }
 
-        // Apply Custom Sorting (sortOrder) - Critical for persistence
+        // Apply Custom Sorting (sortOrder)
         loadedProps.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
 
         // Apply Room Sorting within properties
@@ -260,8 +235,10 @@ const App: React.FC = () => {
         // Safety check to ensure we have an active property ID
         if (loadedProps.length > 0) {
             // Check if current activePropertyId exists in the loaded list
+            // If activePropertyId is "default" (initial state), switch to first loaded.
+            // If activePropertyId is set to something else but that ID is not in loadedProps (e.g. lost permission), switch.
             const exists = loadedProps.find(p => p.id === activePropertyId);
-            if (!exists) {
+            if (!exists || activePropertyId === "default") {
                 setActivePropertyId(loadedProps[0].id);
             }
         }
@@ -707,7 +684,9 @@ const App: React.FC = () => {
   };
   
   const handleManualSync = () => {
-      fetchProperties(session?.user?.email);
+      if (session?.user?.email) {
+          fetchProperties(session.user.email);
+      }
   };
 
   const handleLogout = async () => {
@@ -821,9 +800,9 @@ const App: React.FC = () => {
     return (
       <div className="flex h-screen items-center justify-center bg-slate-900 text-white gap-2 flex-col">
         <div className="flex items-center gap-2 text-xl">
-           <Loader2 className="animate-spin" /> Inicjalizacja...
+           <Loader2 className="animate-spin" /> Wczytywanie...
         </div>
-        <p className="text-sm text-slate-500 mt-2">Trwa łączenie z bazą danych</p>
+        <p className="text-sm text-slate-500 mt-2">Pobieranie danych użytkownika</p>
       </div>
     );
   }
