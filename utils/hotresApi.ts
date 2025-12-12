@@ -196,7 +196,8 @@ export const updateHotresPrices = async (
         baseprice: basePrice,
         min: season.minNights || 1,
         cta: 0,
-        ctd: 0
+        ctd: 0,
+        child: 0 // Explicitly set child price to 0
       };
 
       for (let i = 1; i <= room.maxOccupancy; i++) {
