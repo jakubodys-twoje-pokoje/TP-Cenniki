@@ -1,4 +1,5 @@
 
+
 export type SettingsTab = "global" | "rooms" | "seasons" | "channels";
 
 export type UserRole = 'super_admin' | 'admin' | 'client';
@@ -8,6 +9,13 @@ export interface UserPermissions {
   // If role is 'client', they can only see these property IDs.
   // If undefined/empty for client, they see nothing (or a demo).
   allowedPropertyIds?: string[]; 
+}
+
+// Interface matching the Supabase 'user_roles' table
+export interface DbUserRole {
+  email: string;
+  role: UserRole;
+  allowed_property_ids: string[];
 }
 
 export interface ChannelDiscountProfile {

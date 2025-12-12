@@ -1,16 +1,18 @@
+
 import React, { useState, useEffect, useRef } from "react";
-import { LayoutDashboard, Settings as SettingsIcon, Menu, BedDouble, Calendar, Share2, Cog, ChevronDown, ChevronRight, Building, Plus, Trash2, Bed, CheckCircle2, Copy, Cloud, CloudOff, Loader2, RefreshCw, LogOut, Download, X, Lock } from "lucide-react";
+import { LayoutDashboard, Settings as SettingsIcon, Menu, BedDouble, Calendar, Share2, Cog, ChevronDown, ChevronRight, Building, Plus, Trash2, Bed, CheckCircle2, Copy, Cloud, CloudOff, Loader2, RefreshCw, LogOut, Download, X, Lock, Users } from "lucide-react";
 import SettingsPanel from "./components/SettingsPanel";
 import Dashboard from "./components/Dashboard";
 import ClientDashboard from "./components/ClientDashboard";
 import LoginScreen from "./components/LoginScreen";
+import UserManagementPanel from "./components/UserManagementPanel";
 import {
   INITIAL_CHANNELS,
   INITIAL_ROOMS,
   INITIAL_SEASONS,
   INITIAL_SETTINGS,
 } from "./constants";
-import { Channel, Property, RoomType, SettingsTab, UserPermissions } from "./types";
+import { Channel, Property, RoomType, SettingsTab, UserPermissions, DbUserRole } from "./types";
 import { supabase } from "./utils/supabaseClient";
 import { fetchSeasonOccupancyMap, fetchHotresRooms } from "./utils/hotresApi";
 import { getUserPermissions } from "./utils/userConfig";
@@ -39,6 +41,9 @@ const App: React.FC = () => {
   const [importOid, setImportOid] = useState("");
   const [isImporting, setIsImporting] = useState(false);
 
+  // User Management Modal State
+  const [showUserPanel, setShowUserPanel] = useState(false);
+
   // Sync Status State
   const [syncStatus, setSyncStatus] = useState<'idle' | 'synced' | 'saving' | 'error' | 'offline'>('idle');
   const [isLoading, setIsLoading] = useState(false); // Changed default to false, controlled by auth
@@ -66,14 +71,42 @@ const App: React.FC = () => {
   // Ref for clearing success message
   const statusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Function to load dynamic permissions from DB
+  const loadDynamicPermissions = async (email: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('user_roles')
+        .select('*')
+        .eq('email', email)
+        .single();
+        
+      if (data) {
+        // If user exists in DB, use those permissions
+        setUserPermissions({
+          role: data.role,
+          allowedPropertyIds: data.allowed_property_ids || []
+        });
+        return { role: data.role, allowedPropertyIds: data.allowed_property_ids || [] };
+      }
+    } catch (e) {
+      console.warn("Could not fetch dynamic permissions, falling back to config file.", e);
+    }
+    
+    // Fallback to static config
+    const staticPerms = getUserPermissions(email);
+    setUserPermissions(staticPerms);
+    return staticPerms;
+  };
+
   // 0. Check Auth Session
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session) {
-        setUserPermissions(getUserPermissions(session.user.email));
-        // Pass email directly to avoid stale state
-        fetchProperties(session.user.email);
+        // Fetch permissions FIRST, then properties
+        loadDynamicPermissions(session.user.email!).then((perms) => {
+           fetchProperties(session.user.email, perms);
+        });
       }
       setAuthLoading(false);
     });
@@ -83,9 +116,9 @@ const App: React.FC = () => {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session) {
-         setUserPermissions(getUserPermissions(session.user.email));
-         // Pass email directly
-         fetchProperties(session.user.email);
+         loadDynamicPermissions(session.user.email!).then((perms) => {
+            fetchProperties(session.user.email, perms);
+         });
       } else {
          setProperties([]);
       }
@@ -102,13 +135,16 @@ const App: React.FC = () => {
     setProperties(props);
   };
 
-  const fetchProperties = async (currentUserEmail?: string) => {
+  const fetchProperties = async (currentUserEmail?: string, overridePerms?: UserPermissions) => {
     setIsLoading(true);
     setSyncStatus('idle');
     setLoadError(null);
     
     // Resolve email: Argument > Session State > Undefined
     const emailToUse = currentUserEmail || session?.user?.email;
+    
+    // Use override perms if provided (to avoid async race condition with state)
+    const perms = overridePerms || userPermissions;
 
     try {
       const { data, error } = await supabase
@@ -124,7 +160,6 @@ const App: React.FC = () => {
         }));
 
         // FILTER PROPERTIES BASED ON ROLE
-        const perms = getUserPermissions(emailToUse);
         if (perms.role === 'client') {
            const allowedIds = perms.allowedPropertyIds || [];
            loadedProps = loadedProps.filter(p => allowedIds.includes(p.id));
@@ -147,8 +182,6 @@ const App: React.FC = () => {
         }
       } else {
         // Only create default if Super Admin
-        const perms = getUserPermissions(emailToUse);
-        
         if (perms.role === 'super_admin') {
            const defaultProp: Property = {
              id: "default",
@@ -193,14 +226,13 @@ const App: React.FC = () => {
         (payload) => {
           // If read-only user (Admin/Client), just consume updates
           // Super Admin also consumes to stay synced
-          const perms = getUserPermissions(session.user.email);
           
           if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
             const newContent = payload.new.content as Property;
             const newId = payload.new.id;
             
             // Client Filter Check
-            if (perms.role === 'client' && !perms.allowedPropertyIds?.includes(newId)) {
+            if (userPermissions.role === 'client' && !userPermissions.allowedPropertyIds?.includes(newId)) {
                return; // Ignore update for property not allowed
             }
 
@@ -233,7 +265,7 @@ const App: React.FC = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [session]);
+  }, [session, userPermissions]);
 
   // 2. Save Changes
   useEffect(() => {
@@ -735,15 +767,24 @@ const App: React.FC = () => {
     );
   }
 
-  if (isLoading && !activeProperty) {
+  if (isLoading && !activeProperty && properties.length === 0) {
     return (
       <div className="flex h-screen items-center justify-center bg-slate-50 text-slate-500 gap-2">
         <Loader2 className="animate-spin" /> Pobieranie danych...
       </div>
     );
   }
-
-  if (!activeProperty) return <div className="p-8 text-center text-slate-500">Brak dostępnych obiektów. Skontaktuj się z administratorem.</div>;
+  
+  // Handling case where permissions allow 0 properties
+  if (!activeProperty && properties.length === 0 && !authLoading) {
+      return (
+        <div className="flex h-screen items-center justify-center bg-slate-50 text-slate-500 flex-col gap-4">
+            <Building className="opacity-20" size={64}/>
+            <p>Brak dostępnych obiektów. Skontaktuj się z administratorem.</p>
+            <button onClick={handleLogout} className="text-blue-600 underline">Wyloguj</button>
+        </div>
+      );
+  }
 
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden">
@@ -845,6 +886,17 @@ const App: React.FC = () => {
               </div>
             )}
           </div>
+          
+          {/* User Management Button (Super Admin Only) */}
+          {userPermissions.role === 'super_admin' && (
+              <button
+                onClick={() => setShowUserPanel(true)}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors flex-shrink-0 text-slate-400 hover:bg-slate-800 hover:text-white mt-2"
+              >
+                <Users size={20} />
+                <span className="font-medium">Użytkownicy</span>
+              </button>
+          )}
 
           {/* Properties Section */}
           <div className="mt-6 flex-shrink-0">
@@ -975,7 +1027,7 @@ const App: React.FC = () => {
           </button>
           
           <div className="text-xs text-slate-500">
-            <p>Wersja 1.4.5</p>
+            <p>Wersja 1.5.0</p>
             <p className="mt-1">© 2025 Twoje Pokoje & Strony Jakubowe</p>
           </div>
         </div>
@@ -985,7 +1037,7 @@ const App: React.FC = () => {
       <main className="flex-1 flex flex-col min-w-0 h-screen">
         {/* Mobile Header */}
         <header className="md:hidden bg-white border-b border-slate-200 p-4 flex items-center justify-between z-10 print:hidden">
-          <span className="font-bold text-slate-800">{activeProperty.name}</span>
+          <span className="font-bold text-slate-800">{activeProperty?.name || "Panel"}</span>
           <button onClick={() => setIsSidebarOpen(true)} className="text-slate-600">
             <Menu size={24} />
           </button>
@@ -994,15 +1046,18 @@ const App: React.FC = () => {
         {/* Content Area */}
         <div className="flex-1 overflow-hidden p-4 md:p-8 print:p-0 print:overflow-visible">
           {isClientRole ? (
-             <ClientDashboard 
-               rooms={activeProperty.rooms}
-               seasons={activeProperty.seasons}
-               channels={activeProperty.channels}
-               settings={activeProperty.settings}
-             />
+             activeProperty ? (
+               <ClientDashboard 
+                 rooms={activeProperty.rooms}
+                 seasons={activeProperty.seasons}
+                 channels={activeProperty.channels}
+                 settings={activeProperty.settings}
+               />
+             ) : <div className="p-4 text-center text-slate-500">Wybierz obiekt z menu.</div>
           ) : (
             <>
               {activeTab === "dashboard" ? (
+                activeProperty ? (
                 <Dashboard 
                   key={activeProperty.id} 
                   rooms={activeProperty.rooms} 
@@ -1019,7 +1074,9 @@ const App: React.FC = () => {
                   onSyncAllOccupancy={() => syncPropertyOccupancy(activePropertyId)}
                   isReadOnly={isReadOnly}
                 />
+                ) : <div className="p-4 text-center text-slate-500">Wczytywanie...</div>
               ) : (
+                activeProperty && (
                 <SettingsPanel 
                   key={activeProperty.id}
                   propertyName={activeProperty.name}
@@ -1044,11 +1101,20 @@ const App: React.FC = () => {
                   onDuplicateAllChannels={handleDuplicateAllChannelsToProperty}
                   isReadOnly={isReadOnly}
                 />
+                )
               )}
             </>
           )}
         </div>
       </main>
+
+      {/* User Management Modal */}
+      {showUserPanel && (
+         <UserManagementPanel 
+            properties={properties}
+            onClose={() => setShowUserPanel(false)}
+         />
+      )}
 
       {/* Add Property Modal */}
       {showAddPropertyModal && !isReadOnly && (

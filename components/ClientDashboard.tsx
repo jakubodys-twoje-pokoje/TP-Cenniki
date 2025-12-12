@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { RoomType, Season, Channel, GlobalSettings } from '../types';
 import { calculateDirectPrice, calculateChannelPrice } from '../utils/pricingEngine';
-import { Printer, Calendar, Users, Eye, EyeOff, LayoutList, TableProperties, ChevronDown, ChevronRight, GripVertical } from 'lucide-react';
+import { Printer, Calendar, Users, Eye, EyeOff, LayoutList, TableProperties, ChevronDown, ChevronRight } from 'lucide-react';
 
 interface ClientDashboardProps {
   rooms: RoomType[];
@@ -22,6 +22,22 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({
   const [visibleChannels, setVisibleChannels] = useState<Set<string>>(new Set(channels.map(c => c.id)));
   const [showPif, setShowPif] = useState(false); // Toggle for PIF
   const [expandedRoomIds, setExpandedRoomIds] = useState<Set<string>>(new Set());
+
+  // Palette for season columns to create a rainbow effect
+  const seasonColors = [
+    'blue',
+    'emerald',
+    'violet',
+    'amber',
+    'rose',
+    'cyan',
+    'fuchsia',
+    'lime',
+    'indigo',
+    'orange'
+  ];
+
+  const getSeasonColor = (index: number) => seasonColors[index % seasonColors.length];
 
   // Ensure we have a valid season selected for Season View
   const selectedSeason = seasons.find(s => s.id === selectedSeasonId) || seasons[0];
@@ -215,11 +231,14 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({
                          <th className="px-4 py-3 w-10"></th>
                          <th className="px-4 py-3 font-bold uppercase tracking-wider text-[10px] text-slate-500 text-left">Pokój / Apartament</th>
                          <th className="px-4 py-3 font-bold uppercase tracking-wider text-center w-20 text-[10px] text-slate-500">Osoby</th>
-                         {seasons.map(s => (
-                             <th key={s.id} className="px-2 py-3 font-bold uppercase tracking-wider text-center text-[10px] text-blue-700 bg-blue-50/50 border-l border-blue-100/50">
-                                 {s.name}
-                             </th>
-                         ))}
+                         {seasons.map((s, i) => {
+                             const color = getSeasonColor(i);
+                             return (
+                                <th key={s.id} className={`px-2 py-3 font-bold uppercase tracking-wider text-center text-[10px] text-${color}-700 bg-${color}-50 border-l border-${color}-100`}>
+                                    {s.name}
+                                </th>
+                             );
+                         })}
                       </tr>
                    </thead>
                    <tbody className="divide-y divide-slate-100 print:divide-slate-200">
@@ -236,10 +255,11 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({
                                     </td>
                                     <td className="px-4 py-3 font-semibold text-slate-800 text-sm">{room.name}</td>
                                     <td className="px-4 py-3 text-center text-slate-600 font-medium text-sm">{room.maxOccupancy} os.</td>
-                                    {seasons.map(s => {
+                                    {seasons.map((s, i) => {
+                                        const color = getSeasonColor(i);
                                         const price = calculateDirectPrice(room, s, room.maxOccupancy, settings);
                                         return (
-                                            <td key={s.id} className="px-2 py-3 text-center font-bold text-blue-700 text-sm bg-blue-50/20 border-l border-blue-50">
+                                            <td key={s.id} className={`px-2 py-3 text-center font-bold text-${color}-700 text-sm bg-${color}-50/20 border-l border-${color}-50`}>
                                                 {price} zł
                                             </td>
                                         )
@@ -254,25 +274,29 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({
                                                         <thead className="bg-slate-50 text-slate-500">
                                                             <tr>
                                                                 <th className="px-3 py-2 text-left font-semibold uppercase text-[10px] tracking-wider text-slate-400">Wariant (Osób)</th>
-                                                                {seasons.map(s => (
-                                                                    <th key={s.id} className="px-3 py-2 text-center font-semibold text-[10px] text-blue-600 border-l border-slate-200 uppercase tracking-wider bg-blue-50/20">
-                                                                        {s.name}
-                                                                    </th>
-                                                                ))}
+                                                                {seasons.map((s, i) => {
+                                                                    const color = getSeasonColor(i);
+                                                                    return (
+                                                                        <th key={s.id} className={`px-3 py-2 text-center font-semibold text-[10px] text-${color}-600 border-l border-slate-200 uppercase tracking-wider bg-${color}-50/30`}>
+                                                                            {s.name}
+                                                                        </th>
+                                                                    );
+                                                                })}
                                                             </tr>
                                                         </thead>
                                                         <tbody className="divide-y divide-slate-100">
                                                             {Array.from({length: room.maxOccupancy}, (_, i) => i + 1).map(occ => (
-                                                                <tr key={occ} className={occ === room.maxOccupancy ? "bg-blue-50 font-medium" : ""}>
+                                                                <tr key={occ} className={occ === room.maxOccupancy ? "bg-slate-50/80 font-medium" : ""}>
                                                                     <td className="px-3 py-2 flex items-center gap-2 text-slate-700 font-medium">
                                                                         <Users size={12} className="text-slate-400"/> 
                                                                         {occ} os.
                                                                         {occ === room.maxOccupancy && <span className="text-[9px] bg-blue-100 text-blue-600 px-1 rounded ml-1">Max</span>}
                                                                     </td>
-                                                                    {seasons.map(s => {
+                                                                    {seasons.map((s, i) => {
+                                                                        const color = getSeasonColor(i);
                                                                         const occPrice = calculateDirectPrice(room, s, occ, settings);
                                                                         return (
-                                                                            <td key={s.id} className="px-3 py-2 text-center text-blue-700 border-l border-slate-100 font-medium bg-blue-50/5">
+                                                                            <td key={s.id} className={`px-3 py-2 text-center text-${color}-700 border-l border-slate-100 font-medium bg-${color}-50/10`}>
                                                                                 {occPrice} zł
                                                                             </td>
                                                                         )
