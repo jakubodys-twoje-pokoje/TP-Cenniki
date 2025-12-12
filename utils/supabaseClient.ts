@@ -1,22 +1,28 @@
 
-
 import { createClient } from '@supabase/supabase-js';
 
 // WYPEŁNIJ TE DANE SWOIMI KLUCZAMI Z SUPABASE (Settings -> API)
 const SUPABASE_URL = 'https://stdepyblwccelpbrqjux.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN0ZGVweWJsd2NjZWxwYnJxanV4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ4Nzg0MjksImV4cCI6MjA4MDQ1NDQyOX0.4PI0txHrLVQIscfoOgj_Aeo-uRwbIWARvzArk12erqg';
 
-// Custom fetch wrapper to ensure correct headers are always sent
-// This fixes the 406 Not Acceptable error from PostgREST while preserving Auth headers
+// Custom fetch wrapper to ensure correct headers are always sent.
+// This fixes the 406 Not Acceptable error while ensuring Auth headers (401 fix) are present.
 const customFetch = (url: any, options: any = {}) => {
-  // Create a robust Headers object from existing options
-  // This handles plain objects, arrays, and existing Headers instances correctly
   const headers = new Headers(options.headers);
 
-  // Force Accept header to fix 406 Not Acceptable errors
-  headers.set('Accept', 'application/json');
-  
-  // Ensure Content-Type is set (though usually Supabase handles this)
+  // 1. Fix 406 Not Acceptable (PostgREST requirement)
+  if (!headers.has('Accept')) {
+    headers.set('Accept', 'application/json');
+  }
+
+  // 2. Fix 401 Unauthorized (Ensure API Key is present)
+  // Sometimes the Supabase client might not inject it into options.headers in time 
+  // when using a custom global fetch. We force it here.
+  if (!headers.has('apikey')) {
+    headers.set('apikey', SUPABASE_ANON_KEY);
+  }
+
+  // 3. Ensure Content-Type
   if (!headers.has('Content-Type') && options.method !== 'GET' && options.method !== 'HEAD') {
     headers.set('Content-Type', 'application/json');
   }

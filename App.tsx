@@ -73,6 +73,7 @@ const App: React.FC = () => {
 
   // Function to load dynamic permissions from DB
   const loadDynamicPermissions = async (email: string) => {
+    // 1. Try to fetch from DB
     try {
       const { data, error } = await supabase
         .from('user_roles')
@@ -81,19 +82,24 @@ const App: React.FC = () => {
         .single();
         
       if (data) {
+        console.log(`Loaded DB permissions for ${email}:`, data.role);
         // If user exists in DB, use those permissions
-        setUserPermissions({
+        const dbPerms: UserPermissions = {
           role: data.role,
           allowedPropertyIds: data.allowed_property_ids || []
-        });
-        return { role: data.role, allowedPropertyIds: data.allowed_property_ids || [] };
+        };
+        setUserPermissions(dbPerms);
+        return dbPerms;
       }
     } catch (e) {
-      console.warn("Could not fetch dynamic permissions, falling back to config file.", e);
+      console.warn("Could not fetch dynamic permissions from DB (network error or not found). Falling back to static config.", e);
     }
     
-    // Fallback to static config
+    // 2. Fallback to static config (utils/userConfig.ts) if DB fetch failed or user not found in DB
+    // This is crucial for fixing the "kicked to client" issue if the API fails.
+    console.log(`Falling back to static config for: ${email}`);
     const staticPerms = getUserPermissions(email);
+    console.log(`Static permissions resolved to:`, staticPerms.role);
     setUserPermissions(staticPerms);
     return staticPerms;
   };
@@ -102,9 +108,9 @@ const App: React.FC = () => {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      if (session) {
+      if (session && session.user.email) {
         // Fetch permissions FIRST, then properties
-        loadDynamicPermissions(session.user.email!).then((perms) => {
+        loadDynamicPermissions(session.user.email).then((perms) => {
            fetchProperties(session.user.email, perms);
         });
       }
@@ -115,8 +121,8 @@ const App: React.FC = () => {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
-      if (session) {
-         loadDynamicPermissions(session.user.email!).then((perms) => {
+      if (session && session.user.email) {
+         loadDynamicPermissions(session.user.email).then((perms) => {
             fetchProperties(session.user.email, perms);
          });
       } else {
@@ -754,7 +760,7 @@ const App: React.FC = () => {
              <h2>Błąd połączenia z bazą danych</h2>
            </div>
            <p className="mb-4 text-sm text-slate-600">
-             Nie udało się pobrać danych. Może to oznaczać, że tabela w Supabase nie istnieje.
+             Nie udało się pobrać danych. Może to oznaczać, że tabela w Supabase nie istnieje lub brak uprawnień.
            </p>
            <div className="bg-slate-100 p-3 rounded text-xs font-mono text-slate-700 overflow-x-auto mb-4">
              {loadError}
