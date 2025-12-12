@@ -173,8 +173,10 @@ export const updateHotresPrices = async (
 ): Promise<void> => {
   if (!oid) throw new Error("Brak OID obiektu.");
 
-  // Build Payload
-  const payload: any[] = [];
+  // Group payload by "type_id + rate_id" to match Hotres API structure
+  // Hotres expects one object per Room+Rate containing an array of ALL date ranges (prices)
+  const payloadMap = new Map<string, { type_id: number, rate_id: number, mode: string, prices: any[] }>();
+
   const validRooms = rooms.filter(r => r.tid && r.tid.trim() !== "");
   const validSeasons = seasons.filter(s => s.rid && s.rid.trim() !== "");
 
@@ -200,14 +202,25 @@ export const updateHotresPrices = async (
         priceEntry[`pers${i}`] = obpPrice;
       }
 
-      payload.push({
-        type_id: parseInt(room.tid),
-        rate_id: parseInt(season.rid!),
-        mode: "delta",
-        prices: [priceEntry]
-      });
+      // Generate a unique key for grouping
+      const key = `${room.tid}-${season.rid}`;
+
+      if (!payloadMap.has(key)) {
+        payloadMap.set(key, {
+          type_id: parseInt(room.tid),
+          rate_id: parseInt(season.rid!),
+          mode: "clear", // Changed from 'delta' to 'clear' to match correct request format
+          prices: []
+        });
+      }
+
+      // Add this season's price entry to the group
+      payloadMap.get(key)!.prices.push(priceEntry);
     });
   });
+
+  // Convert Map to Array
+  const payload = Array.from(payloadMap.values());
 
   if (payload.length === 0) throw new Error("Brak danych do wysłania.");
 
@@ -218,8 +231,8 @@ export const updateHotresPrices = async (
   });
 
   // --- DEBUG LOGGING START ---
-  console.group("🔥 HOTRES UPDATE REQUEST DEBUG 🔥");
-  console.log("Full URL:", window.location.origin + url); // Shows local proxy URL
+  console.group("🔥 HOTRES UPDATE REQUEST DEBUG (CORRECTED) 🔥");
+  console.log("Full URL:", window.location.origin + url); 
   console.log("Method: POST");
   console.log("Payload Size:", JSON.stringify(payload).length, "bytes");
   console.log("Payload Preview (First Item):", payload[0]);
@@ -236,7 +249,6 @@ export const updateHotresPrices = async (
     });
 
     if (!response.ok) {
-      // Try to read the error body
       const errorText = await response.text();
       console.error("Hotres Error Body:", errorText);
       throw new Error(`Błąd HTTP: ${response.status} ${response.statusText} - ${errorText.substring(0, 200)}`);
