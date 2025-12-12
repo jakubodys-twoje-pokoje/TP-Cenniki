@@ -223,11 +223,11 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     
     // Check if at least one RID is set somewhere
     const hasAnyRid = seasons.some(s => 
-      s.channelRids?.['direct'] || channels.some(c => s.channelRids?.[c.id])
+      channels.some(c => s.channelRids?.[c.id])
     );
 
     if (!hasAnyRid) {
-      alert("Błąd: Nie zdefiniowano żadnych ID cenników (RID) w sezonach.");
+      alert("Błąd: Nie zdefiniowano żadnych ID cenników (RID) w sezonach dla żadnego kanału.");
       return;
     }
 
@@ -249,10 +249,10 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       return;
     }
 
-    const hasAnyRid = season.channelRids?.['direct'] || channels.some(c => season.channelRids?.[c.id]);
+    const hasAnyRid = channels.some(c => season.channelRids?.[c.id]);
 
     if (!hasAnyRid) {
-      alert("Błąd: Ten sezon nie ma zmapowanych żadnych cenników (RID).");
+      alert("Błąd: Ten sezon nie ma zmapowanych żadnych cenników (RID) dla kanałów.");
       return;
     }
 
@@ -662,19 +662,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     <h4 className="text-xs font-bold text-slate-500 uppercase mb-2 border-b border-slate-100 pb-1">Mapowanie Cenników (RID)</h4>
                     <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
                       
-                      {/* Direct (Default) */}
-                      <div className="flex items-center gap-2">
-                         <label className="text-[10px] font-medium text-slate-600 w-24 truncate" title="Direct (Strona www)">Direct (Baza)</label>
-                         <input 
-                           type="text" 
-                           disabled={isReadOnly}
-                           placeholder="ID Cennika"
-                           value={season.channelRids?.['direct'] || season.rid || ""} // Fallback to old 'rid'
-                           onChange={(e) => updateSeasonRid(season.id, 'direct', e.target.value)}
-                           className={`${inputClass} py-1 text-xs`}
-                         />
-                      </div>
-
                       {/* Dynamic Channels */}
                       {channels.map(ch => (
                         <div key={ch.id} className="flex items-center gap-2">
@@ -692,6 +679,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                            />
                         </div>
                       ))}
+                      {channels.length === 0 && <p className="text-xs text-slate-400 italic">Brak kanałów. Dodaj je w zakładce "Kanały".</p>}
                     </div>
                   </div>
 

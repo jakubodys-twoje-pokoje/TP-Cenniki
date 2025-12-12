@@ -183,9 +183,9 @@ export const updateHotresPrices = async (
 
   const validRooms = rooms.filter(r => r.tid && r.tid.trim() !== "");
   
-  // Filter seasons that have at least one RID defined (direct or channel)
+  // Filter seasons that have at least one RID defined (channel)
   const validSeasons = seasons.filter(s => 
-     (s.channelRids && Object.keys(s.channelRids).length > 0) || s.rid
+     s.channelRids && Object.keys(s.channelRids).length > 0
   );
 
   if (validRooms.length === 0) throw new Error("Brak pokoi ze zdefiniowanym TID.");
@@ -194,41 +194,7 @@ export const updateHotresPrices = async (
   validRooms.forEach(room => {
     validSeasons.forEach(season => {
       
-      // 1. Handle Direct Price Sync (Standard Rate Plan)
-      // Check for new mapping 'direct' or fallback to old 'rid'
-      const directRid = season.channelRids?.['direct'] || season.rid;
-
-      if (directRid) {
-        const directBasePrice = calculateDirectPrice(room, season, room.maxOccupancy, settings);
-        
-        const priceEntry: any = {
-          from: season.startDate,
-          till: season.endDate,
-          baseprice: directBasePrice,
-          min: season.minNights || 1,
-          child: 0
-        };
-
-        // Calculate OBP per person for Direct
-        for (let i = 1; i <= room.maxOccupancy; i++) {
-          if (i > 8) break;
-          const obpPrice = calculateDirectPrice(room, season, i, settings);
-          priceEntry[`pers${i}`] = obpPrice;
-        }
-
-        const key = `${room.tid}-${directRid}`;
-        if (!payloadMap.has(key)) {
-          payloadMap.set(key, {
-            type_id: parseInt(room.tid),
-            rate_id: parseInt(directRid),
-            mode: "delta",
-            prices: []
-          });
-        }
-        payloadMap.get(key)!.prices.push(priceEntry);
-      }
-
-      // 2. Handle Channels Price Sync (Specific Channel Rate Plans)
+      // We only iterate configured channels now.
       if (season.channelRids) {
         channels.forEach(channel => {
            const channelRid = season.channelRids[channel.id];
