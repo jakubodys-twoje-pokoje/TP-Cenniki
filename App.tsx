@@ -1,11 +1,12 @@
 
 import React, { useState, useEffect, useRef } from "react";
-import { LayoutDashboard, Settings as SettingsIcon, Menu, BedDouble, Calendar, Share2, Cog, ChevronDown, ChevronRight, Building, Plus, Trash2, Bed, CheckCircle2, Copy, Cloud, CloudOff, Loader2, RefreshCw, LogOut, Download, X, Lock, Users } from "lucide-react";
+import { LayoutDashboard, Settings as SettingsIcon, Menu, BedDouble, Calendar, Share2, Cog, ChevronDown, ChevronRight, Building, Plus, Trash2, Bed, CheckCircle2, Copy, Cloud, CloudOff, Loader2, RefreshCw, LogOut, Download, X, Lock, Users, Calculator } from "lucide-react";
 import SettingsPanel from "./components/SettingsPanel";
 import Dashboard from "./components/Dashboard";
 import ClientDashboard from "./components/ClientDashboard";
 import LoginScreen from "./components/LoginScreen";
 import UserManagementPanel from "./components/UserManagementPanel";
+import CalculatorModal from "./components/CalculatorModal";
 import {
   INITIAL_CHANNELS,
   INITIAL_ROOMS,
@@ -43,6 +44,9 @@ const App: React.FC = () => {
 
   // User Management Modal State
   const [showUserPanel, setShowUserPanel] = useState(false);
+  
+  // Calculator Modal State
+  const [showCalculator, setShowCalculator] = useState(false);
 
   // Sync Status State
   const [syncStatus, setSyncStatus] = useState<'idle' | 'synced' | 'saving' | 'error' | 'offline'>('idle');
@@ -925,6 +929,15 @@ const App: React.FC = () => {
             <span className="font-medium">Panel</span>
           </button>
 
+          {/* Calculator Button */}
+          <button
+            onClick={() => setShowCalculator(true)}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors flex-shrink-0 text-slate-400 hover:bg-slate-800 hover:text-white"
+          >
+            <Calculator size={20} />
+            <span className="font-medium">Kalkulator</span>
+          </button>
+
           {/* Configuration Dropdown */}
           <div className="flex-shrink-0">
             <button
@@ -1195,6 +1208,17 @@ const App: React.FC = () => {
             properties={properties}
             onClose={() => setShowUserPanel(false)}
          />
+      )}
+
+      {/* Calculator Modal */}
+      {showCalculator && activeProperty && (
+        <CalculatorModal
+           rooms={activeProperty.rooms}
+           seasons={activeProperty.seasons}
+           channels={activeProperty.channels}
+           settings={activeProperty.settings}
+           onClose={() => setShowCalculator(false)}
+        />
       )}
 
       {/* Add Property Modal */}
