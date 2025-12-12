@@ -1,5 +1,4 @@
 
-
 import { RoomType, Season, GlobalSettings } from "../types";
 import { calculateDirectPrice } from "./pricingEngine";
 
@@ -30,9 +29,15 @@ const USER = "admin@twojepokoje.com.pl";
 const PASS = "Admin123@@";
 
 // BEZPOŚREDNIE WYWOŁANIE - BEZ PROXY
-// Uwaga: Może powodować błędy CORS w przeglądarce, jeśli serwer Hotres nie zezwala na żądania z innej domeny.
+// Uwaga: To wywołanie najprawdopodobniej zostanie zablokowane przez CORS w przeglądarce,
+// chyba że użytkownik posiada wtyczkę 'Allow CORS' lub serwer Hotres na to zezwala.
 const fetchDirect = async (url: string, options?: RequestInit) => {
-  return fetch(url, options);
+  // Adding explicit mode: 'cors' is standard, but if server doesn't support it, it fails.
+  // We cannot use 'no-cors' for GET requests where we need the body.
+  return fetch(url, {
+    ...options,
+    mode: 'cors' 
+  });
 };
 
 // Helper to calculate percentage from dates array
@@ -66,8 +71,11 @@ export const fetchHotresOccupancy = async (
     if (!roomData) throw new Error("Brak danych dla tego pokoju");
 
     return calculatePercentage(roomData.dates);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Hotres Single Fetch Error:", error);
+    if (error.message && error.message.includes("Failed to fetch")) {
+        throw new Error("Błąd CORS (Zablokowane przez przeglądarkę). Zainstaluj wtyczkę 'Allow CORS' lub sprawdź konsolę.");
+    }
     throw error;
   }
 };
@@ -141,8 +149,11 @@ export const fetchHotresRooms = async (oid: string): Promise<RoomType[]> => {
       };
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("Hotres Rooms Fetch Error:", error);
+    if (error.message && error.message.includes("Failed to fetch")) {
+        throw new Error("Błąd CORS. Wymagana wtyczka 'Allow CORS' dla połączeń bezpośrednich.");
+    }
     throw error;
   }
 };
@@ -231,8 +242,11 @@ export const updateHotresPrices = async (
        throw new Error(`Hotres API Error: ${JSON.stringify(result)}`);
     }
     
-  } catch (error) {
+  } catch (error: any) {
     console.error("Hotres Update Prices Error:", error);
+    if (error.message && error.message.includes("Failed to fetch")) {
+        throw new Error("Błąd CORS. Połączenie bezpośrednie zablokowane przez przeglądarkę.");
+    }
     throw error;
   }
 };

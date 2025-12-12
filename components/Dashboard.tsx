@@ -1,5 +1,4 @@
 
-
 import React, { useMemo, useState } from "react";
 import { Channel, GlobalSettings, RoomType, Season } from "../types";
 import { generatePricingGrid, calculateDirectPrice, calculateChannelPrice } from "../utils/pricingEngine";
@@ -826,7 +825,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
             <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><TrendingUp size={20} className="text-blue-600"/> Średnie Stawki</h3>
-            <div style={{ width: '100%', minHeight: 250 }}>
+            <div style={{ width: '100%', height: '250px' }}>
               {chartData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={250}>
                   <BarChart data={chartData}>
