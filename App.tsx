@@ -106,27 +106,48 @@ const App: React.FC = () => {
 
   // 0. Check Auth Session
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session && session.user.email) {
-        // Fetch permissions FIRST, then properties
-        loadDynamicPermissions(session.user.email).then((perms) => {
-           fetchProperties(session.user.email, perms);
-        });
+    const initSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        setSession(session);
+        
+        if (session && session.user.email) {
+          // AWAIT permissions loading before removing the loading screen.
+          // This prevents the UI from momentarily (or permanently) flashing 'Client' role
+          // if the DB fetch fails or takes time, ensuring fallback logic completes first.
+          const perms = await loadDynamicPermissions(session.user.email);
+          await fetchProperties(session.user.email, perms);
+        }
+      } catch (error) {
+        console.error("Session initialization error:", error);
+      } finally {
+        setAuthLoading(false);
       }
-      setAuthLoading(false);
-    });
+    };
+
+    initSession();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
       setSession(session);
+      
       if (session && session.user.email) {
-         loadDynamicPermissions(session.user.email).then((perms) => {
-            fetchProperties(session.user.email, perms);
-         });
+         // If signing in, show loading to ensure permissions are resolved before showing UI
+         if (event === 'SIGNED_IN') {
+             setAuthLoading(true);
+             const perms = await loadDynamicPermissions(session.user.email);
+             await fetchProperties(session.user.email, perms);
+             setAuthLoading(false);
+         } else {
+             // For token refresh etc, update in background
+             loadDynamicPermissions(session.user.email).then((perms) => {
+                fetchProperties(session.user.email, perms);
+             });
+         }
       } else {
          setProperties([]);
+         setUserPermissions({ role: 'client', allowedPropertyIds: [] });
       }
     });
 
