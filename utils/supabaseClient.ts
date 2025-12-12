@@ -1,4 +1,5 @@
 
+
 import { createClient } from '@supabase/supabase-js';
 
 // WYPEŁNIJ TE DANE SWOIMI KLUCZAMI Z SUPABASE (Settings -> API)
@@ -10,10 +11,9 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const customFetch = (url: any, options: any = {}) => {
   const headers = new Headers(options.headers);
 
-  // 1. Fix 406 Not Acceptable (PostgREST requirement)
-  if (!headers.has('Accept')) {
-    headers.set('Accept', 'application/json');
-  }
+  // 1. Force Accept header to application/json (Fixes 406 Not Acceptable)
+  // We overwrite it to ensure browsers don't send default text/html or */* preferences
+  headers.set('Accept', 'application/json');
 
   // 2. Fix 401 Unauthorized (Ensure API Key is present)
   // Sometimes the Supabase client might not inject it into options.headers in time 
@@ -22,7 +22,7 @@ const customFetch = (url: any, options: any = {}) => {
     headers.set('apikey', SUPABASE_ANON_KEY);
   }
 
-  // 3. Ensure Content-Type
+  // 3. Ensure Content-Type for non-GET requests
   if (!headers.has('Content-Type') && options.method !== 'GET' && options.method !== 'HEAD') {
     headers.set('Content-Type', 'application/json');
   }
