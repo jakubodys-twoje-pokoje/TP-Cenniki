@@ -73,8 +73,21 @@ const App: React.FC = () => {
 
   // Function to load dynamic permissions from DB
   const loadDynamicPermissions = async (email: string) => {
-    // 1. Try to fetch from DB
+    // 1. PRIORITY: Check Static Config (Hardcoded Admins)
+    // This guarantees access for the owner even if the DB is unreachable.
+    const staticPerms = getUserPermissions(email);
+    
+    // If static config grants Admin/Super Admin rights, use them immediately.
+    // We treat the static file as the "Master Key" for these users.
+    if (staticPerms.role === 'super_admin' || staticPerms.role === 'admin') {
+        console.log(`Found static permissions for ${email}: ${staticPerms.role}. Skipping DB fetch.`);
+        setUserPermissions(staticPerms);
+        return staticPerms;
+    }
+
+    // 2. If not found in static config (or just a basic client), check DB for dynamic roles
     try {
+      console.log(`Checking DB permissions for ${email}...`);
       const { data, error } = await supabase
         .from('user_roles')
         .select('*')
@@ -92,14 +105,11 @@ const App: React.FC = () => {
         return dbPerms;
       }
     } catch (e) {
-      console.warn("Could not fetch dynamic permissions from DB (network error or not found). Falling back to static config.", e);
+      console.warn("Could not fetch dynamic permissions from DB (network error or not found). Using default.", e);
     }
     
-    // 2. Fallback to static config (utils/userConfig.ts) if DB fetch failed or user not found in DB
-    // This is crucial for fixing the "kicked to client" issue if the API fails.
-    console.log(`Falling back to static config for: ${email}`);
-    const staticPerms = getUserPermissions(email);
-    console.log(`Static permissions resolved to:`, staticPerms.role);
+    // 3. Final Fallback: Use whatever getUserPermissions returned (likely default Client)
+    console.log(`Falling back to default permissions for: ${email}`);
     setUserPermissions(staticPerms);
     return staticPerms;
   };
