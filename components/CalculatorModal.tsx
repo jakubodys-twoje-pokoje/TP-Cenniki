@@ -20,56 +20,41 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
   onClose
 }) => {
   // Form State
-  const [targetNet, setTargetNet] = useState<number>(200);
+  // Changed from "targetNet" to "basePriceInput" to reflect "Forward Calculation" mode
+  const [basePriceInput, setBasePriceInput] = useState<number>(200);
   const [selectedRoomId, setSelectedRoomId] = useState<string>(rooms[0]?.id || "");
   const [selectedSeasonId, setSelectedSeasonId] = useState<string>(seasons[0]?.id || "");
   
-  // Note: We removed the Occupancy Dropdown. 
-  // We assume the Target Net is desired for the MAXIMUM occupancy (Standard Rate).
-  // The OBP table then shows how this price drops for fewer people.
-
   const selectedRoom = rooms.find(r => r.id === selectedRoomId);
   const selectedSeason = seasons.find(s => s.id === selectedSeasonId);
 
   const maxOcc = selectedRoom?.maxOccupancy || 2;
-  const currentOccupancy = maxOcc; // Always calculate base for MAX occupancy
+  const currentOccupancy = maxOcc; 
 
   // --- CALCULATION LOGIC ---
   const calculationResult = useMemo(() => {
     if (!selectedRoom || !selectedSeason) return null;
 
-    // 1. Direct Price Target (For Max Occupancy)
-    const desiredDirectPrice = targetNet;
+    // FORWARD CALCULATION MODE
+    // We take the input Base Price directly. No reverse math with multipliers.
+    // The user sets the Base Price, we show what happens.
+    const simBasePrice = basePriceInput;
 
-    // 2. Reverse Calculate Base Price
-    // At Max Occupancy, OBP Deduction is typically 0, but we keep logic generic
-    let obpDeduction = 0;
-    const isObpActive = selectedRoom.seasonalObpActive?.[selectedSeason.id] ?? true;
-    const minObp = selectedRoom.minObpOccupancy || 1;
-    const effectiveOcc = Math.max(currentOccupancy, minObp);
-
-    if (settings.obpEnabled && isObpActive) {
-       const missingPeople = Math.max(0, selectedRoom.maxOccupancy - effectiveOcc);
-       const obpAmount = selectedRoom.obpPerPerson ?? 30;
-       obpDeduction = missingPeople * obpAmount;
-    }
-
-    const requiredBasePriceRaw = (desiredDirectPrice + obpDeduction) / selectedSeason.multiplier;
-    const requiredBasePrice = Math.round(requiredBasePriceRaw);
-
-    // 3. Create Virtual Room for Simulation
+    // Create Virtual Room with this Base Price
     const virtualRoom = {
         ...selectedRoom,
         seasonBasePrices: {
             ...selectedRoom.seasonBasePrices,
-            [selectedSeason.id]: requiredBasePrice
+            [selectedSeason.id]: simBasePrice
         },
-        basePricePeak: requiredBasePrice // fallback
+        basePricePeak: simBasePrice 
     };
     
-    // 4. Calculate Channels for MAX occupancy (Detailed Breakdown)
+    // Calculate Direct Price for MAX occupancy (standard rate)
+    // This applies OBP deduction if configured, and Multiplier
     const actualDirectPrice = calculateDirectPrice(virtualRoom, selectedSeason, currentOccupancy, settings);
 
+    // Calculate Channels Breakdown for MAX occupancy
     const channelResults = channels.map(channel => {
        const calc = calculateChannelPrice(actualDirectPrice, channel, selectedSeason.id);
        return {
@@ -78,7 +63,7 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
        };
     });
 
-    // 5. OBP Matrix Simulation (Ladder for ALL channels)
+    // OBP Matrix Simulation (Ladder)
     const obpLadder = [];
     for (let i = 1; i <= selectedRoom.maxOccupancy; i++) {
         const simDirectPrice = calculateDirectPrice(virtualRoom, selectedSeason, i, settings);
@@ -103,11 +88,11 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
 
     return {
       actualDirectPrice,
-      requiredBasePrice,
+      simBasePrice,
       channelResults,
       obpLadder
     };
-  }, [targetNet, selectedRoomId, selectedSeasonId, currentOccupancy, rooms, seasons, channels, settings]);
+  }, [basePriceInput, selectedRoomId, selectedSeasonId, currentOccupancy, rooms, seasons, channels, settings]);
 
 
   const renderDiscountCell = (amount: number, percentage: number, colorClass: string, label: string) => {
@@ -135,8 +120,8 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
                <Calculator size={20} />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-800">Kalkulator Ceny</h2>
-              <p className="text-xs text-slate-500">Symulacja na podstawie kwoty netto dla pełnego obłożenia.</p>
+              <h2 className="text-lg font-bold text-slate-800">Symulator Cen</h2>
+              <p className="text-xs text-slate-500">Sprawdź ceny w kanałach na podstawie Ceny Bazowej.</p>
             </div>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
@@ -149,13 +134,13 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
            {/* Inputs Panel */}
            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-sm">
               <div className="col-span-1">
-                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Chcę zarobić (Netto)</label>
+                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Cena Bazowa (Netto)</label>
                  <div className="relative">
                     <input 
                       type="number" 
                       min="1"
-                      value={targetNet}
-                      onChange={(e) => setTargetNet(Number(e.target.value))}
+                      value={basePriceInput}
+                      onChange={(e) => setBasePriceInput(Number(e.target.value))}
                       className={`${inputBaseClass} text-emerald-700 border-emerald-300 focus:ring-emerald-500 focus:border-emerald-500 pl-4 pr-12`}
                     />
                     <span className="absolute right-4 top-3 text-sm text-slate-400 font-bold">PLN</span>
@@ -197,13 +182,9 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
                             <TrendingUp size={18} className="text-blue-600"/> 
                             Symulacja OBP
                          </div>
-                         <div className="h-4 w-px bg-slate-300 mx-2"></div>
-                         <div className="text-sm text-slate-600">
-                            Wymagana Cena Bazowa: <span className="font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">{calculationResult.requiredBasePrice} zł</span>
-                         </div>
                       </div>
                       <div className="text-[10px] text-slate-400 font-normal">
-                         Góra: Cena Brutto • Dół: Twoje Netto
+                         Góra: Cena Listowa (Brutto) • Dół: Twoje Netto
                       </div>
                    </div>
                    <div className="overflow-x-auto">
@@ -211,7 +192,7 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
                        <thead>
                           <tr className="bg-white text-slate-500 text-xs">
                              <th className="px-4 py-3 text-left w-24 bg-slate-50/50">Obłożenie</th>
-                             <th className="px-4 py-3 text-right bg-blue-50/20 text-blue-700 border-l border-slate-100">Direct / WWW</th>
+                             {/* Direct column removed as requested "usuń direct jako kanał" - assuming user views WWW as base net */}
                              {calculationResult.obpLadder[0]?.channelPrices.map(c => (
                                 <th key={c.id} className="px-4 py-3 text-right border-l border-slate-100" style={{color: c.color}}>{c.name}</th>
                              ))}
@@ -224,11 +205,7 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
                                    <Users size={14} className="text-slate-400"/> {row.occupancy} os.
                                    {row.occupancy === currentOccupancy && <span className="text-[9px] bg-emerald-100 text-emerald-700 px-1 rounded font-bold">MAX</span>}
                                 </td>
-                                {/* Direct Column */}
-                                <td className="px-4 py-3 text-right font-bold text-blue-700 border-l border-slate-100 bg-blue-50/10">
-                                   {row.directPrice} zł
-                                   <div className="text-[10px] text-blue-400 font-normal mt-0.5">Netto: {row.directPrice}</div>
-                                </td>
+                                
                                 {/* Channel Columns */}
                                 {row.channelPrices.map(c => (
                                    <td key={c.id} className="px-4 py-3 text-right border-l border-slate-100">
