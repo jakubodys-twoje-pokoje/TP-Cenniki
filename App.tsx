@@ -71,6 +71,9 @@ const App: React.FC = () => {
   // Ref for clearing success message
   const statusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Ref to track if onAuthStateChange event has been handled to prevent race conditions with initSession
+  const authEventHandled = useRef(false);
+
   // Function to load dynamic permissions from DB
   const loadDynamicPermissions = async (email: string) => {
     // 1. PRIORITY: Check Static Config (Hardcoded Admins)
@@ -122,7 +125,10 @@ const App: React.FC = () => {
         setAuthLoading((current) => {
             if (current) {
                 console.warn("Auth initialization timed out. Forcing UI load.");
-                return false;
+                // Only force false if we haven't already handled an auth event
+                if (!authEventHandled.current) {
+                    return false;
+                }
             }
             return current;
         });
@@ -131,21 +137,33 @@ const App: React.FC = () => {
     const initSession = async () => {
       try {
         console.log("Starting session init...");
-        const { data: { session } } = await supabase.auth.getSession();
-        setSession(session);
+        const { data: { session: initialSession }, error } = await supabase.auth.getSession();
         
-        if (session && session.user.email) {
-          console.log("Session found, loading permissions...");
-          const perms = await loadDynamicPermissions(session.user.email);
-          await fetchProperties(session.user.email, perms);
+        if (error) throw error;
+        
+        // Critical: Only update state if onAuthStateChange hasn't already fired/taken over.
+        if (!authEventHandled.current) {
+            setSession(initialSession);
+            
+            if (initialSession && initialSession.user.email) {
+              console.log("Session found via getSession, loading permissions...");
+              const perms = await loadDynamicPermissions(initialSession.user.email);
+              await fetchProperties(initialSession.user.email, perms);
+            } else {
+              console.log("No session found via getSession.");
+            }
         } else {
-          console.log("No session found.");
+             console.log("Auth event already handled, ignoring getSession result.");
         }
+
       } catch (error) {
         console.error("Session initialization error:", error);
       } finally {
-        console.log("Session init finished, disabling loader.");
-        setAuthLoading(false);
+        console.log("Session init finished.");
+        // Only turn off loading if onAuthStateChange hasn't already handled it
+        if (!authEventHandled.current) {
+            setAuthLoading(false);
+        }
         clearTimeout(safetyTimer); // Clear safety timer if we finished normally
       }
     };
@@ -156,33 +174,30 @@ const App: React.FC = () => {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log(`Auth event: ${event}`);
+      authEventHandled.current = true; // Mark event as handled to prevent initSession race condition
+      
       setSession(session);
       
       if (session && session.user.email) {
-         // If signing in, show loading to ensure permissions are resolved before showing UI
-         if (event === 'SIGNED_IN') {
-             setAuthLoading(true);
-             // Wrap in try/finally to GUARANTEE authLoading is set to false eventually
+         // If signing in (or token refreshed etc), reload data
+         if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
+             // For SIGNED_IN specifically, we want to ensure loading state shows until ready
+             if (event === 'SIGNED_IN') setAuthLoading(true);
+             
              try {
                 const perms = await loadDynamicPermissions(session.user.email);
                 await fetchProperties(session.user.email, perms);
              } catch (e) {
-                console.error("Error during SIGNED_IN handling:", e);
+                console.error("Error loading data during auth event:", e);
              } finally {
                 setAuthLoading(false);
              }
-         } else {
-             // For token refresh etc, update in background
-             loadDynamicPermissions(session.user.email).then((perms) => {
-                fetchProperties(session.user.email, perms);
-             });
          }
       } else {
+         // Signed out or no session
          setProperties([]);
          setUserPermissions({ role: 'client', allowedPropertyIds: [] });
-         if (event === 'SIGNED_OUT') {
-            setAuthLoading(false);
-         }
+         setAuthLoading(false);
       }
     });
 
@@ -242,8 +257,13 @@ const App: React.FC = () => {
 
         processLoadedProperties(loadedProps);
         
-        if (loadedProps.length > 0 && !loadedProps.find(p => p.id === activePropertyId)) {
-            setActivePropertyId(loadedProps[0].id);
+        // Safety check to ensure we have an active property ID
+        if (loadedProps.length > 0) {
+            // Check if current activePropertyId exists in the loaded list
+            const exists = loadedProps.find(p => p.id === activePropertyId);
+            if (!exists) {
+                setActivePropertyId(loadedProps[0].id);
+            }
         }
       } else {
         // Only create default if Super Admin
