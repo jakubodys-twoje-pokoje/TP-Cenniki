@@ -20,8 +20,8 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
   onClose
 }) => {
   // Form State
-  // Changed from "targetNet" to "basePriceInput" to reflect "Forward Calculation" mode
-  const [basePriceInput, setBasePriceInput] = useState<number>(200);
+  // Changed back to "targetNetInput" for Reverse Calculation
+  const [targetNetInput, setTargetNetInput] = useState<number>(200);
   const [selectedRoomId, setSelectedRoomId] = useState<string>(rooms[0]?.id || "");
   const [selectedSeasonId, setSelectedSeasonId] = useState<string>(seasons[0]?.id || "");
   
@@ -35,26 +35,41 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
   const calculationResult = useMemo(() => {
     if (!selectedRoom || !selectedSeason) return null;
 
-    // FORWARD CALCULATION MODE
-    // We take the input Base Price directly. No reverse math with multipliers.
-    // The user sets the Base Price, we show what happens.
-    const simBasePrice = basePriceInput;
+    // REVERSE CALCULATION MODE
+    // 1. User inputs desired Net (for Max Occupancy / Standard Rate)
+    const desiredDirectPrice = targetNetInput;
 
-    // Create Virtual Room with this Base Price
+    // 2. Reverse Calculate required Base Price
+    // Formula: BasePrice = (TargetNet + OBP_Deduction_At_Max) / Multiplier
+    // Usually OBP deduction at max is 0, but we keep logic generic if needed.
+    let obpDeduction = 0;
+    const isObpActive = selectedRoom.seasonalObpActive?.[selectedSeason.id] ?? true;
+    const minObp = selectedRoom.minObpOccupancy || 1;
+    const effectiveOcc = Math.max(currentOccupancy, minObp);
+
+    if (settings.obpEnabled && isObpActive) {
+       const missingPeople = Math.max(0, selectedRoom.maxOccupancy - effectiveOcc);
+       const obpAmount = selectedRoom.obpPerPerson ?? 30;
+       obpDeduction = missingPeople * obpAmount;
+    }
+
+    const requiredBasePriceRaw = (desiredDirectPrice + obpDeduction) / selectedSeason.multiplier;
+    const requiredBasePrice = Math.round(requiredBasePriceRaw);
+
+    // 3. Create Virtual Room with this Calculated Base Price
     const virtualRoom = {
         ...selectedRoom,
         seasonBasePrices: {
             ...selectedRoom.seasonBasePrices,
-            [selectedSeason.id]: simBasePrice
+            [selectedSeason.id]: requiredBasePrice
         },
-        basePricePeak: simBasePrice 
+        basePricePeak: requiredBasePrice 
     };
     
-    // Calculate Direct Price for MAX occupancy (standard rate)
-    // This applies OBP deduction if configured, and Multiplier
+    // 4. Calculate actual prices based on this virtual room
+    // Direct Price should match targetNetInput (roughly due to rounding)
     const actualDirectPrice = calculateDirectPrice(virtualRoom, selectedSeason, currentOccupancy, settings);
 
-    // Calculate Channels Breakdown for MAX occupancy
     const channelResults = channels.map(channel => {
        const calc = calculateChannelPrice(actualDirectPrice, channel, selectedSeason.id);
        return {
@@ -63,7 +78,7 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
        };
     });
 
-    // OBP Matrix Simulation (Ladder)
+    // 5. OBP Matrix Simulation (Ladder)
     const obpLadder = [];
     for (let i = 1; i <= selectedRoom.maxOccupancy; i++) {
         const simDirectPrice = calculateDirectPrice(virtualRoom, selectedSeason, i, settings);
@@ -88,11 +103,11 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
 
     return {
       actualDirectPrice,
-      simBasePrice,
+      requiredBasePrice,
       channelResults,
       obpLadder
     };
-  }, [basePriceInput, selectedRoomId, selectedSeasonId, currentOccupancy, rooms, seasons, channels, settings]);
+  }, [targetNetInput, selectedRoomId, selectedSeasonId, currentOccupancy, rooms, seasons, channels, settings]);
 
 
   const renderDiscountCell = (amount: number, percentage: number, colorClass: string, label: string) => {
@@ -120,8 +135,8 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
                <Calculator size={20} />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-800">Symulator Cen</h2>
-              <p className="text-xs text-slate-500">Sprawdź ceny w kanałach na podstawie Ceny Bazowej.</p>
+              <h2 className="text-lg font-bold text-slate-800">Kalkulator Ceny</h2>
+              <p className="text-xs text-slate-500">Wylicz cenę bazową na podstawie oczekiwanego zarobku.</p>
             </div>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
@@ -134,13 +149,13 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
            {/* Inputs Panel */}
            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-sm">
               <div className="col-span-1">
-                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Cena Bazowa (Netto)</label>
+                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Chcę zarobić (Netto)</label>
                  <div className="relative">
                     <input 
                       type="number" 
                       min="1"
-                      value={basePriceInput}
-                      onChange={(e) => setBasePriceInput(Number(e.target.value))}
+                      value={targetNetInput}
+                      onChange={(e) => setTargetNetInput(Number(e.target.value))}
                       className={`${inputBaseClass} text-emerald-700 border-emerald-300 focus:ring-emerald-500 focus:border-emerald-500 pl-4 pr-12`}
                     />
                     <span className="absolute right-4 top-3 text-sm text-slate-400 font-bold">PLN</span>
@@ -182,6 +197,10 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
                             <TrendingUp size={18} className="text-blue-600"/> 
                             Symulacja OBP
                          </div>
+                         <div className="h-4 w-px bg-slate-300 mx-2"></div>
+                         <div className="text-sm text-slate-600">
+                            Wymagana Cena Bazowa: <span className="font-bold text-lg text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 ml-1">{calculationResult.requiredBasePrice} zł</span>
+                         </div>
                       </div>
                       <div className="text-[10px] text-slate-400 font-normal">
                          Góra: Cena Listowa (Brutto) • Dół: Twoje Netto
@@ -192,7 +211,6 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
                        <thead>
                           <tr className="bg-white text-slate-500 text-xs">
                              <th className="px-4 py-3 text-left w-24 bg-slate-50/50">Obłożenie</th>
-                             {/* Direct column removed as requested "usuń direct jako kanał" - assuming user views WWW as base net */}
                              {calculationResult.obpLadder[0]?.channelPrices.map(c => (
                                 <th key={c.id} className="px-4 py-3 text-right border-l border-slate-100" style={{color: c.color}}>{c.name}</th>
                              ))}
