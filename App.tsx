@@ -75,55 +75,56 @@ const App: React.FC = () => {
   // Ref for clearing success message
   const statusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Function to load dynamic permissions from DB or Config
-  const loadDynamicPermissions = async (email: string) => {
-    // 1. PRIORITY: Check Static Config (Hardcoded Admins)
+  // --- PERMISSION LOADING LOGIC ---
+  const loadDynamicPermissions = async (email: string): Promise<UserPermissions> => {
+    // 1. Static Config (Hardcoded Admins/Devs)
     const staticPerms = getUserPermissions(email);
     
-    // If user is hardcoded as Admin/Super Admin, use that role immediately
+    // If user is statically defined as Admin/Super Admin, trust it immediately.
     if (staticPerms.role === 'super_admin' || staticPerms.role === 'admin') {
-        console.log(`Found static permissions for ${email}: ${staticPerms.role}`);
+        console.log(`[Auth] Static permissions found for ${email}: ${staticPerms.role}`);
         setUserPermissions(staticPerms);
         return staticPerms;
     }
 
-    // 2. Check DB for dynamic roles (e.g. Clients assigned via UI)
+    // 2. Database Lookup (Dynamic Roles)
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('user_roles')
         .select('*')
         .eq('email', email)
         .single();
         
       if (data) {
-        console.log(`Loaded DB permissions for ${email}:`, data.role);
+        console.log(`[Auth] DB permissions loaded for ${email}:`, data.role);
         const dbPerms: UserPermissions = {
           role: data.role,
           allowedPropertyIds: data.allowed_property_ids || []
         };
         setUserPermissions(dbPerms);
         return dbPerms;
+      } else {
+         console.warn(`[Auth] No DB row for ${email}. Using default Client role (no access).`);
       }
     } catch (e) {
-      console.warn("No dynamic permissions found (or error), falling back to static config.", e);
+      console.error("[Auth] DB Fetch Error (Permissions):", e);
     }
     
-    // 3. Fallback to static config (likely just the Example Client or default Client)
+    // 3. Fallback: Default Client (Safe Fail)
+    // If no row exists, we default to the static config (which is likely role: client, allowed: [])
+    // This effectively blocks access to data if the admin hasn't assigned properties.
     setUserPermissions(staticPerms);
     return staticPerms;
   };
-
-  // ---------------------------------------------------------------------------
-  // AUTHENTICATION LOGIC
-  // ---------------------------------------------------------------------------
 
   const loadUserData = async (currentSession: any) => {
     if (!currentSession?.user?.email) return;
     
     try {
-      // Load permissions first
+      // CRITICAL: Await permissions first, capture them in variable 'perms'
       const perms = await loadDynamicPermissions(currentSession.user.email);
-      // Then fetch properties using those permissions
+      
+      // Pass 'perms' directly to fetchProperties. Do not rely on state 'userPermissions' here yet.
       await fetchProperties(currentSession.user.email, perms);
     } catch (e) {
       console.error("Error loading user data:", e);
@@ -142,12 +143,10 @@ const App: React.FC = () => {
 
         if (mounted) {
            if (initialSession) {
-             console.log("Session found (init).");
              setSession(initialSession);
              setAuthLoading(false);
              await loadUserData(initialSession);
            } else {
-             console.log("No session found (init).");
              setAuthLoading(false);
            }
         }
@@ -182,7 +181,6 @@ const App: React.FC = () => {
   }, []);
 
 
-  // Function to process loaded properties and update refs
   const processLoadedProperties = (props: Property[]) => {
     const migratedProps = props.map(p => ({
        ...p,
@@ -218,15 +216,18 @@ const App: React.FC = () => {
            id: row.id
         }));
 
-        // STRICT Filtering for Clients
+        // --- STRICT FILTERING FOR CLIENTS ---
         if (perms.role === 'client') {
            const allowedIds = perms.allowedPropertyIds || [];
-           // Only keep properties that are explicitly allowed
+           // Only keep properties that are strictly in the allowed list
            loadedProps = loadedProps.filter(p => allowedIds.includes(p.id));
+           
+           console.log(`[Data] Filtered properties for client. Allowed: ${allowedIds.length}, Visible: ${loadedProps.length}`);
         }
 
         loadedProps.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
 
+        // Sort rooms
         loadedProps.forEach(p => {
           if (p.rooms) {
             p.rooms.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
@@ -235,20 +236,19 @@ const App: React.FC = () => {
 
         processLoadedProperties(loadedProps);
         
-        // Ensure activePropertyId is valid
+        // Handle Active Property Selection
         if (loadedProps.length > 0) {
             const exists = loadedProps.find(p => p.id === activePropertyId);
-            // If active prop is invalid, pick the first one
             if (!exists || activePropertyId === "default") {
                 setActivePropertyId(loadedProps[0].id);
             }
         } else {
-            // Client sees nothing
+            // If client has no properties, clear everything
             setActivePropertyId("");
-            // If they have 0 allowed properties, empty list is correct
+            setProperties([]);
         }
       } else {
-        // Init logic for Super Admin
+        // Init logic for Super Admin ONLY
         if (perms.role === 'super_admin') {
            const defaultProp: Property = {
              id: "default",
@@ -336,7 +336,7 @@ const App: React.FC = () => {
     };
   }, [session, userPermissions]);
 
-  // 2. Save Changes
+  // 2. Save Changes (Admin Only)
   useEffect(() => {
     if (isLoading || properties.length === 0 || !session) return;
     if (userPermissions.role !== 'super_admin') return;
@@ -834,11 +834,19 @@ const App: React.FC = () => {
     );
   }
   
+  // Adjusted Empty State: If Client has no properties, show clear message instead of generic "Contact Admin" or weird state
   if (!activeProperty && properties.length === 0 && !authLoading) {
       return (
         <div className="flex h-screen items-center justify-center bg-slate-50 text-slate-500 flex-col gap-4">
             <Building className="opacity-20" size={64}/>
-            <p>Brak dostępnych obiektów. Skontaktuj się z administratorem.</p>
+            {isClientRole ? (
+              <p className="text-center">
+                <strong>Brak przypisanych obiektów.</strong><br/>
+                Skontaktuj się z administratorem, aby uzyskać dostęp.
+              </p>
+            ) : (
+              <p>Brak dostępnych obiektów. Skontaktuj się z administratorem.</p>
+            )}
             <button onClick={handleLogout} className="text-blue-600 underline">Wyloguj</button>
         </div>
       );
@@ -1138,7 +1146,13 @@ const App: React.FC = () => {
                  channels={activeProperty.channels}
                  settings={activeProperty.settings}
                />
-             ) : <div className="p-4 text-center text-slate-500">Wybierz obiekt z menu.</div>
+             ) : (
+                <div className="flex flex-col items-center justify-center h-full text-slate-500">
+                  <LayoutDashboard size={48} className="mb-4 opacity-20"/>
+                  <p className="text-lg font-medium">Wybierz obiekt z menu po lewej</p>
+                  <p className="text-sm">Aby zobaczyć podgląd stawek i obłożenia.</p>
+                </div>
+             )
           ) : (
              // ADMIN VIEW: Conditional Rendering based on Tab
             <>
