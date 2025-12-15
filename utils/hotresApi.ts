@@ -25,21 +25,23 @@ interface HotresRoomResponse {
 const USER = "admin@twojepokoje.com.pl";
 const PASS = "Admin123@@";
 
-// CHANGE: Use import.meta.env.DEV to detect development environment.
-// This ensures that cloud IDEs (which are not localhost) still use the local Vite proxy.
-// We cast to 'any' to avoid TypeScript errors if types aren't fully set up.
-const USE_LOCAL_PROXY = (import.meta as any).env?.DEV ?? false;
+// Strict check for localhost.
+// import.meta.env.DEV can be unreliable depending on build tools/preview modes.
+const IS_LOCALHOST = 
+  typeof window !== 'undefined' && 
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
 // Funkcja budująca poprawny URL w zależności od środowiska
 const buildUrl = (endpoint: string, params: Record<string, string>) => {
   const queryString = new URLSearchParams(params).toString();
   
-  if (USE_LOCAL_PROXY) {
-    // LOKALNIE / DEV (w tym Cloud IDE): Używamy proxy zdefiniowanego w vite.config.ts
-    // Zapytanie idzie do /api_hotres/... -> Vite przekazuje do https://panel.hotres.pl/...
+  if (IS_LOCALHOST) {
+    // LOKALNIE: Używamy proxy zdefiniowanego w vite.config.ts
+    // Zapytanie idzie do http://localhost:5173/api_hotres/... -> Vite przekazuje do https://panel.hotres.pl/...
     return `/api_hotres${endpoint}?${queryString}`;
   } else {
-    // PRODUKCJA (Build): Używamy zewnętrznego proxy, aby ominąć CORS na serwerze docelowym.
+    // PRODUKCJA: Używamy zewnętrznego proxy, aby ominąć CORS na serwerze docelowym.
+    // Zapytanie idzie bezpośrednio do panel.hotres.pl przez corsproxy.io
     const targetUrl = `https://panel.hotres.pl${endpoint}?${queryString}`;
     return `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
   }
@@ -73,11 +75,6 @@ export const fetchHotresOccupancy = async (
 
   try {
     const response = await fetch(url);
-    
-    if (response.status === 502) {
-       throw new Error("Błąd 502 (Bad Gateway): Serwer Hotres lub Proxy nie odpowiada.");
-    }
-    
     if (!response.ok) throw new Error(`Błąd API: ${response.status}`);
 
     const data: HotresResponseItem[] = await response.json();
@@ -110,11 +107,6 @@ export const fetchSeasonOccupancyMap = async (
 
   try {
     const response = await fetch(url);
-    
-    if (response.status === 502) {
-       throw new Error("Błąd 502 (Bad Gateway): Serwer Hotres lub Proxy nie odpowiada.");
-    }
-
     if (!response.ok) throw new Error(`Błąd API: ${response.status}`);
 
     const data: HotresResponseItem[] = await response.json();
@@ -146,11 +138,6 @@ export const fetchHotresRooms = async (oid: string): Promise<RoomType[]> => {
 
   try {
     const response = await fetch(url);
-    
-    if (response.status === 502) {
-       throw new Error("Błąd 502 (Bad Gateway): Serwer Hotres lub Proxy nie odpowiada.");
-    }
-
     if (!response.ok) throw new Error(`Błąd API: ${response.status}`);
 
     const data: HotresRoomResponse[] = await response.json();
@@ -190,33 +177,48 @@ export const updateHotresPrices = async (
 ): Promise<void> => {
   if (!oid) throw new Error("Brak OID obiektu.");
 
+  // Group payload by "type_id + rate_id" to match Hotres API structure
+  // Key: typeId_rateId, Value: Payload Object
   const payloadMap = new Map<string, { type_id: number, rate_id: number, mode: string, prices: any[] }>();
+
   const validRooms = rooms.filter(r => r.tid && r.tid.trim() !== "");
+  
+  // Filter channels that have a RID configured
   const validChannels = channels.filter(c => c.rid && c.rid.trim() !== "");
 
   if (validRooms.length === 0) throw new Error("Brak pokoi ze zdefiniowanym TID.");
   if (validChannels.length === 0) throw new Error("Brak kanałów ze zdefiniowanym RID.");
 
   validRooms.forEach(room => {
+    // Iterate over ALL seasons (previously we filtered by season.channelRids)
     seasons.forEach(season => {
+      
       validChannels.forEach(channel => {
+         // Use the Global Channel RID
          const channelRid = channel.rid;
+         
          if (channelRid) {
+            // Calculate "List Price" for the channel
+            
             const directBasePrice = calculateDirectPrice(room, season, room.maxOccupancy, settings);
             const channelBaseCalc = calculateChannelPrice(directBasePrice, channel, season.id);
             
             const priceEntry: any = {
               from: season.startDate,
               till: season.endDate,
-              baseprice: channelBaseCalc.listPrice,
+              baseprice: channelBaseCalc.listPrice, // Send inflated price
               min: season.minNights || 1,
               child: 0
             };
 
+            // Calculate OBP List Prices for Channel
             for (let i = 1; i <= room.maxOccupancy; i++) {
               if (i > 8) break;
+              // Get direct price for 'i' people
               const directP = calculateDirectPrice(room, season, i, settings);
+              // Convert to Channel List Price
               const chanCalc = calculateChannelPrice(directP, channel, season.id);
+              
               priceEntry[`pers${i}`] = chanCalc.listPrice;
             }
 
@@ -232,11 +234,14 @@ export const updateHotresPrices = async (
             payloadMap.get(key)!.prices.push(priceEntry);
          }
       });
+      
     });
   });
 
+  // Convert Map to Array
   const payload = Array.from(payloadMap.values());
-  if (payload.length === 0) throw new Error("Brak danych do wysłania.");
+
+  if (payload.length === 0) throw new Error("Brak danych do wysłania (sprawdź TID pokoi oraz RID kanałów).");
 
   const url = buildUrl('/api_updateprices', {
     user: USER,
@@ -244,10 +249,16 @@ export const updateHotresPrices = async (
     oid: oid
   });
 
-  console.group("🔥 HOTRES UPDATE REQUEST DEBUG 🔥");
-  console.log("Using Local Proxy:", USE_LOCAL_PROXY);
-  console.log("URL:", url);
+  // --- DEBUG LOGGING START ---
+  console.group("🔥 HOTRES UPDATE REQUEST DEBUG (MULTI-CHANNEL) 🔥");
+  console.log("Environment:", IS_LOCALHOST ? "LOCALHOST (Vite Proxy)" : "PRODUCTION (CORS Proxy)");
+  console.log("Full URL:", url); 
+  console.log("Method: POST");
+  console.log("Payload Groups:", payload.length);
+  console.log("Payload Size:", JSON.stringify(payload).length, "bytes");
+  console.log("Payload Preview (First Item):", payload[0]);
   console.groupEnd();
+  // --- DEBUG LOGGING END ---
 
   try {
     const response = await fetch(url, {
@@ -257,10 +268,6 @@ export const updateHotresPrices = async (
       },
       body: JSON.stringify(payload)
     });
-
-    if (response.status === 502) {
-       throw new Error("Błąd 502: Serwer Hotres nie odpowiada (Bad Gateway).");
-    }
 
     if (!response.ok) {
       const errorText = await response.text();
