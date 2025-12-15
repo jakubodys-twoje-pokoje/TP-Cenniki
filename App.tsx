@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import { LayoutDashboard, Settings as SettingsIcon, Menu, BedDouble, Calendar, Share2, Cog, ChevronDown, ChevronRight, Building, Plus, Trash2, Bed, CheckCircle2, Copy, Cloud, CloudOff, Loader2, RefreshCw, LogOut, Download, X, Lock, Users, Calculator, Eye, ShieldAlert } from "lucide-react";
 import SettingsPanel from "./components/SettingsPanel";
@@ -94,8 +95,21 @@ const App: React.FC = () => {
               throw error;
           }
 
+          // SANITIZATION: Ensure role matches strict types regardless of DB input case/spacing
+          let safeRole = 'client';
+          if (data.role) {
+             const normalized = String(data.role).toLowerCase().trim();
+             if (normalized === 'super_admin' || normalized === 'super admin') {
+                 safeRole = 'super_admin';
+             } else if (normalized === 'admin') {
+                 safeRole = 'admin';
+             } else {
+                 safeRole = 'client';
+             }
+          }
+
           return {
-              role: data.role,
+              role: safeRole as any,
               allowedPropertyIds: data.allowed_property_ids || []
           };
       } catch (err: any) {
