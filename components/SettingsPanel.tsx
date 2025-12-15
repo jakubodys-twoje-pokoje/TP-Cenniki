@@ -226,6 +226,13 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       return;
     }
 
+    // CONFIRMATION POPUP
+    const confirmMessage = `⚠️ CZY NA PEWNO CHCESZ WYSŁAĆ CENY? ⚠️\n\nOperacja ta NADPISZE wszystkie ceny w Hotres dla zdefiniowanych sezonów w tym obiekcie.\n\nOID: ${propertyOid}\nLiczba sezonów: ${seasons.length}\n\nCzy kontynuować?`;
+    
+    if (!window.confirm(confirmMessage)) {
+        return;
+    }
+
     setIsExporting(true);
     try {
       await updateHotresPrices(propertyOid, rooms, seasons, channels, settings);
@@ -249,6 +256,11 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     if (!hasAnyRid) {
       alert("Błąd: Nie zdefiniowano żadnych ID cenników (RID) w kanałach.");
       return;
+    }
+
+    // CONFIRMATION POPUP FOR SINGLE SEASON
+    if (!window.confirm(`Czy na pewno chcesz zaktualizować w Hotres tylko sezon: "${season.name}"?\n\nZakres: ${season.startDate} do ${season.endDate}`)) {
+        return;
     }
 
     setExportingSeasonId(season.id);

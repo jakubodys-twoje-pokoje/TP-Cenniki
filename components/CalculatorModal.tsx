@@ -132,27 +132,29 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
   const handleSendToHotres = async () => {
     if (!propertyOid || !selectedRoom || !selectedSeason || !calculationResult) return;
     
-    if (confirm(`Czy na pewno wysłać te ceny do Hotres na okres ${startDate} - ${endDate}? Ta operacja nadpisze ceny w panelu Hotres (dla połączonych kanałów), ale NIE zapisze ich w tej aplikacji.`)) {
-        setIsSending(true);
-        setSendError(null);
-        setSendSuccess(false);
-        try {
-            await pushManualPriceUpdate(
-                propertyOid,
-                selectedRoom,
-                startDate,
-                endDate,
-                channels,
-                calculationResult.obpLadder,
-                selectedSeason.minNights || 1
-            );
-            setSendSuccess(true);
-            setTimeout(() => setSendSuccess(false), 5000);
-        } catch (err: any) {
-            setSendError(err.message);
-        } finally {
-            setIsSending(false);
-        }
+    if (!confirm(`⚠️ POTWIERDZENIE WYSYŁKI ⚠️\n\nZamierzasz wysłać ceny na okres:\n📅 ${startDate} - ${endDate}\n\nTa operacja NADPISZE ceny w Hotres. Zmiany nie zostaną zapisane w lokalnej bazie danych aplikacji.\n\nKontynuować?`)) {
+        return;
+    }
+
+    setIsSending(true);
+    setSendError(null);
+    setSendSuccess(false);
+    try {
+        await pushManualPriceUpdate(
+            propertyOid,
+            selectedRoom,
+            startDate,
+            endDate,
+            channels,
+            calculationResult.obpLadder,
+            selectedSeason.minNights || 1
+        );
+        setSendSuccess(true);
+        setTimeout(() => setSendSuccess(false), 5000);
+    } catch (err: any) {
+        setSendError(err.message);
+    } finally {
+        setIsSending(false);
     }
   };
 
