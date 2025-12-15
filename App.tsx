@@ -13,7 +13,7 @@ import {
   INITIAL_SEASONS,
   INITIAL_SETTINGS,
 } from "./constants";
-import { Channel, Property, RoomType, SettingsTab, UserPermissions } from "./types";
+import { Channel, Property, RoomType, SettingsTab, UserPermissions, UserRole } from "./types";
 import { supabase } from "./utils/supabaseClient";
 import { fetchSeasonOccupancyMap, fetchHotresRooms } from "./utils/hotresApi";
 import { DEFAULT_DENIED_PERMISSION } from "./utils/userConfig";
@@ -87,7 +87,6 @@ const App: React.FC = () => {
             .single();
 
           if (error) {
-              // If error is code PGRST116, it means no rows found -> Access Denied
               if (error.code === 'PGRST116') {
                   console.warn("User not found in user_roles table.");
                   return null;
@@ -95,22 +94,37 @@ const App: React.FC = () => {
               throw error;
           }
 
-          // SANITIZATION: Ensure role matches strict types regardless of DB input case/spacing
-          let safeRole = 'client';
+          // --- ADAPT TO DATABASE ---
+          
+          // 1. Role Normalization (Secure Default)
+          // If DB has garbage, spaces, or mixed case, handle it. 
+          // Default to 'client' to prevent accidental admin access.
+          let safeRole: UserRole = 'client';
           if (data.role) {
-             const normalized = String(data.role).toLowerCase().trim();
-             if (normalized === 'super_admin' || normalized === 'super admin') {
+             const rawRole = String(data.role).toLowerCase().trim();
+             if (rawRole === 'super_admin' || rawRole === 'super admin') {
                  safeRole = 'super_admin';
-             } else if (normalized === 'admin') {
+             } else if (rawRole === 'admin') {
                  safeRole = 'admin';
-             } else {
-                 safeRole = 'client';
              }
+             // Else stays 'client'
           }
 
+          // 2. ID Type Coercion (JSONB Fix)
+          // JSONB arrays from DB might return numbers [1, 2, 3] or strings ["1", "2"].
+          // The app uses string IDs. We MUST map everything to String.
+          const rawIds = data.allowed_property_ids;
+          let safeIds: string[] = [];
+          
+          if (Array.isArray(rawIds)) {
+              safeIds = rawIds.map((id: any) => String(id).trim());
+          }
+
+          console.log(`[Auth Debug] User: ${email}, DB Role: ${data.role} -> App Role: ${safeRole}, Allowed IDs:`, safeIds);
+
           return {
-              role: safeRole as any,
-              allowedPropertyIds: data.allowed_property_ids || []
+              role: safeRole,
+              allowedPropertyIds: safeIds
           };
       } catch (err: any) {
           console.error("DB Permission Fetch Error:", err);
@@ -127,11 +141,9 @@ const App: React.FC = () => {
       setAuthLoading(true);
       setPermissionError(null);
 
-      // A. Fetch Permissions strictly from DB
       const perms = await fetchPermissionsFromDb(currentSession.user.email);
 
       if (!perms) {
-          // USER NOT FOUND IN DB -> DENY ACCESS
           setUserPermissions(DEFAULT_DENIED_PERMISSION);
           setPermissionError("Twoje konto nie ma przypisanych uprawnień. Skontaktuj się z administratorem.");
           setAuthLoading(false);
@@ -140,7 +152,7 @@ const App: React.FC = () => {
 
       setUserPermissions(perms);
 
-      // B. Only after permissions are set, fetch properties
+      // Only fetch properties if we have permissions
       await fetchProperties(perms);
       
       setAuthLoading(false);
@@ -207,10 +219,6 @@ const App: React.FC = () => {
 
     try {
       let query = supabase.from('properties').select('*');
-
-      // STRICT FILTERING AT DATABASE LEVEL QUERY IF POSSIBLE, OR JS FILTER
-      // Note: 'properties' table might not have RLS set up for granular access, 
-      // so we will fetch and filter carefully here based on the strict perms we just got.
       
       const { data, error } = await query;
 
@@ -219,13 +227,18 @@ const App: React.FC = () => {
       if (data) {
         let loadedProps = data.map(row => ({
            ...row.content,
-           id: row.id
+           id: String(row.id) // Ensure ID from DB row is string
         }));
 
-        // FILTER: Allow ONLY what is in allowedPropertyIds for clients
+        // STRICT CLIENT FILTERING
+        // This is where we adapt to the DB reality.
         if (perms.role === 'client') {
-            const allowed = new Set(perms.allowedPropertyIds);
-            loadedProps = loadedProps.filter(p => allowed.has(p.id));
+            const allowedSet = new Set(perms.allowedPropertyIds); // These are guaranteed strings from fetchPermissionsFromDb
+            
+            loadedProps = loadedProps.filter(p => {
+                // Double conversion for safety: String(p.id)
+                return allowedSet.has(String(p.id));
+            });
         }
 
         // Sorting
@@ -236,10 +249,14 @@ const App: React.FC = () => {
 
         processLoadedProperties(loadedProps);
 
-        // Set Active Property
+        // Set Active Property Logic
         if (loadedProps.length > 0) {
-            setActivePropertyId(loadedProps[0].id);
-            setExpandedProperties(new Set([loadedProps[0].id]));
+            // Check if current active is still valid
+            const isActiveValid = activePropertyId && loadedProps.some(p => p.id === activePropertyId);
+            if (!isActiveValid) {
+                setActivePropertyId(loadedProps[0].id);
+                setExpandedProperties(new Set([loadedProps[0].id]));
+            }
         } else {
             setActivePropertyId("");
         }
@@ -266,11 +283,12 @@ const App: React.FC = () => {
         (payload) => {
           if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
             const newContent = payload.new.content as Property;
-            const newId = payload.new.id;
+            const newId = String(payload.new.id);
             
             // SECURITY CHECK: If client, ignore if not in allowed list
-            if (userPermissions.role === 'client' && !userPermissions.allowedPropertyIds?.includes(newId)) {
-               return;
+            if (userPermissions.role === 'client') {
+               const allowed = new Set(userPermissions.allowedPropertyIds);
+               if (!allowed.has(newId)) return;
             }
 
             // Migration fixes on the fly
@@ -292,10 +310,15 @@ const App: React.FC = () => {
               } else {
                 updatedList = [...prev, { ...newContent, id: newId }];
               }
+              // Re-filter for client safety
+              if (userPermissions.role === 'client') {
+                  const allowed = new Set(userPermissions.allowedPropertyIds);
+                  updatedList = updatedList.filter(p => allowed.has(String(p.id)));
+              }
               return updatedList.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
             });
           } else if (payload.eventType === 'DELETE') {
-             const deletedId = payload.old.id;
+             const deletedId = String(payload.old.id);
              delete lastServerState.current[deletedId];
              setProperties(prev => prev.filter(p => p.id !== deletedId));
           }
@@ -617,7 +640,7 @@ const App: React.FC = () => {
   // RENDER HELPERS
   // ---------------------------------------------------------------------------
   const isClientRole = userPermissions.role === 'client';
-  const isReadOnly = userPermissions.role === 'client'; // Strict enforcement
+  const isReadOnly = isClientRole; 
 
   if (authLoading) {
     return (
@@ -634,7 +657,6 @@ const App: React.FC = () => {
     return <LoginScreen />;
   }
 
-  // Permission Error Screen (Logged in but no DB entry)
   if (permissionError) {
       return (
         <div className="flex h-screen items-center justify-center bg-slate-50 text-slate-800 p-4">
@@ -968,7 +990,7 @@ const App: React.FC = () => {
           </button>
           
           <div className="text-xs text-slate-500">
-            <p>Wersja 1.8.0 (DB-Driven Permissions)</p>
+            <p>Wersja 1.9.0 (DB-Driven Adaptation)</p>
             <p className="mt-1">© 2025 Twoje Pokoje & Strony Jakubowe</p>
           </div>
         </div>
