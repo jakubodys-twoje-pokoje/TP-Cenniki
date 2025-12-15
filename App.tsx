@@ -82,7 +82,6 @@ const App: React.FC = () => {
     
     // If user is statically defined as Admin/Super Admin, trust it immediately.
     if (staticPerms.role === 'super_admin' || staticPerms.role === 'admin') {
-        console.log(`[Auth] Static permissions found for ${email}: ${staticPerms.role}`);
         setUserPermissions(staticPerms);
         return staticPerms;
     }
@@ -96,23 +95,18 @@ const App: React.FC = () => {
         .single();
         
       if (data) {
-        console.log(`[Auth] DB permissions loaded for ${email}:`, data.role);
         const dbPerms: UserPermissions = {
           role: data.role,
           allowedPropertyIds: data.allowed_property_ids || []
         };
         setUserPermissions(dbPerms);
         return dbPerms;
-      } else {
-         console.warn(`[Auth] No DB row for ${email}. Using default Client role (no access).`);
       }
     } catch (e) {
-      console.error("[Auth] DB Fetch Error (Permissions):", e);
+      console.warn("DB Permission check failed, falling back to static.", e);
     }
     
     // 3. Fallback: Default Client (Safe Fail)
-    // If no row exists, we default to the static config (which is likely role: client, allowed: [])
-    // This effectively blocks access to data if the admin hasn't assigned properties.
     setUserPermissions(staticPerms);
     return staticPerms;
   };
@@ -121,10 +115,7 @@ const App: React.FC = () => {
     if (!currentSession?.user?.email) return;
     
     try {
-      // CRITICAL: Await permissions first, capture them in variable 'perms'
       const perms = await loadDynamicPermissions(currentSession.user.email);
-      
-      // Pass 'perms' directly to fetchProperties. Do not rely on state 'userPermissions' here yet.
       await fetchProperties(currentSession.user.email, perms);
     } catch (e) {
       console.error("Error loading user data:", e);
@@ -136,7 +127,6 @@ const App: React.FC = () => {
 
     const initializeAuth = async () => {
       try {
-        console.log("Initializing Auth...");
         const { data: { session: initialSession }, error } = await supabase.auth.getSession();
         
         if (error) throw error;
@@ -160,10 +150,7 @@ const App: React.FC = () => {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
       if (!mounted) return;
-      console.log(`Auth Event: ${event}`);
-
       setSession(currentSession);
-
       if (event === 'SIGNED_IN') {
         setAuthLoading(false);
         loadUserData(currentSession);
@@ -219,15 +206,14 @@ const App: React.FC = () => {
         // --- STRICT FILTERING FOR CLIENTS ---
         if (perms.role === 'client') {
            const allowedIds = perms.allowedPropertyIds || [];
-           // Only keep properties that are strictly in the allowed list
-           loadedProps = loadedProps.filter(p => allowedIds.includes(p.id));
            
-           console.log(`[Data] Filtered properties for client. Allowed: ${allowedIds.length}, Visible: ${loadedProps.length}`);
+           // CRITICAL FIX: If allowedIds is empty, we MUST return empty array immediately.
+           // Filter will handle it, but being explicit helps logic clarity.
+           loadedProps = loadedProps.filter(p => allowedIds.includes(p.id));
         }
 
         loadedProps.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
 
-        // Sort rooms
         loadedProps.forEach(p => {
           if (p.rooms) {
             p.rooms.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
@@ -236,14 +222,12 @@ const App: React.FC = () => {
 
         processLoadedProperties(loadedProps);
         
-        // Handle Active Property Selection
         if (loadedProps.length > 0) {
             const exists = loadedProps.find(p => p.id === activePropertyId);
             if (!exists || activePropertyId === "default") {
                 setActivePropertyId(loadedProps[0].id);
             }
         } else {
-            // If client has no properties, clear everything
             setActivePropertyId("");
             setProperties([]);
         }
@@ -679,9 +663,7 @@ const App: React.FC = () => {
   const handleRoomClick = (propertyId: string, roomId: string) => {
     setActivePropertyId(propertyId);
     setSelectedRoomId(roomId);
-    if (isClientRole) {
-       // Client always stays on ClientDashboard
-    } else {
+    if (!isClientRole) {
        setActiveTab("dashboard");
     }
     setIsSidebarOpen(false);
@@ -834,7 +816,6 @@ const App: React.FC = () => {
     );
   }
   
-  // Adjusted Empty State: If Client has no properties, show clear message instead of generic "Contact Admin" or weird state
   if (!activeProperty && properties.length === 0 && !authLoading) {
       return (
         <div className="flex h-screen items-center justify-center bg-slate-50 text-slate-500 flex-col gap-4">
@@ -868,11 +849,7 @@ const App: React.FC = () => {
             style={{ maxHeight: '60px' }}
           />
           <div className="text-center">
-             <span className="text-sm font-bold tracking-tight text-slate-400 uppercase">Cennik Twoje Pokoje</span>
              <div className="text-xs text-slate-600 mt-1 truncate px-2">{session.user.email}</div>
-             <div className={`text-[10px] uppercase font-bold mt-1 px-2 py-0.5 rounded inline-block ${userPermissions.role === 'super_admin' ? 'bg-blue-600' : userPermissions.role === 'admin' ? 'bg-purple-600' : 'bg-slate-700'}`}>
-                {userPermissions.role === 'super_admin' ? 'Super Admin' : userPermissions.role === 'admin' ? 'Admin' : 'Klient'}
-             </div>
           </div>
         </div>
 
@@ -899,7 +876,7 @@ const App: React.FC = () => {
               {properties.length === 0 && <p className="text-center italic text-xs mt-4">Brak przypisanych obiektów.</p>}
            </div>
         ) : (
-        // ADMIN SIDEBAR: Full Navigation + Properties with expansion
+        // ADMIN SIDEBAR: Full Navigation
         <nav className="p-4 space-y-2 flex-1 overflow-y-auto min-h-0">
           <button
             onClick={() => { setActiveTab("dashboard"); setSelectedRoomId(null); setIsSidebarOpen(false); }}
@@ -1087,29 +1064,6 @@ const App: React.FC = () => {
         )}
 
         <div className="p-6 border-t border-slate-800 space-y-3 flex-shrink-0">
-           {/* Sync Status Indicator - HIDDEN FOR CLIENTS */}
-          {!isClientRole && (
-            <div className="flex items-center justify-between">
-               <div className={`flex items-center gap-2 text-xs transition-colors h-4 ${
-                  syncStatus === 'synced' ? 'text-green-400' : 
-                  syncStatus === 'saving' ? 'text-yellow-400' : 
-                  syncStatus === 'error' ? 'text-red-400' : 'text-slate-500 opacity-0'
-               }`}>
-                 {syncStatus === 'synced' && <><CheckCircle2 size={12} /> <span>Zapisano w chmurze</span></>}
-                 {syncStatus === 'saving' && <><Loader2 size={12} className="animate-spin" /> <span>Zapisywanie...</span></>}
-                 {syncStatus === 'error' && <><CloudOff size={12} /> <span>Błąd zapisu</span></>}
-               </div>
-               
-               <button 
-                 onClick={handleManualSync}
-                 className="text-slate-500 hover:text-white transition-colors p-1"
-                 title="Wymuś synchronizację"
-               >
-                 <RefreshCw size={12} className={isLoading ? "animate-spin" : ""} />
-               </button>
-            </div>
-          )}
-
           <button 
             onClick={handleLogout}
             className="w-full flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded transition-colors"
