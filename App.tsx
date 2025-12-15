@@ -30,7 +30,6 @@ const App: React.FC = () => {
   const [userPermissions, setUserPermissions] = useState<UserPermissions>({ role: 'client', allowedPropertyIds: [] });
 
   // Application State
-  // Expanded type to include 'client-view'
   const [activeTab, setActiveTab] = useState<"dashboard" | "settings" | "client-view">("dashboard");
   const [activeSettingsTab, setActiveSettingsTab] = useState<SettingsTab>("rooms");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -145,10 +144,9 @@ const App: React.FC = () => {
              setSession(initialSession);
              
              // CRITICAL: Unlock the Auth Screen IMMEDIATELY.
-             // Do NOT wait for data to load. The `isLoading` state will handle the data loading screen.
              setAuthLoading(false);
              
-             // Now fetch data in background (or showing loading spinner via isLoading)
+             // Now fetch data in background
              await loadUserData(initialSession);
            } else {
              console.log("No session found (init).");
@@ -170,17 +168,12 @@ const App: React.FC = () => {
       setSession(currentSession);
 
       if (event === 'SIGNED_IN') {
-        // Explicit sign in (e.g. from Login form)
-        // Ensure auth loading is off
         setAuthLoading(false);
-        // Load data if not already loaded
         loadUserData(currentSession);
       } else if (event === 'SIGNED_OUT') {
         setProperties([]);
         setUserPermissions({ role: 'client', allowedPropertyIds: [] });
         setAuthLoading(false);
-      } else if (event === 'TOKEN_REFRESHED') {
-         // Token refreshed, session updated automatically by setSession above
       }
     });
 
@@ -231,6 +224,7 @@ const App: React.FC = () => {
         // FILTER PROPERTIES BASED ON ROLE
         if (perms.role === 'client') {
            const allowedIds = perms.allowedPropertyIds || [];
+           // Strict filtering for clients
            loadedProps = loadedProps.filter(p => allowedIds.includes(p.id));
         }
 
@@ -297,8 +291,6 @@ const App: React.FC = () => {
           table: 'properties',
         },
         (payload) => {
-          // If read-only user (Admin/Client), just consume updates
-          // Super Admin also consumes to stay synced
           
           if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
             const newContent = payload.new.content as Property;
@@ -698,7 +690,11 @@ const App: React.FC = () => {
   const handleRoomClick = (propertyId: string, roomId: string) => {
     setActivePropertyId(propertyId);
     setSelectedRoomId(roomId);
-    setActiveTab("dashboard");
+    if (isClientRole) {
+       // Do nothing or stay on Client Dashboard (which is the default view)
+    } else {
+       setActiveTab("dashboard");
+    }
     setIsSidebarOpen(false);
   };
   
@@ -891,14 +887,15 @@ const App: React.FC = () => {
              <span className="text-sm font-bold tracking-tight text-slate-400 uppercase">Cennik Twoje Pokoje</span>
              <div className="text-xs text-slate-600 mt-1 truncate px-2">{session.user.email}</div>
              <div className={`text-[10px] uppercase font-bold mt-1 px-2 py-0.5 rounded inline-block ${userPermissions.role === 'super_admin' ? 'bg-blue-600' : userPermissions.role === 'admin' ? 'bg-purple-600' : 'bg-slate-700'}`}>
-                {userPermissions.role === 'super_admin' ? 'Super Admin' : userPermissions.role === 'admin' ? 'Admin (Podgląd)' : 'Klient'}
+                {userPermissions.role === 'super_admin' ? 'Super Admin' : userPermissions.role === 'admin' ? 'Admin' : 'Klient'}
              </div>
           </div>
         </div>
 
         {isClientRole ? (
+           // CLIENT SIDEBAR: Only Properties List
            <div className="flex-1 p-4 text-slate-400 text-sm overflow-y-auto">
-              <p className="mb-4 text-center text-slate-500 text-xs">WYBIERZ OBIEKT</p>
+              <p className="mb-4 text-center text-slate-500 text-xs font-bold uppercase">TWOJE OBIEKTY</p>
               <div className="space-y-1">
                 {properties.map(p => (
                    <button
@@ -917,6 +914,7 @@ const App: React.FC = () => {
               </div>
            </div>
         ) : (
+        // ADMIN SIDEBAR: Full Navigation + Properties
         <nav className="p-4 space-y-2 flex-1 overflow-y-auto min-h-0">
           <button
             onClick={() => { setActiveTab("dashboard"); setSelectedRoomId(null); setIsSidebarOpen(false); }}
@@ -1041,7 +1039,7 @@ const App: React.FC = () => {
                              ? "bg-slate-800 text-white" 
                              : "text-slate-400 hover:bg-slate-800/50 hover:text-white"
                         }`}
-                        onClick={() => { setActivePropertyId(p.id); setSelectedRoomId(null); setActiveTab("dashboard"); }}
+                        onClick={() => { setActivePropertyId(p.id); setSelectedRoomId(null); if(!isClientRole) setActiveTab("dashboard"); }}
                      >
                         <div className="flex items-center gap-2 truncate flex-1">
                            <button 
@@ -1135,7 +1133,7 @@ const App: React.FC = () => {
           </button>
           
           <div className="text-xs text-slate-500">
-            <p>Wersja 1.5.0</p>
+            <p>Wersja 1.6.0 (Client Fix)</p>
             <p className="mt-1">© 2025 Twoje Pokoje & Strony Jakubowe</p>
           </div>
         </div>
@@ -1154,6 +1152,7 @@ const App: React.FC = () => {
         {/* Content Area */}
         <div className="flex-1 overflow-hidden p-4 md:p-8 print:p-0 print:overflow-visible print:h-auto">
           {isClientRole ? (
+             // CLIENT VIEW: ALWAYS Client Dashboard
              activeProperty ? (
                <ClientDashboard 
                  rooms={activeProperty.rooms}
@@ -1163,6 +1162,7 @@ const App: React.FC = () => {
                />
              ) : <div className="p-4 text-center text-slate-500">Wybierz obiekt z menu.</div>
           ) : (
+             // ADMIN VIEW: Conditional Rendering based on Tab
             <>
               {activeTab === "client-view" ? (
                  activeProperty ? (
