@@ -20,7 +20,12 @@ import { DEFAULT_DENIED_PERMISSION } from "./utils/userConfig";
 
 // Utility for deep cloning
 function deepClone<T>(obj: T): T {
-  return JSON.parse(JSON.stringify(obj));
+  try {
+    return JSON.parse(JSON.stringify(obj));
+  } catch (e) {
+    console.error("Deep clone error", e);
+    return obj;
+  }
 }
 
 const App: React.FC = () => {
@@ -97,8 +102,6 @@ const App: React.FC = () => {
           // --- ADAPT TO DATABASE ---
           
           // 1. Role Normalization (Secure Default)
-          // If DB has garbage, spaces, or mixed case, handle it. 
-          // Default to 'client' to prevent accidental admin access.
           let safeRole: UserRole = 'client';
           if (data.role) {
              const rawRole = String(data.role).toLowerCase().trim();
@@ -107,12 +110,10 @@ const App: React.FC = () => {
              } else if (rawRole === 'admin') {
                  safeRole = 'admin';
              }
-             // Else stays 'client'
           }
 
           // 2. ID Type Coercion (JSONB Fix)
-          // JSONB arrays from DB might return numbers [1, 2, 3] or strings ["1", "2"].
-          // The app uses string IDs. We MUST map everything to String.
+          // Ensure we map everything to String to avoid number/string mismatch issues.
           const rawIds = data.allowed_property_ids;
           let safeIds: string[] = [];
           
@@ -198,12 +199,17 @@ const App: React.FC = () => {
   // ---------------------------------------------------------------------------
 
   const processLoadedProperties = (props: Property[]) => {
+    // CRITICAL FIX: Robust mapping that handles undefined/null arrays to prevent crashes
     const migratedProps = props.map(p => ({
        ...p,
-       seasons: p.seasons.map(s => ({
+       // Fallback to empty arrays if data is malformed
+       rooms: Array.isArray(p.rooms) ? p.rooms : [],
+       channels: Array.isArray(p.channels) ? p.channels : [],
+       settings: p.settings || INITIAL_SETTINGS,
+       seasons: Array.isArray(p.seasons) ? p.seasons.map(s => ({
           ...s,
           channelRids: s.channelRids || (s.rid ? { 'direct': s.rid } : {})
-       }))
+       })) : [] // If seasons is missing, return empty array
     }));
 
     migratedProps.forEach(p => {
@@ -225,18 +231,25 @@ const App: React.FC = () => {
       if (error) throw error;
 
       if (data) {
-        let loadedProps = data.map(row => ({
-           ...row.content,
-           id: String(row.id) // Ensure ID from DB row is string
-        }));
+        // Safe mapping with fallbacks right from the start
+        let loadedProps: Property[] = data.map(row => {
+           const content = row.content || {}; // Handle null content
+           return {
+             ...content,
+             id: String(row.id), // Force DB ID as the string ID
+             // Ensure required arrays exist even if content is partial
+             rooms: Array.isArray(content.rooms) ? content.rooms : [],
+             seasons: Array.isArray(content.seasons) ? content.seasons : [],
+             channels: Array.isArray(content.channels) ? content.channels : [],
+             settings: content.settings || INITIAL_SETTINGS
+           };
+        });
 
         // STRICT CLIENT FILTERING
-        // This is where we adapt to the DB reality.
         if (perms.role === 'client') {
-            const allowedSet = new Set(perms.allowedPropertyIds); // These are guaranteed strings from fetchPermissionsFromDb
+            const allowedSet = new Set(perms.allowedPropertyIds); 
             
             loadedProps = loadedProps.filter(p => {
-                // Double conversion for safety: String(p.id)
                 return allowedSet.has(String(p.id));
             });
         }
@@ -282,16 +295,26 @@ const App: React.FC = () => {
         { event: '*', schema: 'public', table: 'properties' },
         (payload) => {
           if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
-            const newContent = payload.new.content as Property;
+            const newContentRaw = payload.new.content || {};
             const newId = String(payload.new.id);
             
-            // SECURITY CHECK: If client, ignore if not in allowed list
+            // Safety normalize new content
+            const newContent: Property = {
+               ...newContentRaw,
+               id: newId,
+               rooms: Array.isArray(newContentRaw.rooms) ? newContentRaw.rooms : [],
+               seasons: Array.isArray(newContentRaw.seasons) ? newContentRaw.seasons : [],
+               channels: Array.isArray(newContentRaw.channels) ? newContentRaw.channels : [],
+               settings: newContentRaw.settings || INITIAL_SETTINGS
+            };
+
+            // SECURITY CHECK
             if (userPermissions.role === 'client') {
                const allowed = new Set(userPermissions.allowedPropertyIds);
                if (!allowed.has(newId)) return;
             }
 
-            // Migration fixes on the fly
+            // Migrations on the fly
             if (newContent.rooms) newContent.rooms.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
             if (newContent.seasons) {
                newContent.seasons = newContent.seasons.map(s => ({
@@ -990,7 +1013,7 @@ const App: React.FC = () => {
           </button>
           
           <div className="text-xs text-slate-500">
-            <p>Wersja 1.9.0 (DB-Driven Adaptation)</p>
+            <p>Wersja 1.9.1 (Crash Fixes)</p>
             <p className="mt-1">© 2025 Twoje Pokoje & Strony Jakubowe</p>
           </div>
         </div>
