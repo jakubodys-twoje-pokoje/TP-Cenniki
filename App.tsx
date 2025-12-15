@@ -85,33 +85,48 @@ const App: React.FC = () => {
   
   const fetchPermissionsFromDb = async (email: string): Promise<UserPermissions | null> => {
       try {
+          // Changed .single() to standard select and handling array manually to prevent "JSON object expected" errors
           const { data, error } = await supabase
             .from('user_roles')
             .select('*')
-            .eq('email', email.toLowerCase().trim())
-            .single();
+            .eq('email', email.toLowerCase().trim());
 
           if (error) {
-              if (error.code === 'PGRST116') {
-                  console.warn("User not found in user_roles table.");
+              console.error("Supabase fetch error:", error);
+              // If table doesn't exist or other error, fallback to null
+              return null;
+          }
+
+          let userData: any = null;
+
+          // Handle Array vs Object response
+          if (Array.isArray(data)) {
+              if (data.length > 0) {
+                  userData = data[0];
+              } else {
+                  console.warn("User not found in user_roles table (empty array).");
                   return null;
               }
-              throw error;
+          } else if (data) {
+              userData = data;
+          } else {
+              return null;
           }
 
           console.log("[Auth Debug] Raw DB Data:", data);
+          console.log("[Auth Debug] Used User Data:", userData);
 
           // --- ROBUST COLUMN MATCHING ---
           const findKey = (obj: any, search: string) => 
-             Object.keys(obj).find(k => k.trim().toLowerCase().includes(search));
+             obj ? Object.keys(obj).find(k => k.trim().toLowerCase().includes(search)) : undefined;
 
-          const roleKey = findKey(data, 'role');
-          const idsKey = findKey(data, 'allowed_property_ids') || findKey(data, 'property_ids') || findKey(data, 'ids');
+          const roleKey = findKey(userData, 'role');
+          const idsKey = findKey(userData, 'allowed_property_ids') || findKey(userData, 'property_ids') || findKey(userData, 'ids');
 
           // 1. Role Normalization
           let safeRole: UserRole = 'client';
-          if (roleKey && data[roleKey]) {
-             const rawRole = String(data[roleKey]).toLowerCase().trim();
+          if (roleKey && userData[roleKey]) {
+             const rawRole = String(userData[roleKey]).toLowerCase().trim();
              if (rawRole === 'super_admin' || rawRole === 'super admin') {
                  safeRole = 'super_admin';
              } else if (rawRole === 'admin') {
@@ -120,7 +135,7 @@ const App: React.FC = () => {
           }
 
           // 2. ID Parsing - EXTREME ROBUSTNESS
-          let rawIds = idsKey ? data[idsKey] : [];
+          let rawIds = idsKey ? userData[idsKey] : [];
           
           // Recursive unwrap function to handle double-encoded strings (e.g. '"[\"123\"]"')
           const parseDeep = (input: any): any[] => {
@@ -1065,7 +1080,7 @@ const App: React.FC = () => {
           </button>
           
           <div className="text-xs text-slate-500">
-            <p>Wersja 1.9.4 (Recursive JSON Parse)</p>
+            <p>Wersja 1.9.5 (DB Array Handler)</p>
             <p className="mt-1">© 2025 Twoje Pokoje & Strony Jakubowe</p>
           </div>
         </div>
