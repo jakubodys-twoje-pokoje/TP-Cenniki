@@ -33,7 +33,7 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<"dashboard" | "settings" | "client-view">("dashboard");
   const [activeSettingsTab, setActiveSettingsTab] = useState<SettingsTab>("rooms");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isConfigExpanded, setIsConfigExpanded] = useState(true);
+  const [isConfigExpanded, setIsConfigExpanded] = useState(false); // Default collapsed to save space
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
 
   // Add Property Modal State
@@ -142,11 +142,7 @@ const App: React.FC = () => {
            if (initialSession) {
              console.log("Session found (init).");
              setSession(initialSession);
-             
-             // CRITICAL: Unlock the Auth Screen IMMEDIATELY.
              setAuthLoading(false);
-             
-             // Now fetch data in background
              await loadUserData(initialSession);
            } else {
              console.log("No session found (init).");
@@ -186,7 +182,6 @@ const App: React.FC = () => {
 
   // Function to process loaded properties and update refs
   const processLoadedProperties = (props: Property[]) => {
-    // Migration: Ensure channelRids exists on seasons if loading old data
     const migratedProps = props.map(p => ({
        ...p,
        seasons: p.seasons.map(s => ({
@@ -221,17 +216,13 @@ const App: React.FC = () => {
            id: row.id
         }));
 
-        // FILTER PROPERTIES BASED ON ROLE
         if (perms.role === 'client') {
            const allowedIds = perms.allowedPropertyIds || [];
-           // Strict filtering for clients
            loadedProps = loadedProps.filter(p => allowedIds.includes(p.id));
         }
 
-        // Apply Custom Sorting (sortOrder)
         loadedProps.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
 
-        // Apply Room Sorting within properties
         loadedProps.forEach(p => {
           if (p.rooms) {
             p.rooms.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
@@ -240,7 +231,6 @@ const App: React.FC = () => {
 
         processLoadedProperties(loadedProps);
         
-        // Safety check to ensure we have an active property ID
         if (loadedProps.length > 0) {
             const exists = loadedProps.find(p => p.id === activePropertyId);
             if (!exists || activePropertyId === "default") {
@@ -248,7 +238,6 @@ const App: React.FC = () => {
             }
         }
       } else {
-        // Only create default if Super Admin
         if (perms.role === 'super_admin') {
            const defaultProp: Property = {
              id: "default",
@@ -265,7 +254,7 @@ const App: React.FC = () => {
            processLoadedProperties([defaultProp]);
            setActivePropertyId(defaultProp.id);
         } else {
-           setProperties([]); // Empty state for read-only user if DB is empty
+           setProperties([]);
         }
       }
     } catch (err: any) {
@@ -291,22 +280,18 @@ const App: React.FC = () => {
           table: 'properties',
         },
         (payload) => {
-          
           if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
             const newContent = payload.new.content as Property;
             const newId = payload.new.id;
             
-            // Client Filter Check
             if (userPermissions.role === 'client' && !userPermissions.allowedPropertyIds?.includes(newId)) {
-               return; // Ignore update for property not allowed
+               return;
             }
 
-            // Ensure rooms are sorted when receiving update
             if (newContent.rooms) {
                newContent.rooms.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
             }
             
-            // Handle Migration on Live Update too
             if (newContent.seasons) {
                newContent.seasons = newContent.seasons.map(s => ({
                    ...s,
@@ -323,7 +308,6 @@ const App: React.FC = () => {
               } else {
                 updatedList = [...prev, { ...newContent, id: newId }];
               }
-              // Re-sort entire property list on update based on sortOrder
               return updatedList.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
             });
           } else if (payload.eventType === 'DELETE') {
@@ -343,8 +327,6 @@ const App: React.FC = () => {
   // 2. Save Changes
   useEffect(() => {
     if (isLoading || properties.length === 0 || !session) return;
-    
-    // PERMISSION CHECK: Only Super Admin can save
     if (userPermissions.role !== 'super_admin') return;
 
     const propToSave = properties.find(p => p.id === activePropertyId);
@@ -391,7 +373,6 @@ const App: React.FC = () => {
     };
   }, [properties, activePropertyId, session, isLoading, userPermissions]);
 
-  // Helper logic to sync occupancy for a property
   const syncPropertyOccupancy = async (propId: string) => {
     if (userPermissions.role !== 'super_admin') {
        alert("Brak uprawnień do aktualizacji bazy danych.");
@@ -402,7 +383,7 @@ const App: React.FC = () => {
     if (!prop || !prop.oid) return;
 
     console.log(`Syncing occupancy for property ${prop.name} (${prop.oid})`);
-    setIsOccupancyRefreshing(true); // START LOADING
+    setIsOccupancyRefreshing(true); 
     
     try {
       let updatedRooms = deepClone(prop.rooms);
@@ -439,14 +420,14 @@ const App: React.FC = () => {
         console.error("Manual occupancy sync failed:", error);
         alert("Błąd podczas synchronizacji dostępności.");
     } finally {
-        setIsOccupancyRefreshing(false); // STOP LOADING
+        setIsOccupancyRefreshing(false); 
     }
   };
 
   const activeProperty = properties.find(p => p.id === activePropertyId) || properties[0];
 
   const updateActiveProperty = (updates: Partial<Property>) => {
-    if (userPermissions.role !== 'super_admin') return; // Enforce Read-Only
+    if (userPermissions.role !== 'super_admin') return; 
     setProperties(prev => prev.map(p => 
       p.id === activePropertyId ? { ...p, ...updates } : p
     ));
@@ -505,7 +486,6 @@ const App: React.FC = () => {
     const targetProp = properties.find(p => p.id === targetPropertyId);
     if (!targetProp) return;
 
-    // Deep clone and generate new ID
     const newChannel = {
         ...deepClone(sourceChannel),
         id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
@@ -521,7 +501,6 @@ const App: React.FC = () => {
         p.id === targetPropertyId ? updatedTargetProp : p
     ));
 
-    // Hard save for target property immediately
     setSyncStatus('saving');
     lastServerState.current[targetPropertyId] = JSON.stringify(updatedTargetProp);
     await supabase.from('properties').upsert({
@@ -542,7 +521,6 @@ const App: React.FC = () => {
     const targetProp = properties.find(p => p.id === targetPropertyId);
     if (!targetProp) return;
 
-    // Deep clone ALL channels from active property, regenerate IDs
     const clonedChannels = deepClone(activeProperty.channels).map(c => ({
         ...c,
         id: Date.now().toString() + Math.random().toString(36).substr(2, 5)
@@ -557,7 +535,6 @@ const App: React.FC = () => {
         p.id === targetPropertyId ? updatedTargetProp : p
     ));
 
-    // Hard save
     setSyncStatus('saving');
     lastServerState.current[targetPropertyId] = JSON.stringify(updatedTargetProp);
     await supabase.from('properties').upsert({
@@ -691,7 +668,7 @@ const App: React.FC = () => {
     setActivePropertyId(propertyId);
     setSelectedRoomId(roomId);
     if (isClientRole) {
-       // Do nothing or stay on Client Dashboard (which is the default view)
+       // Client always stays on ClientDashboard
     } else {
        setActiveTab("dashboard");
     }
@@ -708,7 +685,6 @@ const App: React.FC = () => {
     await supabase.auth.signOut();
   };
 
-  // Drag & Drop Handlers for Sidebar
   const handleSidebarDragStart = (e: React.DragEvent, type: 'property' | 'room', id: string, parentId?: string) => {
     if (userPermissions.role !== 'super_admin') return;
     setSidebarDragItem({ type, id, parentId });
@@ -721,14 +697,13 @@ const App: React.FC = () => {
   };
 
   const handleSidebarDragEnd = (e: React.DragEvent) => {
-    setSidebarDragItem(null); // Clear drag item to fix visual "greyed out" glitch
+    setSidebarDragItem(null); 
   };
 
   const handleSidebarDrop = async (e: React.DragEvent, targetType: 'property' | 'room', targetId: string, targetParentId?: string) => {
     e.preventDefault();
     if (!sidebarDragItem) return;
     
-    // Logic for Property Reordering
     if (sidebarDragItem.type === 'property' && targetType === 'property') {
        if (sidebarDragItem.id === targetId) { setSidebarDragItem(null); return; }
        const sourceIndex = properties.findIndex(p => p.id === sidebarDragItem.id);
@@ -740,14 +715,11 @@ const App: React.FC = () => {
        const [moved] = newProperties.splice(sourceIndex, 1);
        newProperties.splice(targetIndex, 0, moved);
        
-       // Re-assign Sort Order
        const sortedProperties = newProperties.map((p, idx) => ({ ...p, sortOrder: idx }));
        setProperties(sortedProperties);
 
-       // Save to DB immediately & Update Last Server State to prevent useEffect loop
        setSyncStatus('saving');
        const updates = sortedProperties.map(p => {
-         // Update reference to prevent auto-save triggering
          const content = { ...p, sortOrder: p.sortOrder };
          lastServerState.current[p.id] = JSON.stringify(content);
          return {
@@ -762,10 +734,9 @@ const App: React.FC = () => {
        setTimeout(() => setSyncStatus('idle'), 2000);
     } 
     
-    // Logic for Room Reordering (Must be within same property)
     else if (sidebarDragItem.type === 'room' && targetType === 'room') {
        if (sidebarDragItem.id === targetId) { setSidebarDragItem(null); return; }
-       if (sidebarDragItem.parentId !== targetParentId) { setSidebarDragItem(null); return; } // Prevent cross-property drag
+       if (sidebarDragItem.parentId !== targetParentId) { setSidebarDragItem(null); return; } 
 
        const propIndex = properties.findIndex(p => p.id === sidebarDragItem.parentId);
        if (propIndex === -1) { setSidebarDragItem(null); return; }
@@ -780,17 +751,14 @@ const App: React.FC = () => {
        const [moved] = newRooms.splice(sourceIndex, 1);
        newRooms.splice(targetIndex, 0, moved);
 
-       // Re-assign Sort Order for rooms
        newRooms.forEach((r, idx) => r.sortOrder = idx);
 
        const updatedProp = { ...prop, rooms: newRooms };
        
-       // Update State
        setProperties(prev => prev.map(p => 
           p.id === prop.id ? updatedProp : p
        ));
 
-       // Save to DB immediately & Update Ref
        setSyncStatus('saving');
        lastServerState.current[prop.id] = JSON.stringify(updatedProp);
        
@@ -808,8 +776,6 @@ const App: React.FC = () => {
 
   const isClientRole = userPermissions.role === 'client';
   const isReadOnly = userPermissions.role !== 'super_admin';
-
-  // --- Render Views ---
 
   if (authLoading) {
     return (
@@ -829,7 +795,6 @@ const App: React.FC = () => {
   if (loadError) {
     return (
        <div className="flex flex-col h-screen items-center justify-center bg-slate-50 text-slate-800 p-4">
-        {/* Error UI kept same as previous */}
         <div className="bg-white p-6 rounded-lg shadow-lg max-w-lg w-full border border-red-200">
            <div className="flex items-center gap-2 text-red-600 font-bold mb-4">
              <CloudOff size={24} />
@@ -857,7 +822,6 @@ const App: React.FC = () => {
     );
   }
   
-  // Handling case where permissions allow 0 properties
   if (!activeProperty && properties.length === 0 && !authLoading) {
       return (
         <div className="flex h-screen items-center justify-center bg-slate-50 text-slate-500 flex-col gap-4">
@@ -928,7 +892,7 @@ const App: React.FC = () => {
             <span className="font-medium">Panel</span>
           </button>
           
-          {/* Client View Button for Admins - Explicitly Added Here */}
+          {/* Client View Button for Admins - MOVED UP */}
           <button
             onClick={() => { setActiveTab("client-view"); setIsSidebarOpen(false); }}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors flex-shrink-0 ${
@@ -941,6 +905,17 @@ const App: React.FC = () => {
             <span className="font-medium">Podgląd Klienta</span>
           </button>
 
+          {/* User Management Button (Super Admin Only) - MOVED UP */}
+          {userPermissions.role === 'super_admin' && (
+              <button
+                onClick={() => setShowUserPanel(true)}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors flex-shrink-0 text-slate-400 hover:bg-slate-800 hover:text-white"
+              >
+                <Users size={20} />
+                <span className="font-medium">Użytkownicy</span>
+              </button>
+          )}
+
           {/* Calculator Button */}
           <button
             onClick={() => setShowCalculator(true)}
@@ -949,6 +924,8 @@ const App: React.FC = () => {
             <Calculator size={20} />
             <span className="font-medium">Kalkulator</span>
           </button>
+          
+          <div className="w-full h-px bg-slate-800 my-2"></div>
 
           {/* Configuration Dropdown */}
           <div className="flex-shrink-0">
@@ -993,19 +970,10 @@ const App: React.FC = () => {
             )}
           </div>
           
-          {/* User Management Button (Super Admin Only) */}
-          {userPermissions.role === 'super_admin' && (
-              <button
-                onClick={() => setShowUserPanel(true)}
-                className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors flex-shrink-0 text-slate-400 hover:bg-slate-800 hover:text-white mt-2"
-              >
-                <Users size={20} />
-                <span className="font-medium">Użytkownicy</span>
-              </button>
-          )}
+          <div className="w-full h-px bg-slate-800 my-2"></div>
 
           {/* Properties Section */}
-          <div className="mt-6 flex-shrink-0">
+          <div className="mt-2 flex-shrink-0">
              <div className="flex items-center justify-between mb-2 px-4">
                 <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Twoje Obiekty</span>
                 <div className="flex gap-1">
@@ -1133,7 +1101,7 @@ const App: React.FC = () => {
           </button>
           
           <div className="text-xs text-slate-500">
-            <p>Wersja 1.6.0 (Client Fix)</p>
+            <p>Wersja 1.7.0 (Strict Client Isolation)</p>
             <p className="mt-1">© 2025 Twoje Pokoje & Strony Jakubowe</p>
           </div>
         </div>
