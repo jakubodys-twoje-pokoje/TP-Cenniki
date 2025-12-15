@@ -99,12 +99,19 @@ const App: React.FC = () => {
               throw error;
           }
 
-          // --- ADAPT TO DATABASE ---
-          
-          // 1. Role Normalization (Secure Default)
+          console.log("[Auth Debug] Raw DB Data:", data);
+
+          // --- ROBUST COLUMN MATCHING ---
+          const findKey = (obj: any, search: string) => 
+             Object.keys(obj).find(k => k.trim().toLowerCase().includes(search));
+
+          const roleKey = findKey(data, 'role');
+          const idsKey = findKey(data, 'allowed_property_ids') || findKey(data, 'property_ids') || findKey(data, 'ids');
+
+          // 1. Role Normalization
           let safeRole: UserRole = 'client';
-          if (data.role) {
-             const rawRole = String(data.role).toLowerCase().trim();
+          if (roleKey && data[roleKey]) {
+             const rawRole = String(data[roleKey]).toLowerCase().trim();
              if (rawRole === 'super_admin' || rawRole === 'super admin') {
                  safeRole = 'super_admin';
              } else if (rawRole === 'admin') {
@@ -112,28 +119,58 @@ const App: React.FC = () => {
              }
           }
 
-          // 2. ID Type Coercion & JSON Parsing
-          // CRITICAL FIX: CSV data shows this might be a double-encoded string `["id"]`.
-          // We must check if it's a string and parse it, otherwise handle it as array.
-          let rawIds = data.allowed_property_ids;
+          // 2. ID Parsing - EXTREME ROBUSTNESS
+          let rawIds = idsKey ? data[idsKey] : [];
           
-          if (typeof rawIds === 'string') {
-              try {
-                  // Attempt to parse stringified JSON
-                  rawIds = JSON.parse(rawIds);
-              } catch (e) {
-                  console.warn("Failed to parse allowed_property_ids string, creating empty list", rawIds);
-                  rawIds = [];
+          // Recursive unwrap function to handle double-encoded strings (e.g. '"[\"123\"]"')
+          const parseDeep = (input: any): any[] => {
+              if (Array.isArray(input)) return input;
+              
+              if (typeof input === 'string') {
+                  let str = input.trim();
+                  
+                  // Fix CSV artifact: [" "123" ", " "456" "] -> ["123", "456"]
+                  // Replace double-double quotes with single-double quotes
+                  if (str.includes('""')) {
+                    str = str.replace(/""/g, '"');
+                  }
+                  
+                  // Remove leading/trailing quotes if it's a stringified string
+                  if ((str.startsWith('"') && str.endsWith('"')) || (str.startsWith("'") && str.endsWith("'"))) {
+                      // Be careful not to strip valid JSON array brackets if they are inside quotes
+                      // This heuristic checks if stripping quotes reveals a bracket
+                      const inner = str.slice(1, -1);
+                      if (inner.trim().startsWith('[') || inner.trim().startsWith('{')) {
+                           str = inner;
+                      }
+                  }
+
+                  try {
+                      const parsed = JSON.parse(str);
+                      // Recurse in case it was doubly stringified
+                      return parseDeep(parsed);
+                  } catch (e) {
+                      // JSON Parse Failed. Try fallback Regex.
+                      // Extract anything that looks like a Timestamp ID (13+ digits) or simple ID
+                      const matches = str.match(/(\d{8,})/g);
+                      if (matches && matches.length > 0) {
+                          return matches;
+                      }
+                      return [];
+                  }
               }
-          }
+              return [];
+          };
 
+          rawIds = parseDeep(rawIds);
+
+          // Final cleanup of IDs
           let safeIds: string[] = [];
-          
           if (Array.isArray(rawIds)) {
-              safeIds = rawIds.map((id: any) => String(id).trim().replace(/"/g, '')); // Strip extra quotes just in case
+              safeIds = rawIds.map((id: any) => String(id).trim().replace(/['"]/g, ''));
           }
 
-          console.log(`[Auth Debug] User: ${email}, DB Role: ${data.role} -> App Role: ${safeRole}, Allowed IDs:`, safeIds);
+          console.log(`[Auth Debug] Processed: Role=${safeRole}, IDs count=${safeIds.length}, IDs=`, safeIds);
 
           return {
               role: safeRole,
@@ -258,6 +295,9 @@ const App: React.FC = () => {
         });
 
         // STRICT CLIENT FILTERING
+        // Even admins should respect "allowedPropertyIds" if we want to restrict their view,
+        // but typically admins see all. The prompt says "App Role is correct" (client)
+        // so we must trust the ID list.
         if (perms.role === 'client') {
             const allowedSet = new Set(perms.allowedPropertyIds); 
             
@@ -1025,7 +1065,7 @@ const App: React.FC = () => {
           </button>
           
           <div className="text-xs text-slate-500">
-            <p>Wersja 1.9.2 (JSON Parse Fix)</p>
+            <p>Wersja 1.9.4 (Recursive JSON Parse)</p>
             <p className="mt-1">© 2025 Twoje Pokoje & Strony Jakubowe</p>
           </div>
         </div>
