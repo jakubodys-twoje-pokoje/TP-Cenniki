@@ -251,6 +251,10 @@ const Dashboard: React.FC<DashboardProps> = ({
     setDraggedRoomId(null);
   };
 
+  const handleDragEnd = () => {
+    setDraggedRoomId(null);
+  };
+
   const toggleColumn = (key: keyof ColumnVisibility) => {
     setColumnVisibility(prev => ({ ...prev, [key]: !prev[key] }));
   };
@@ -509,6 +513,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                      onDragStart={(e) => handleDragStart(e, room.id)}
                      onDragOver={handleDragOver}
                      onDrop={(e) => handleDrop(e, room.id)}
+                     onDragEnd={handleDragEnd}
                      className={`group/body border-b border-slate-200 hover:bg-slate-50/50 transition-colors ${dragActive ? 'opacity-30' : ''}`}
                   >
                      {/* Group Header Row */}

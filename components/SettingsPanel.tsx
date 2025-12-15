@@ -291,6 +291,11 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     setDraggedListType(null);
   };
 
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+    setDraggedListType(null);
+  };
+
 
   const addRoom = () => {
     if (isReadOnly) return;
@@ -495,6 +500,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                         onDragStart={() => handleDragStart(index, 'rooms')}
                         onDragOver={handleDragOver}
                         onDrop={() => handleDrop(index, rooms, setRooms, 'rooms')}
+                        onDragEnd={handleDragEnd}
                         className={`bg-white ${draggedListType === 'rooms' && draggedIndex === index ? 'opacity-50' : ''}`}
                       >
                         <td className={`px-3 py-2 text-center text-slate-400 ${!isReadOnly ? 'cursor-grab active:cursor-grabbing' : ''}`}>
@@ -614,6 +620,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 onDragStart={() => handleDragStart(index, 'seasons')}
                 onDragOver={handleDragOver}
                 onDrop={() => handleDrop(index, seasons, setSeasons, 'seasons')}
+                onDragEnd={handleDragEnd}
                 className={`border border-slate-200 rounded-md p-4 bg-slate-50 relative group ${draggedListType === 'seasons' && draggedIndex === index ? 'opacity-50' : ''}`}
               >
                 {!isReadOnly && (
@@ -704,6 +711,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   onDragStart={() => handleDragStart(index, 'channels')}
                   onDragOver={handleDragOver}
                   onDrop={() => handleDrop(index, channels, setChannels, 'channels')}
+                  onDragEnd={handleDragEnd}
                   className={`border border-slate-200 rounded-md p-4 bg-white shadow-sm ${draggedListType === 'channels' && draggedIndex === index ? 'opacity-50' : ''}`}
                 >
                    {/* Channel Header */}

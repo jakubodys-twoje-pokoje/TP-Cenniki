@@ -94,13 +94,11 @@ const App: React.FC = () => {
 
           if (error) {
               console.error("Supabase fetch error:", error);
-              // If table doesn't exist or other error, fallback to null
               return null;
           }
 
           let userData: any = null;
 
-          // Handle Array vs Object response
           if (Array.isArray(data)) {
               if (data.length > 0) {
                   userData = data[0];
@@ -114,10 +112,6 @@ const App: React.FC = () => {
               return null;
           }
 
-          console.log("[Auth Debug] Raw DB Data:", data);
-          console.log("[Auth Debug] Used User Data:", userData);
-
-          // --- ROBUST COLUMN MATCHING ---
           const findKey = (obj: any, search: string) => 
              obj ? Object.keys(obj).find(k => k.trim().toLowerCase().includes(search)) : undefined;
 
@@ -138,36 +132,23 @@ const App: React.FC = () => {
           // 2. ID Parsing - EXTREME ROBUSTNESS
           let rawIds = idsKey ? userData[idsKey] : [];
           
-          // Recursive unwrap function to handle double-encoded strings (e.g. '"[\"123\"]"')
           const parseDeep = (input: any): any[] => {
               if (Array.isArray(input)) return input;
-              
               if (typeof input === 'string') {
                   let str = input.trim();
-                  
-                  // Fix CSV artifact: [" "123" ", " "456" "] -> ["123", "456"]
-                  // Replace double-double quotes with single-double quotes
                   if (str.includes('""')) {
                     str = str.replace(/""/g, '"');
                   }
-                  
-                  // Remove leading/trailing quotes if it's a stringified string
                   if ((str.startsWith('"') && str.endsWith('"')) || (str.startsWith("'") && str.endsWith("'"))) {
-                      // Be careful not to strip valid JSON array brackets if they are inside quotes
-                      // This heuristic checks if stripping quotes reveals a bracket
                       const inner = str.slice(1, -1);
                       if (inner.trim().startsWith('[') || inner.trim().startsWith('{')) {
                            str = inner;
                       }
                   }
-
                   try {
                       const parsed = JSON.parse(str);
-                      // Recurse in case it was doubly stringified
                       return parseDeep(parsed);
                   } catch (e) {
-                      // JSON Parse Failed. Try fallback Regex.
-                      // Extract anything that looks like a Timestamp ID (13+ digits) or simple ID
                       const matches = str.match(/(\d{8,})/g);
                       if (matches && matches.length > 0) {
                           return matches;
@@ -180,13 +161,10 @@ const App: React.FC = () => {
 
           rawIds = parseDeep(rawIds);
 
-          // Final cleanup of IDs
           let safeIds: string[] = [];
           if (Array.isArray(rawIds)) {
               safeIds = rawIds.map((id: any) => String(id).trim().replace(/['"]/g, ''));
           }
-
-          console.log(`[Auth Debug] Processed: Role=${safeRole}, IDs count=${safeIds.length}, IDs=`, safeIds);
 
           return {
               role: safeRole,
@@ -204,7 +182,12 @@ const App: React.FC = () => {
           return;
       }
 
-      setAuthLoading(true);
+      // OPTIMIZATION: Only show full loading screen if we don't have properties loaded yet.
+      // This prevents the screen from flashing "Loading" when switching tabs or refreshing token in background.
+      if (properties.length === 0) {
+         setAuthLoading(true);
+      }
+      
       setPermissionError(null);
 
       const perms = await fetchPermissionsFromDb(currentSession.user.email);
@@ -244,6 +227,8 @@ const App: React.FC = () => {
         if (mounted) {
             setSession(session);
             if (event === 'SIGNED_IN' && session) {
+                // If we are already loaded and the user is the same, this might be a token refresh.
+                // We should handle it gracefully without blocking UI.
                 initUser(session);
             } else if (event === 'SIGNED_OUT') {
                 setProperties([]);
@@ -264,17 +249,15 @@ const App: React.FC = () => {
   // ---------------------------------------------------------------------------
 
   const processLoadedProperties = (props: Property[]) => {
-    // CRITICAL FIX: Robust mapping that handles undefined/null arrays to prevent crashes
     const migratedProps = props.map(p => ({
        ...p,
-       // Fallback to empty arrays if data is malformed
        rooms: Array.isArray(p.rooms) ? p.rooms : [],
        channels: Array.isArray(p.channels) ? p.channels : [],
        settings: p.settings || INITIAL_SETTINGS,
        seasons: Array.isArray(p.seasons) ? p.seasons.map(s => ({
           ...s,
           channelRids: s.channelRids || (s.rid ? { 'direct': s.rid } : {})
-       })) : [] // If seasons is missing, return empty array
+       })) : []
     }));
 
     migratedProps.forEach(p => {
@@ -284,7 +267,9 @@ const App: React.FC = () => {
   };
 
   const fetchProperties = async (perms: UserPermissions) => {
-    setIsLoading(true);
+    // Only show "Loading..." if we don't have data yet to avoid UI flickering
+    if (properties.length === 0) setIsLoading(true);
+    
     setSyncStatus('idle');
     setLoadError(null);
 
@@ -296,13 +281,11 @@ const App: React.FC = () => {
       if (error) throw error;
 
       if (data) {
-        // Safe mapping with fallbacks right from the start
         let loadedProps: Property[] = data.map(row => {
-           const content = row.content || {}; // Handle null content
+           const content = row.content || {}; 
            return {
              ...content,
-             id: String(row.id), // Force DB ID as the string ID
-             // Ensure required arrays exist even if content is partial
+             id: String(row.id),
              rooms: Array.isArray(content.rooms) ? content.rooms : [],
              seasons: Array.isArray(content.seasons) ? content.seasons : [],
              channels: Array.isArray(content.channels) ? content.channels : [],
@@ -310,19 +293,13 @@ const App: React.FC = () => {
            };
         });
 
-        // STRICT CLIENT FILTERING
-        // Even admins should respect "allowedPropertyIds" if we want to restrict their view,
-        // but typically admins see all. The prompt says "App Role is correct" (client)
-        // so we must trust the ID list.
         if (perms.role === 'client') {
             const allowedSet = new Set(perms.allowedPropertyIds); 
-            
             loadedProps = loadedProps.filter(p => {
                 return allowedSet.has(String(p.id));
             });
         }
 
-        // Sorting
         loadedProps.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
         loadedProps.forEach(p => {
           if (p.rooms) p.rooms.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
@@ -330,14 +307,21 @@ const App: React.FC = () => {
 
         processLoadedProperties(loadedProps);
 
-        // Set Active Property Logic
+        // Set Active Property Logic - FIX FOR RESETTING TO FIRST ITEM
         if (loadedProps.length > 0) {
-            // Check if current active is still valid
-            const isActiveValid = activePropertyId && loadedProps.some(p => p.id === activePropertyId);
-            if (!isActiveValid) {
-                setActivePropertyId(loadedProps[0].id);
-                setExpandedProperties(new Set([loadedProps[0].id]));
-            }
+            setActivePropertyId((currentId) => {
+                // Check if the currently active ID is still present in the new list
+                const stillExists = currentId && loadedProps.some(p => p.id === currentId);
+                
+                if (stillExists) {
+                    // Keep the current one
+                    return currentId;
+                } else {
+                    // Default to first, expand it
+                    setExpandedProperties(new Set([loadedProps[0].id]));
+                    return loadedProps[0].id;
+                }
+            });
         } else {
             setActivePropertyId("");
         }
@@ -366,7 +350,6 @@ const App: React.FC = () => {
             const newContentRaw = payload.new.content || {};
             const newId = String(payload.new.id);
             
-            // Safety normalize new content
             const newContent: Property = {
                ...newContentRaw,
                id: newId,
@@ -376,13 +359,11 @@ const App: React.FC = () => {
                settings: newContentRaw.settings || INITIAL_SETTINGS
             };
 
-            // SECURITY CHECK
             if (userPermissions.role === 'client') {
                const allowed = new Set(userPermissions.allowedPropertyIds);
                if (!allowed.has(newId)) return;
             }
 
-            // Migrations on the fly
             if (newContent.rooms) newContent.rooms.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
             if (newContent.seasons) {
                newContent.seasons = newContent.seasons.map(s => ({
@@ -401,7 +382,6 @@ const App: React.FC = () => {
               } else {
                 updatedList = [...prev, { ...newContent, id: newId }];
               }
-              // Re-filter for client safety
               if (userPermissions.role === 'client') {
                   const allowed = new Set(userPermissions.allowedPropertyIds);
                   updatedList = updatedList.filter(p => allowed.has(String(p.id)));
@@ -426,9 +406,9 @@ const App: React.FC = () => {
   // 4. SAVE LOGIC (ADMIN ONLY)
   // ---------------------------------------------------------------------------
   useEffect(() => {
+    // Wait until loading is done and we have properties.
     if (isLoading || properties.length === 0 || !session || authLoading) return;
     
-    // STRICT SECURITY: Clients cannot save.
     if (userPermissions.role === 'client') return;
 
     const propToSave = properties.find(p => p.id === activePropertyId);
