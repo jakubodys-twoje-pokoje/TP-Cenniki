@@ -121,6 +121,12 @@ const App: React.FC = () => {
   };
 
   const loadUserData = async (currentSession: any) => {
+    // Safety Timeout: Force authLoading to false after 5 seconds to prevent infinite loop
+    const safetyTimer = setTimeout(() => {
+        console.warn("User data loading timed out. Forcing app load.");
+        setAuthLoading(false);
+    }, 5000);
+
     // Wrap EVERYTHING in try/finally to ensure loading state is cleared
     try {
       if (!currentSession?.user?.email) {
@@ -135,6 +141,7 @@ const App: React.FC = () => {
     } catch (e) {
       console.error("Error loading user data:", e);
     } finally {
+      clearTimeout(safetyTimer);
       // 3. Only remove loading screen when EVERYTHING is ready (or failed)
       setAuthLoading(false);
     }

@@ -25,9 +25,8 @@ interface HotresRoomResponse {
 const USER = "admin@twojepokoje.com.pl";
 const PASS = "Admin123@@";
 
-// CHANGE: Force local proxy to true because vite.config.ts is present and configured in this environment.
-// External proxies (corsproxy.io) are often unstable or blocked.
-const USE_LOCAL_PROXY = true;
+// CHANGE: Reverted to false. External proxy (corsproxy.io) is more reliable for this specific preview environment.
+const USE_LOCAL_PROXY = false;
 
 // Funkcja budująca poprawny URL w zależności od środowiska
 const buildUrl = (endpoint: string, params: Record<string, string>) => {
@@ -38,7 +37,7 @@ const buildUrl = (endpoint: string, params: Record<string, string>) => {
     // Vite Dev Server przekieruje to do https://panel.hotres.pl
     return `/api_hotres${endpoint}?${queryString}`;
   } else {
-    // PRODUKCJA (tylko jeśli build statyczny bez Vite Servera): Używamy zewnętrznego proxy
+    // PRODUKCJA / PREVIEW: Używamy zewnętrznego proxy
     const targetUrl = `https://panel.hotres.pl${endpoint}?${queryString}`;
     return `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
   }
