@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect, useRef } from "react";
-import { LayoutDashboard, Settings as SettingsIcon, Menu, BedDouble, Calendar, Share2, Cog, ChevronDown, ChevronRight, Building, Plus, Trash2, Bed, CheckCircle2, Copy, Cloud, CloudOff, Loader2, RefreshCw, LogOut, Download, X, Lock, Users, Calculator, Eye } from "lucide-react";
+import { LayoutDashboard, Settings as SettingsIcon, Menu, BedDouble, Calendar, Share2, Cog, ChevronDown, ChevronRight, Building, Plus, Trash2, Bed, CheckCircle2, Copy, Cloud, CloudOff, Loader2, RefreshCw, LogOut, Download, X, Lock, Users, Calculator, Eye, ShieldAlert } from "lucide-react";
 import SettingsPanel from "./components/SettingsPanel";
 import Dashboard from "./components/Dashboard";
 import ClientDashboard from "./components/ClientDashboard";
@@ -13,10 +12,10 @@ import {
   INITIAL_SEASONS,
   INITIAL_SETTINGS,
 } from "./constants";
-import { Channel, Property, RoomType, SettingsTab, UserPermissions, DbUserRole } from "./types";
+import { Channel, Property, RoomType, SettingsTab, UserPermissions } from "./types";
 import { supabase } from "./utils/supabaseClient";
 import { fetchSeasonOccupancyMap, fetchHotresRooms } from "./utils/hotresApi";
-import { getUserPermissions } from "./utils/userConfig";
+import { DEFAULT_DENIED_PERMISSION } from "./utils/userConfig";
 
 // Utility for deep cloning
 function deepClone<T>(obj: T): T {
@@ -27,13 +26,14 @@ const App: React.FC = () => {
   // Auth State
   const [session, setSession] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [userPermissions, setUserPermissions] = useState<UserPermissions>({ role: 'client', allowedPropertyIds: [] });
+  const [userPermissions, setUserPermissions] = useState<UserPermissions>(DEFAULT_DENIED_PERMISSION);
+  const [permissionError, setPermissionError] = useState<string | null>(null);
 
   // Application State
   const [activeTab, setActiveTab] = useState<"dashboard" | "settings" | "client-view">("dashboard");
   const [activeSettingsTab, setActiveSettingsTab] = useState<SettingsTab>("rooms");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isConfigExpanded, setIsConfigExpanded] = useState(false); // Default collapsed to save space
+  const [isConfigExpanded, setIsConfigExpanded] = useState(false);
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
 
   // Add Property Modal State
@@ -55,10 +55,10 @@ const App: React.FC = () => {
 
   // Property Data
   const [properties, setProperties] = useState<Property[]>([]);
-  const [activePropertyId, setActivePropertyId] = useState<string>("default");
+  const [activePropertyId, setActivePropertyId] = useState<string>("");
   
   // Track expanded sidebar items
-  const [expandedProperties, setExpandedProperties] = useState<Set<string>>(new Set(["default"]));
+  const [expandedProperties, setExpandedProperties] = useState<Set<string>>(new Set());
 
   // Occupancy State
   const [isOccupancyRefreshing, setIsOccupancyRefreshing] = useState(false);
@@ -66,136 +66,110 @@ const App: React.FC = () => {
   // Drag and Drop State for Sidebar
   const [sidebarDragItem, setSidebarDragItem] = useState<{ type: 'property' | 'room', id: string, parentId?: string } | null>(null);
 
-
   // Ref to track the last known server state to prevent loops
   const lastServerState = useRef<Record<string, string>>({});
-
   // Ref for debouncing save
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Ref for clearing success message
   const statusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // --- PERMISSION LOADING LOGIC ---
-  const loadDynamicPermissions = async (email: string): Promise<UserPermissions> => {
-    // 1. Static Config (Hardcoded Admins/Devs)
-    const staticPerms = getUserPermissions(email);
-    
-    // If user is statically defined as Admin/Super Admin, trust it immediately.
-    if (staticPerms.role === 'super_admin' || staticPerms.role === 'admin') {
-        setUserPermissions(staticPerms);
-        return staticPerms;
-    }
+  // ---------------------------------------------------------------------------
+  // 1. STRICT AUTH & PERMISSION FLOW
+  // ---------------------------------------------------------------------------
+  
+  const fetchPermissionsFromDb = async (email: string): Promise<UserPermissions | null> => {
+      try {
+          const { data, error } = await supabase
+            .from('user_roles')
+            .select('*')
+            .eq('email', email.toLowerCase().trim())
+            .single();
 
-    // 2. Database Lookup (Dynamic Roles)
-    try {
-      const normalizedEmail = email.toLowerCase().trim();
-      const { data, error } = await supabase
-        .from('user_roles')
-        .select('*')
-        .eq('email', normalizedEmail)
-        .single();
-        
-      if (data) {
-        // Sanitize Role from DB
-        let safeRole = data.role;
-        if (safeRole !== 'super_admin' && safeRole !== 'admin') {
-            safeRole = 'client';
-        }
+          if (error) {
+              // If error is code PGRST116, it means no rows found -> Access Denied
+              if (error.code === 'PGRST116') {
+                  console.warn("User not found in user_roles table.");
+                  return null;
+              }
+              throw error;
+          }
 
-        const dbPerms: UserPermissions = {
-          role: safeRole,
-          allowedPropertyIds: data.allowed_property_ids || []
-        };
-        setUserPermissions(dbPerms);
-        return dbPerms;
+          return {
+              role: data.role,
+              allowedPropertyIds: data.allowed_property_ids || []
+          };
+      } catch (err: any) {
+          console.error("DB Permission Fetch Error:", err);
+          return null;
       }
-    } catch (e) {
-      console.warn("DB Permission check failed, falling back to static.", e);
-    }
-    
-    // 3. Fallback: Default Client (Safe Fail)
-    // If we are here, it means not hardcoded admin AND not found in DB. Force Client Role.
-    const safeFallback: UserPermissions = { role: 'client', allowedPropertyIds: [] };
-    setUserPermissions(safeFallback);
-    return safeFallback;
   };
 
-  const loadUserData = async (currentSession: any) => {
-    // Safety Timeout: Force authLoading to false after 5 seconds to prevent infinite loop
-    const safetyTimer = setTimeout(() => {
-        console.warn("User data loading timed out. Forcing app load.");
-        setAuthLoading(false);
-    }, 5000);
-
-    // Wrap EVERYTHING in try/finally to ensure loading state is cleared
-    try {
+  const initUser = async (currentSession: any) => {
       if (!currentSession?.user?.email) {
-         console.warn("Session exists but no email found.");
-         return;
+          setAuthLoading(false);
+          return;
       }
+
+      setAuthLoading(true);
+      setPermissionError(null);
+
+      // A. Fetch Permissions strictly from DB
+      const perms = await fetchPermissionsFromDb(currentSession.user.email);
+
+      if (!perms) {
+          // USER NOT FOUND IN DB -> DENY ACCESS
+          setUserPermissions(DEFAULT_DENIED_PERMISSION);
+          setPermissionError("Twoje konto nie ma przypisanych uprawnień. Skontaktuj się z administratorem.");
+          setAuthLoading(false);
+          return;
+      }
+
+      setUserPermissions(perms);
+
+      // B. Only after permissions are set, fetch properties
+      await fetchProperties(perms);
       
-      // 1. Load Permissions FIRST
-      const perms = await loadDynamicPermissions(currentSession.user.email);
-      // 2. Then Load Properties using those permissions
-      await fetchProperties(currentSession.user.email, perms);
-    } catch (e) {
-      console.error("Error loading user data:", e);
-    } finally {
-      clearTimeout(safetyTimer);
-      // 3. Only remove loading screen when EVERYTHING is ready (or failed)
       setAuthLoading(false);
-    }
   };
 
   useEffect(() => {
     let mounted = true;
 
-    const initializeAuth = async () => {
-      try {
-        const { data: { session: initialSession }, error } = await supabase.auth.getSession();
-        
-        if (error) throw error;
-
+    // Initial Load
+    supabase.auth.getSession().then(({ data: { session } }) => {
         if (mounted) {
-           if (initialSession) {
-             setSession(initialSession);
-             // Wait for loadUserData to finish
-             await loadUserData(initialSession);
-           } else {
-             // No session, we can stop loading immediately
-             setAuthLoading(false);
-           }
+            setSession(session);
+            if (session) {
+                initUser(session);
+            } else {
+                setAuthLoading(false);
+            }
         }
-      } catch (err) {
-        console.error("Auth init error:", err);
-        if (mounted) setAuthLoading(false);
-      }
-    };
+    });
 
-    initializeAuth();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
-      if (!mounted) return;
-      setSession(currentSession);
-      
-      if (event === 'SIGNED_IN' && currentSession) {
-         setAuthLoading(true); // Show loading while fetching permissions
-         await loadUserData(currentSession);
-      } else if (event === 'SIGNED_OUT') {
-        setProperties([]);
-        setUserPermissions({ role: 'client', allowedPropertyIds: [] });
-        setAuthLoading(false);
-      } else if (event === 'TOKEN_REFRESHED') {
-         // Do nothing special, session updated
-      }
+    // Auth Change Listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        if (mounted) {
+            setSession(session);
+            if (event === 'SIGNED_IN' && session) {
+                initUser(session);
+            } else if (event === 'SIGNED_OUT') {
+                setProperties([]);
+                setUserPermissions(DEFAULT_DENIED_PERMISSION);
+                setAuthLoading(false);
+            }
+        }
     });
 
     return () => {
-      mounted = false;
-      subscription.unsubscribe();
+        mounted = false;
+        subscription.unsubscribe();
     };
   }, []);
 
+  // ---------------------------------------------------------------------------
+  // 2. DATA FETCHING (Dependent on Permissions)
+  // ---------------------------------------------------------------------------
 
   const processLoadedProperties = (props: Property[]) => {
     const migratedProps = props.map(p => ({
@@ -212,110 +186,81 @@ const App: React.FC = () => {
     setProperties(migratedProps);
   };
 
-  const fetchProperties = async (currentUserEmail?: string, overridePerms?: UserPermissions) => {
+  const fetchProperties = async (perms: UserPermissions) => {
     setIsLoading(true);
     setSyncStatus('idle');
     setLoadError(null);
-    
-    const perms = overridePerms || userPermissions;
 
     try {
-      const { data, error } = await supabase
-        .from('properties')
-        .select('*');
+      let query = supabase.from('properties').select('*');
+
+      // STRICT FILTERING AT DATABASE LEVEL QUERY IF POSSIBLE, OR JS FILTER
+      // Note: 'properties' table might not have RLS set up for granular access, 
+      // so we will fetch and filter carefully here based on the strict perms we just got.
+      
+      const { data, error } = await query;
 
       if (error) throw error;
 
-      if (data && data.length > 0) {
+      if (data) {
         let loadedProps = data.map(row => ({
            ...row.content,
            id: row.id
         }));
 
-        // --- STRICT FILTERING FOR CLIENTS ---
+        // FILTER: Allow ONLY what is in allowedPropertyIds for clients
         if (perms.role === 'client') {
-           const allowedIds = perms.allowedPropertyIds || [];
-           
-           // CRITICAL: Strict filter.
-           loadedProps = loadedProps.filter(p => allowedIds.includes(p.id));
+            const allowed = new Set(perms.allowedPropertyIds);
+            loadedProps = loadedProps.filter(p => allowed.has(p.id));
         }
 
+        // Sorting
         loadedProps.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-
         loadedProps.forEach(p => {
-          if (p.rooms) {
-            p.rooms.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-          }
+          if (p.rooms) p.rooms.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
         });
 
         processLoadedProperties(loadedProps);
-        
+
+        // Set Active Property
         if (loadedProps.length > 0) {
-            const exists = loadedProps.find(p => p.id === activePropertyId);
-            if (!exists || activePropertyId === "default") {
-                setActivePropertyId(loadedProps[0].id);
-            }
+            setActivePropertyId(loadedProps[0].id);
+            setExpandedProperties(new Set([loadedProps[0].id]));
         } else {
             setActivePropertyId("");
-            setProperties([]);
         }
-      } else {
-        // Init logic for Super Admin ONLY
-        if (perms.role === 'super_admin') {
-           const defaultProp: Property = {
-             id: "default",
-             name: "Główny Obiekt",
-             oid: "",
-             settings: deepClone(INITIAL_SETTINGS),
-             channels: deepClone(INITIAL_CHANNELS),
-             rooms: deepClone(INITIAL_ROOMS),
-             seasons: deepClone(INITIAL_SEASONS),
-             notes: "",
-             sortOrder: 0
-           };
-           await supabase.from('properties').insert({ id: defaultProp.id, content: defaultProp });
-           processLoadedProperties([defaultProp]);
-           setActivePropertyId(defaultProp.id);
-        } else {
-           setProperties([]);
-        }
-      }
+      } 
     } catch (err: any) {
-      console.error("Error fetching data:", err);
-      setSyncStatus('error');
-      setLoadError(err.message || JSON.stringify(err));
+      console.error("Fetch Properties Error:", err);
+      setLoadError(err.message);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // 1. Realtime Subscription (Only if logged in)
+  // ---------------------------------------------------------------------------
+  // 3. REALTIME SYNC
+  // ---------------------------------------------------------------------------
   useEffect(() => {
-    if (!session) return;
+    if (!session || authLoading) return;
 
     const channel = supabase
       .channel('schema-db-changes')
       .on(
         'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'properties',
-        },
+        { event: '*', schema: 'public', table: 'properties' },
         (payload) => {
           if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
             const newContent = payload.new.content as Property;
             const newId = payload.new.id;
             
-            // SECURITY: Ignore updates for properties client shouldn't see
+            // SECURITY CHECK: If client, ignore if not in allowed list
             if (userPermissions.role === 'client' && !userPermissions.allowedPropertyIds?.includes(newId)) {
                return;
             }
 
-            if (newContent.rooms) {
-               newContent.rooms.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-            }
-            
+            // Migration fixes on the fly
+            if (newContent.rooms) newContent.rooms.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
             if (newContent.seasons) {
                newContent.seasons = newContent.seasons.map(s => ({
                    ...s,
@@ -324,6 +269,7 @@ const App: React.FC = () => {
             }
 
             lastServerState.current[newId] = JSON.stringify(newContent);
+            
             setProperties(prev => {
               const exists = prev.find(p => p.id === newId);
               let updatedList;
@@ -346,12 +292,16 @@ const App: React.FC = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [session, userPermissions]);
+  }, [session, userPermissions, authLoading]);
 
-  // 2. Save Changes (Admin Only)
+  // ---------------------------------------------------------------------------
+  // 4. SAVE LOGIC (ADMIN ONLY)
+  // ---------------------------------------------------------------------------
   useEffect(() => {
-    if (isLoading || properties.length === 0 || !session) return;
-    if (userPermissions.role !== 'super_admin') return;
+    if (isLoading || properties.length === 0 || !session || authLoading) return;
+    
+    // STRICT SECURITY: Clients cannot save.
+    if (userPermissions.role === 'client') return;
 
     const propToSave = properties.find(p => p.id === activePropertyId);
     if (!propToSave) return;
@@ -395,410 +345,265 @@ const App: React.FC = () => {
     return () => {
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     };
-  }, [properties, activePropertyId, session, isLoading, userPermissions]);
+  }, [properties, activePropertyId, session, isLoading, userPermissions, authLoading]);
+
+
+  // ---------------------------------------------------------------------------
+  // ACTION HANDLERS
+  // ---------------------------------------------------------------------------
 
   const syncPropertyOccupancy = async (propId: string) => {
-    if (userPermissions.role !== 'super_admin') {
-       alert("Brak uprawnień do aktualizacji bazy danych.");
+    if (userPermissions.role === 'client') {
+       alert("Brak uprawnień.");
        return;
     }
-
     const prop = properties.find(p => p.id === propId);
     if (!prop || !prop.oid) return;
-
-    console.log(`Syncing occupancy for property ${prop.name} (${prop.oid})`);
     setIsOccupancyRefreshing(true); 
-    
     try {
       let updatedRooms = deepClone(prop.rooms);
       let hasUpdates = false;
-
       for (const season of prop.seasons) {
         const occupancyMap = await fetchSeasonOccupancyMap(prop.oid, season.startDate, season.endDate);
-        
         updatedRooms = updatedRooms.map(room => {
           if (room.tid && occupancyMap[room.tid] !== undefined) {
               const newRate = occupancyMap[room.tid];
               const currentRates = room.seasonOccupancy || {};
               if (currentRates[season.id] !== newRate) {
                 hasUpdates = true;
-                return {
-                  ...room,
-                  seasonOccupancy: {
-                    ...currentRates,
-                    [season.id]: newRate
-                  }
-                };
+                return { ...room, seasonOccupancy: { ...currentRates, [season.id]: newRate } };
               }
           }
           return room;
         });
       }
-
       if (hasUpdates) {
-         setProperties(prev => prev.map(p => 
-          p.id === propId ? { ...p, rooms: updatedRooms } : p
-        ));
+         setProperties(prev => prev.map(p => p.id === propId ? { ...p, rooms: updatedRooms } : p));
       }
     } catch (error) {
-        console.error("Manual occupancy sync failed:", error);
         alert("Błąd podczas synchronizacji dostępności.");
     } finally {
         setIsOccupancyRefreshing(false); 
     }
   };
 
-  const activeProperty = properties.find(p => p.id === activePropertyId) || properties[0];
+  const activeProperty = properties.find(p => p.id === activePropertyId);
 
   const updateActiveProperty = (updates: Partial<Property>) => {
-    if (userPermissions.role !== 'super_admin') return; 
-    setProperties(prev => prev.map(p => 
-      p.id === activePropertyId ? { ...p, ...updates } : p
-    ));
+    if (userPermissions.role === 'client') return; 
+    setProperties(prev => prev.map(p => p.id === activePropertyId ? { ...p, ...updates } : p));
   };
 
   const handleRoomUpdate = (roomId: string, updates: Partial<RoomType>) => {
-    if (userPermissions.role !== 'super_admin') return;
+    if (userPermissions.role === 'client') return;
     if (!activeProperty) return;
-    const updatedRooms = activeProperty.rooms.map(r => 
-      r.id === roomId ? { ...r, ...updates } : r
-    );
+    const updatedRooms = activeProperty.rooms.map(r => r.id === roomId ? { ...r, ...updates } : r);
     updateActiveProperty({ rooms: updatedRooms });
   };
 
   const handleOccupancyUpdate = (roomId: string, seasonId: string, rate: number) => {
-    if (userPermissions.role !== 'super_admin') return;
+    if (userPermissions.role === 'client') return;
     if (!activeProperty) return;
     const room = activeProperty.rooms.find(r => r.id === roomId);
     if (!room) return;
-
-    const currentOccupancy = room.seasonOccupancy || {};
-    const updatedOccupancy = { ...currentOccupancy, [seasonId]: rate };
-
-    handleRoomUpdate(roomId, { seasonOccupancy: updatedOccupancy });
+    handleRoomUpdate(roomId, { seasonOccupancy: { ...(room.seasonOccupancy || {}), [seasonId]: rate } });
   };
 
   const handleReorderRooms = (reorderedRooms: RoomType[]) => {
-    if (userPermissions.role !== 'super_admin') return;
+    if (userPermissions.role === 'client') return;
     updateActiveProperty({ rooms: reorderedRooms });
   };
 
   const handleDuplicateSeasons = (targetPropertyId: string) => {
-    if (userPermissions.role !== 'super_admin') return;
+    if (userPermissions.role === 'client') return;
     if (!activeProperty) return;
-    const targetProp = properties.find(p => p.id === targetPropertyId);
-    if (!targetProp) return;
-
     const seasonsCopy = deepClone(activeProperty.seasons);
-    
-    setProperties(prev => prev.map(p => {
-       if (p.id === targetPropertyId) {
-          return {
-             ...p,
-             seasons: seasonsCopy,
-          }
-       }
-       return p;
-    }));
-    alert("Sezony zostały skopiowane pomyślnie. (Uwaga: Ustawienia OBP pokoi nie są kopiowane między obiektami)");
+    setProperties(prev => prev.map(p => p.id === targetPropertyId ? { ...p, seasons: seasonsCopy } : p));
+    alert("Sezony zostały skopiowane.");
   };
 
   const handleDuplicateChannelToProperty = async (sourceChannel: Channel, targetPropertyId: string) => {
-    if (userPermissions.role !== 'super_admin') return;
-    if (!activeProperty) return;
-    
+    if (userPermissions.role === 'client') return;
     const targetProp = properties.find(p => p.id === targetPropertyId);
     if (!targetProp) return;
-
-    const newChannel = {
-        ...deepClone(sourceChannel),
-        id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
-        name: `${sourceChannel.name} (Kopia)`
-    };
-
-    const updatedTargetProp = {
-        ...targetProp,
-        channels: [...targetProp.channels, newChannel]
-    };
-
-    setProperties(prev => prev.map(p => 
-        p.id === targetPropertyId ? updatedTargetProp : p
-    ));
-
+    const newChannel = { ...deepClone(sourceChannel), id: Date.now().toString() + Math.random().toString(36).substr(2, 5), name: `${sourceChannel.name} (Kopia)` };
+    const updatedTargetProp = { ...targetProp, channels: [...targetProp.channels, newChannel] };
+    setProperties(prev => prev.map(p => p.id === targetPropertyId ? updatedTargetProp : p));
     setSyncStatus('saving');
     lastServerState.current[targetPropertyId] = JSON.stringify(updatedTargetProp);
-    await supabase.from('properties').upsert({
-        id: targetPropertyId,
-        content: updatedTargetProp,
-        updated_at: new Date().toISOString()
-    });
+    await supabase.from('properties').upsert({ id: targetPropertyId, content: updatedTargetProp, updated_at: new Date().toISOString() });
     setSyncStatus('synced');
     setTimeout(() => setSyncStatus('idle'), 2000);
-
-    alert(`Kanał "${sourceChannel.name}" został skopiowany do wybranego obiektu.`);
+    alert("Kanał skopiowany.");
   };
 
   const handleDuplicateAllChannelsToProperty = async (targetPropertyId: string) => {
-    if (userPermissions.role !== 'super_admin') return;
+    if (userPermissions.role === 'client') return;
     if (!activeProperty) return;
-    
     const targetProp = properties.find(p => p.id === targetPropertyId);
     if (!targetProp) return;
-
-    const clonedChannels = deepClone(activeProperty.channels).map(c => ({
-        ...c,
-        id: Date.now().toString() + Math.random().toString(36).substr(2, 5)
-    }));
-
-    const updatedTargetProp = {
-        ...targetProp,
-        channels: clonedChannels
-    };
-
-    setProperties(prev => prev.map(p => 
-        p.id === targetPropertyId ? updatedTargetProp : p
-    ));
-
+    const clonedChannels = deepClone(activeProperty.channels).map(c => ({ ...c, id: Date.now().toString() + Math.random().toString(36).substr(2, 5) }));
+    const updatedTargetProp = { ...targetProp, channels: clonedChannels };
+    setProperties(prev => prev.map(p => p.id === targetPropertyId ? updatedTargetProp : p));
     setSyncStatus('saving');
     lastServerState.current[targetPropertyId] = JSON.stringify(updatedTargetProp);
-    await supabase.from('properties').upsert({
-        id: targetPropertyId,
-        content: updatedTargetProp,
-        updated_at: new Date().toISOString()
-    });
+    await supabase.from('properties').upsert({ id: targetPropertyId, content: updatedTargetProp, updated_at: new Date().toISOString() });
     setSyncStatus('synced');
     setTimeout(() => setSyncStatus('idle'), 2000);
-
-    alert(`Wszystkie kanały zostały skopiowane do "${targetProp.name}". Poprzednie kanały w tym obiekcie zostały usunięte.`);
+    alert("Wszystkie kanały skopiowane.");
   };
 
   const handleCreateProperty = async () => {
-    if (userPermissions.role !== 'super_admin') return;
-
+    if (userPermissions.role === 'client') return;
     const newId = Date.now().toString();
     let newProperty: Property;
-
     if (addPropertyMode === 'import') {
-      if (!importOid) {
-        alert("Wpisz numer OID.");
-        return;
-      }
+      if (!importOid) { alert("Wpisz numer OID."); return; }
       setIsImporting(true);
       try {
         const importedRooms = await fetchHotresRooms(importOid);
-        
         newProperty = {
-          id: newId,
-          name: `Obiekt ${importOid}`,
-          oid: importOid,
-          settings: deepClone(INITIAL_SETTINGS),
-          channels: deepClone(INITIAL_CHANNELS),
-          rooms: importedRooms,
-          seasons: deepClone(INITIAL_SEASONS),
-          notes: `Zaimportowano z Hotres OID: ${importOid}`,
-          sortOrder: properties.length,
+          id: newId, name: `Obiekt ${importOid}`, oid: importOid, settings: deepClone(INITIAL_SETTINGS), channels: deepClone(INITIAL_CHANNELS), rooms: importedRooms, seasons: deepClone(INITIAL_SEASONS), notes: `Zaimportowano z Hotres OID: ${importOid}`, sortOrder: properties.length,
         };
-      } catch (e: any) {
-        console.error("Import Error:", e);
-        alert(`Błąd importu: ${e.message}\nSprawdź konsolę (F12) dla szczegółów.`);
-        setIsImporting(false);
-        return;
-      }
+      } catch (e: any) { alert("Błąd importu: " + e.message); setIsImporting(false); return; }
       setIsImporting(false);
     } else {
       newProperty = {
-        id: newId,
-        name: "Nowy Obiekt",
-        oid: "",
-        settings: deepClone(INITIAL_SETTINGS),
-        channels: deepClone(INITIAL_CHANNELS),
-        rooms: deepClone(INITIAL_ROOMS),
-        seasons: deepClone(INITIAL_SEASONS),
-        notes: "",
-        sortOrder: properties.length,
+        id: newId, name: "Nowy Obiekt", oid: "", settings: deepClone(INITIAL_SETTINGS), channels: deepClone(INITIAL_CHANNELS), rooms: deepClone(INITIAL_ROOMS), seasons: deepClone(INITIAL_SEASONS), notes: "", sortOrder: properties.length,
       };
     }
-
     setProperties([...properties, newProperty]);
     setActivePropertyId(newId);
     setExpandedProperties(prev => new Set(prev).add(newId));
-    setActiveTab("settings");
-    setActiveSettingsTab("global");
-    
     lastServerState.current[newId] = JSON.stringify(newProperty);
     await supabase.from('properties').insert({ id: newId, content: newProperty });
-    
     setShowAddPropertyModal(false);
     setImportOid("");
     setAddPropertyMode('manual');
   };
 
   const handleDuplicateProperty = async () => {
-    if (userPermissions.role !== 'super_admin') return;
+    if (userPermissions.role === 'client') return;
     if (!activeProperty) return;
-
     const newId = Date.now().toString();
     const newProperty: Property = deepClone(activeProperty);
-    
     newProperty.id = newId;
     newProperty.name = `${newProperty.name} (Kopia)`;
     newProperty.sortOrder = properties.length;
-    
     setProperties([...properties, newProperty]);
     setActivePropertyId(newId);
     setExpandedProperties(prev => new Set(prev).add(newId));
-
     lastServerState.current[newId] = JSON.stringify(newProperty);
     await supabase.from('properties').insert({ id: newId, content: newProperty });
-    alert(`Zduplikowano obiekt jako "${newProperty.name}"`);
+    alert(`Zduplikowano obiekt.`);
   };
 
   const handleDeleteProperty = async (id: string) => {
-    if (userPermissions.role !== 'super_admin') return;
-
-    if (properties.length <= 1) {
-      alert("Musisz zachować przynajmniej jeden obiekt.");
-      return;
-    }
-    if (confirm("Czy na pewno chcesz usunąć ten obiekt? Ta operacja usunie go również z bazy danych dla wszystkich użytkowników.")) {
+    if (userPermissions.role === 'client') return;
+    if (properties.length <= 1) { alert("Musisz zachować przynajmniej jeden obiekt."); return; }
+    if (confirm("Czy na pewno usunąć ten obiekt?")) {
       const newProps = properties.filter(p => p.id !== id);
       setProperties(newProps);
       delete lastServerState.current[id];
-
-      if (id === activePropertyId) {
-        setActivePropertyId(newProps[0].id);
-        setSelectedRoomId(null);
-      }
+      if (id === activePropertyId) { setActivePropertyId(newProps[0].id); setSelectedRoomId(null); }
       await supabase.from('properties').delete().eq('id', id);
     }
-  };
-
-  const handleSettingsNav = (tab: SettingsTab) => {
-    setActiveTab("settings");
-    setActiveSettingsTab(tab);
-    setIsSidebarOpen(false);
-  };
-
-  const togglePropertyExpansion = (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    setExpandedProperties(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const handleRoomClick = (propertyId: string, roomId: string) => {
-    setActivePropertyId(propertyId);
-    setSelectedRoomId(roomId);
-    if (!isClientRole) {
-       setActiveTab("dashboard");
-    }
-    setIsSidebarOpen(false);
-  };
-  
-  const handleManualSync = () => {
-      if (session?.user?.email) {
-          fetchProperties(session.user.email);
-      }
   };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
   };
 
+  const handleSettingsNav = (tab: SettingsTab) => {
+     setActiveTab("settings");
+     setActiveSettingsTab(tab);
+     setIsSidebarOpen(false);
+  };
+
+  const togglePropertyExpansion = (e: React.MouseEvent, propertyId: string) => {
+    e.stopPropagation();
+    setExpandedProperties(prev => {
+      const next = new Set(prev);
+      if (next.has(propertyId)) next.delete(propertyId);
+      else next.add(propertyId);
+      return next;
+    });
+  };
+
+  const handleRoomClick = (propId: string, roomId: string) => {
+    setActivePropertyId(propId);
+    setSelectedRoomId(roomId);
+    if (userPermissions.role !== 'client') {
+       setActiveTab("dashboard");
+    }
+    setIsSidebarOpen(false);
+  };
+
+  const handleManualSync = async () => {
+    if (userPermissions.role === 'client') return;
+    await fetchProperties(userPermissions);
+  };
+
+  // ---------------------------------------------------------------------------
+  // SIDEBAR DRAG & DROP
+  // ---------------------------------------------------------------------------
   const handleSidebarDragStart = (e: React.DragEvent, type: 'property' | 'room', id: string, parentId?: string) => {
-    if (userPermissions.role !== 'super_admin') return;
+    if (userPermissions.role === 'client') return;
     setSidebarDragItem({ type, id, parentId });
     e.dataTransfer.effectAllowed = 'move';
     e.stopPropagation();
   };
-
-  const handleSidebarDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-  };
-
-  const handleSidebarDragEnd = (e: React.DragEvent) => {
-    setSidebarDragItem(null); 
-  };
-
+  const handleSidebarDragOver = (e: React.DragEvent) => e.preventDefault();
+  const handleSidebarDragEnd = (e: React.DragEvent) => setSidebarDragItem(null);
+  
   const handleSidebarDrop = async (e: React.DragEvent, targetType: 'property' | 'room', targetId: string, targetParentId?: string) => {
     e.preventDefault();
     if (!sidebarDragItem) return;
-    
+    if (userPermissions.role === 'client') return;
+
     if (sidebarDragItem.type === 'property' && targetType === 'property') {
-       if (sidebarDragItem.id === targetId) { setSidebarDragItem(null); return; }
+       if (sidebarDragItem.id === targetId) return;
        const sourceIndex = properties.findIndex(p => p.id === sidebarDragItem.id);
        const targetIndex = properties.findIndex(p => p.id === targetId);
-       
-       if (sourceIndex === -1 || targetIndex === -1) { setSidebarDragItem(null); return; }
-       
+       if (sourceIndex === -1 || targetIndex === -1) return;
        const newProperties = [...properties];
        const [moved] = newProperties.splice(sourceIndex, 1);
        newProperties.splice(targetIndex, 0, moved);
-       
        const sortedProperties = newProperties.map((p, idx) => ({ ...p, sortOrder: idx }));
        setProperties(sortedProperties);
-
        setSyncStatus('saving');
-       const updates = sortedProperties.map(p => {
-         const content = { ...p, sortOrder: p.sortOrder };
-         lastServerState.current[p.id] = JSON.stringify(content);
-         return {
-           id: p.id,
-           content: content,
-           updated_at: new Date().toISOString()
-         };
-       });
-       
+       const updates = sortedProperties.map(p => ({ id: p.id, content: { ...p, sortOrder: p.sortOrder }, updated_at: new Date().toISOString() }));
        await supabase.from('properties').upsert(updates);
-       setSyncStatus('synced');
-       setTimeout(() => setSyncStatus('idle'), 2000);
+       setSyncStatus('synced'); setTimeout(() => setSyncStatus('idle'), 2000);
     } 
-    
     else if (sidebarDragItem.type === 'room' && targetType === 'room') {
-       if (sidebarDragItem.id === targetId) { setSidebarDragItem(null); return; }
-       if (sidebarDragItem.parentId !== targetParentId) { setSidebarDragItem(null); return; } 
-
+       if (sidebarDragItem.id === targetId || sidebarDragItem.parentId !== targetParentId) return;
        const propIndex = properties.findIndex(p => p.id === sidebarDragItem.parentId);
-       if (propIndex === -1) { setSidebarDragItem(null); return; }
-
+       if (propIndex === -1) return;
        const prop = properties[propIndex];
        const sourceIndex = prop.rooms.findIndex(r => r.id === sidebarDragItem.id);
        const targetIndex = prop.rooms.findIndex(r => r.id === targetId);
-
-       if (sourceIndex === -1 || targetIndex === -1) { setSidebarDragItem(null); return; }
-
+       if (sourceIndex === -1 || targetIndex === -1) return;
        const newRooms = [...prop.rooms];
        const [moved] = newRooms.splice(sourceIndex, 1);
        newRooms.splice(targetIndex, 0, moved);
-
        newRooms.forEach((r, idx) => r.sortOrder = idx);
-
        const updatedProp = { ...prop, rooms: newRooms };
-       
-       setProperties(prev => prev.map(p => 
-          p.id === prop.id ? updatedProp : p
-       ));
-
+       setProperties(prev => prev.map(p => p.id === prop.id ? updatedProp : p));
        setSyncStatus('saving');
        lastServerState.current[prop.id] = JSON.stringify(updatedProp);
-       
-       await supabase.from('properties').upsert({
-         id: prop.id,
-         content: updatedProp,
-         updated_at: new Date().toISOString()
-       });
-       setSyncStatus('synced');
-       setTimeout(() => setSyncStatus('idle'), 2000);
+       await supabase.from('properties').upsert({ id: prop.id, content: updatedProp, updated_at: new Date().toISOString() });
+       setSyncStatus('synced'); setTimeout(() => setSyncStatus('idle'), 2000);
     }
-    
     setSidebarDragItem(null);
   };
 
+
+  // ---------------------------------------------------------------------------
+  // RENDER HELPERS
+  // ---------------------------------------------------------------------------
   const isClientRole = userPermissions.role === 'client';
-  const isReadOnly = userPermissions.role !== 'super_admin';
+  const isReadOnly = userPermissions.role === 'client'; // Strict enforcement
 
   if (authLoading) {
     return (
@@ -806,13 +611,35 @@ const App: React.FC = () => {
         <div className="flex items-center gap-2 text-xl">
            <Loader2 className="animate-spin" /> Wczytywanie...
         </div>
-        <p className="text-sm text-slate-500 mt-2">Pobieranie danych użytkownika</p>
+        <p className="text-sm text-slate-500 mt-2">Weryfikacja uprawnień...</p>
       </div>
     );
   }
 
   if (!session) {
     return <LoginScreen />;
+  }
+
+  // Permission Error Screen (Logged in but no DB entry)
+  if (permissionError) {
+      return (
+        <div className="flex h-screen items-center justify-center bg-slate-50 text-slate-800 p-4">
+            <div className="bg-white p-8 rounded-xl shadow-xl max-w-md w-full text-center">
+                <ShieldAlert size={64} className="mx-auto text-red-500 mb-6" />
+                <h2 className="text-2xl font-bold text-slate-900 mb-2">Brak Dostępu</h2>
+                <p className="text-slate-600 mb-6">{permissionError}</p>
+                <div className="bg-slate-100 p-3 rounded text-sm text-slate-500 mb-6">
+                    Zalogowano jako: <br/><span className="font-mono font-bold text-slate-700">{session.user.email}</span>
+                </div>
+                <button 
+                    onClick={handleLogout}
+                    className="w-full bg-slate-900 text-white py-3 rounded-lg font-medium hover:bg-slate-800 transition-colors"
+                >
+                    Wyloguj się
+                </button>
+            </div>
+        </div>
+      );
   }
 
   if (loadError) {
@@ -823,15 +650,8 @@ const App: React.FC = () => {
              <CloudOff size={24} />
              <h2>Błąd połączenia z bazą danych</h2>
            </div>
-           <p className="mb-4 text-sm text-slate-600">
-             Nie udało się pobrać danych. Może to oznaczać, że tabela w Supabase nie istnieje lub brak uprawnień.
-           </p>
-           <div className="bg-slate-100 p-3 rounded text-xs font-mono text-slate-700 overflow-x-auto mb-4">
-             {loadError}
-           </div>
-           <div className="mt-6 border-t pt-4 text-center">
-             <button onClick={() => window.location.reload()} className="text-blue-600 font-bold hover:underline">Spróbuj ponownie</button>
-           </div>
+           <p className="mb-4 text-sm text-slate-600">{loadError}</p>
+           <button onClick={() => window.location.reload()} className="text-blue-600 font-bold hover:underline">Spróbuj ponownie</button>
         </div>
       </div>
     );
@@ -840,24 +660,31 @@ const App: React.FC = () => {
   if (isLoading && !activeProperty && properties.length === 0) {
     return (
       <div className="flex h-screen items-center justify-center bg-slate-50 text-slate-500 gap-2">
-        <Loader2 className="animate-spin" /> Pobieranie danych...
+        <Loader2 className="animate-spin" /> Pobieranie danych obiektów...
       </div>
     );
   }
   
-  if (!activeProperty && properties.length === 0 && !authLoading) {
+  if (!activeProperty && properties.length === 0) {
       return (
         <div className="flex h-screen items-center justify-center bg-slate-50 text-slate-500 flex-col gap-4">
             <Building className="opacity-20" size={64}/>
             {isClientRole ? (
-              <p className="text-center">
-                <strong>Brak przypisanych obiektów.</strong><br/>
-                Skontaktuj się z administratorem, aby uzyskać dostęp.
-              </p>
+              <div className="text-center">
+                <p className="text-lg font-bold text-slate-700">Brak przypisanych obiektów</p>
+                <p className="text-sm text-slate-500 mt-2">Administrator nie przypisał Ci jeszcze żadnych nieruchomości.</p>
+              </div>
             ) : (
-              <p>Brak dostępnych obiektów. Skontaktuj się z administratorem.</p>
+              <p>Brak dostępnych obiektów. Dodaj pierwszy obiekt.</p>
             )}
-            <button onClick={handleLogout} className="text-blue-600 underline">Wyloguj</button>
+            
+            {!isClientRole && (
+               <button onClick={() => setShowAddPropertyModal(true)} className="flex items-center gap-2 bg-blue-600 text-white px-6 py-2 rounded-full hover:bg-blue-700 transition-colors">
+                  <Plus size={20}/> Utwórz Obiekt
+               </button>
+            )}
+
+            <button onClick={handleLogout} className="text-slate-400 underline mt-4 hover:text-slate-600">Wyloguj</button>
         </div>
       );
   }
@@ -906,7 +733,6 @@ const App: React.FC = () => {
                    </button>
                 ))}
               </div>
-              {properties.length === 0 && <p className="text-center italic text-xs mt-4">Brak przypisanych obiektów.</p>}
            </div>
         ) : (
         // ADMIN SIDEBAR: Full Navigation
@@ -1128,7 +954,7 @@ const App: React.FC = () => {
           </button>
           
           <div className="text-xs text-slate-500">
-            <p>Wersja 1.7.5 (Client View Isolation)</p>
+            <p>Wersja 1.8.0 (DB-Driven Permissions)</p>
             <p className="mt-1">© 2025 Twoje Pokoje & Strony Jakubowe</p>
           </div>
         </div>
