@@ -1,9 +1,10 @@
 
 import React, { useState, useEffect, useRef } from "react";
-import { LayoutDashboard, Settings as SettingsIcon, Menu, BedDouble, Calendar, Share2, Cog, ChevronDown, ChevronRight, Building, Plus, Trash2, Bed, CheckCircle2, Copy, Cloud, CloudOff, Loader2, RefreshCw, LogOut, Download, X, Lock, Users, Calculator, Eye, ShieldAlert } from "lucide-react";
+import { LayoutDashboard, Settings as SettingsIcon, Menu, BedDouble, Calendar, Share2, Cog, ChevronDown, ChevronRight, Building, Plus, Trash2, Bed, CheckCircle2, Copy, Cloud, CloudOff, Loader2, RefreshCw, LogOut, Download, X, Lock, Users, Calculator, Eye, ShieldAlert, BarChart3 } from "lucide-react";
 import SettingsPanel from "./components/SettingsPanel";
 import Dashboard from "./components/Dashboard";
 import ClientDashboard from "./components/ClientDashboard";
+import SummaryDashboard from "./components/SummaryDashboard";
 import LoginScreen from "./components/LoginScreen";
 import UserManagementPanel from "./components/UserManagementPanel";
 import CalculatorModal from "./components/CalculatorModal";
@@ -36,7 +37,7 @@ const App: React.FC = () => {
   const [permissionError, setPermissionError] = useState<string | null>(null);
 
   // Application State
-  const [activeTab, setActiveTab] = useState<"dashboard" | "settings" | "client-view">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "settings" | "client-view" | "summary">("dashboard");
   const [activeSettingsTab, setActiveSettingsTab] = useState<SettingsTab>("rooms");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isConfigExpanded, setIsConfigExpanded] = useState(false);
@@ -874,6 +875,18 @@ const App: React.FC = () => {
             <LayoutDashboard size={20} />
             <span className="font-medium">Panel</span>
           </button>
+
+          <button
+            onClick={() => { setActiveTab("summary"); setSelectedRoomId(null); setIsSidebarOpen(false); }}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors flex-shrink-0 ${
+              activeTab === "summary"
+                ? "bg-blue-600 text-white"
+                : "text-slate-400 hover:bg-slate-800 hover:text-white"
+            }`}
+          >
+            <BarChart3 size={20} />
+            <span className="font-medium">Podsumowanie</span>
+          </button>
           
           <button
             onClick={() => { setActiveTab("client-view"); setIsSidebarOpen(false); }}
@@ -1080,7 +1093,7 @@ const App: React.FC = () => {
           </button>
           
           <div className="text-xs text-slate-500">
-            <p>Wersja 1.9.5 (DB Array Handler)</p>
+            <p>Wersja 2.0.0 (Analytics Dashboard)</p>
             <p className="mt-1">© 2025 Twoje Pokoje & Strony Jakubowe</p>
           </div>
         </div>
@@ -1146,6 +1159,10 @@ const App: React.FC = () => {
                   isReadOnly={isReadOnly}
                 />
                 ) : <div className="p-4 text-center text-slate-500">Wczytywanie...</div>
+              ) : activeTab === "summary" ? (
+                 activeProperty ? (
+                   <SummaryDashboard property={activeProperty} />
+                 ) : <div className="p-4 text-center text-slate-500">Wczytywanie...</div>
               ) : (
                 activeProperty && (
                 <SettingsPanel 
