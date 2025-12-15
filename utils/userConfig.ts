@@ -1,6 +1,12 @@
 
 import { UserPermissions } from "../types";
 
+// Default permission for unknown users (Safety fallback)
+const DEFAULT_PERMISSION: UserPermissions = {
+  role: "client",
+  allowedPropertyIds: [] // Domyślnie brak dostępu do czegokolwiek
+};
+
 // Configuration mapping emails to roles
 // UWAGA: Tutaj wpisujemy TYLKO Super Adminów (Dev/Właściciel).
 // Wszyscy inni (Admini, Klienci) muszą być w bazie danych Supabase (tabela user_roles).
@@ -15,12 +21,6 @@ export const USER_PERMISSIONS: Record<string, UserPermissions> = {
   "admin@twojepokoje.com.pl": { 
     role: "super_admin" 
   }
-};
-
-// Default permission for unknown users (Safety fallback)
-const DEFAULT_PERMISSION: UserPermissions = {
-  role: "client",
-  allowedPropertyIds: [] // Domyślnie brak dostępu do czegokolwiek
 };
 
 export const getUserPermissions = (email: string | undefined): UserPermissions => {
