@@ -2,6 +2,12 @@
 import { RoomType, Season, GlobalSettings, Channel } from "../types";
 import { calculateDirectPrice, calculateChannelPrice } from "./pricingEngine";
 
+// --- API CREDENTIALS ---
+const USER = "admin@twojepokoje.com.pl";
+const PASS = "Admin123@@";
+const USE_LOCAL_PROXY = false;
+
+// --- INTERFACES ---
 interface HotresDay {
   date: string;
   available: string; // "1" = free, "0" = booked
@@ -22,35 +28,24 @@ interface HotresRoomResponse {
   sofa_single: string;
 }
 
-const USER = "admin@twojepokoje.com.pl";
-const PASS = "Admin123@@";
+// --- HELPERS ---
 
-// CHANGE: Reverted to false. External proxy (corsproxy.io) is more reliable for this specific preview environment.
-const USE_LOCAL_PROXY = false;
-
-// Funkcja budująca poprawny URL w zależności od środowiska
 const buildUrl = (endpoint: string, params: Record<string, string>) => {
   const queryString = new URLSearchParams(params).toString();
-  
   if (USE_LOCAL_PROXY) {
-    // LOKALNIE / DEV: Używamy proxy zdefiniowanego w vite.config.ts
-    // Vite Dev Server przekieruje to do https://panel.hotres.pl
     return `/api_hotres${endpoint}?${queryString}`;
   } else {
-    // PRODUKCJA / PREVIEW: Używamy zewnętrznego proxy
     const targetUrl = `https://panel.hotres.pl${endpoint}?${queryString}`;
     return `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
   }
 };
 
-const calculatePercentage = (dates: HotresDay[]): number => {
-  if (!dates || dates.length === 0) return 0;
-  const totalDays = dates.length;
-  const bookedDays = dates.filter(day => day.available === "0").length;
+const calculatePercentage = (totalDays: number, bookedDays: number): number => {
+  if (totalDays === 0) return 0;
   return Math.round((bookedDays / totalDays) * 100);
 };
 
-// --- API FUNCTIONS ---
+// --- CORE FUNCTIONS ---
 
 export const fetchHotresOccupancy = async (
   oid: string,
@@ -61,27 +56,22 @@ export const fetchHotresOccupancy = async (
   if (!oid || !tid) throw new Error("Brak konfiguracji OID lub TID");
 
   const url = buildUrl('/api_availability', {
-    user: USER,
-    password: PASS,
-    oid: oid,
-    type_id: tid,
-    from: startDate,
-    till: endDate
+    user: USER, password: PASS, oid: oid, type_id: tid, from: startDate, till: endDate
   });
 
   try {
     const response = await fetch(url);
     if (!response.ok) throw new Error(`Błąd API: ${response.status}`);
-
     const data: HotresResponseItem[] = await response.json();
     if (!Array.isArray(data) || data.length === 0) throw new Error("Pusta odpowiedź z API");
-
     const roomData = data.find(item => item.type_id === Number(tid));
     if (!roomData) throw new Error("Brak danych dla tego pokoju");
-
-    return calculatePercentage(roomData.dates);
+    
+    const total = roomData.dates.length;
+    const booked = roomData.dates.filter(d => d.available === "0").length;
+    return calculatePercentage(total, booked);
   } catch (error) {
-    console.error("Hotres Single Fetch Error:", error);
+    console.error("Hotres API Error:", error);
     throw error;
   }
 };
@@ -94,28 +84,23 @@ export const fetchSeasonOccupancyMap = async (
   if (!oid) throw new Error("Brak OID");
 
   const url = buildUrl('/api_availability', {
-    user: USER,
-    password: PASS,
-    oid: oid,
-    from: startDate,
-    till: endDate
+    user: USER, password: PASS, oid: oid, from: startDate, till: endDate
   });
 
   try {
     const response = await fetch(url);
     if (!response.ok) throw new Error(`Błąd API: ${response.status}`);
-
     const data: HotresResponseItem[] = await response.json();
     if (!Array.isArray(data)) return {};
 
     const occupancyMap: Record<string, number> = {};
-
     data.forEach(item => {
       if (item.type_id) {
-        occupancyMap[item.type_id.toString()] = calculatePercentage(item.dates);
+        const total = item.dates.length;
+        const booked = item.dates.filter(d => d.available === "0").length;
+        occupancyMap[item.type_id.toString()] = calculatePercentage(total, booked);
       }
     });
-
     return occupancyMap;
   } catch (error) {
     console.error("Hotres Bulk Fetch Error:", error);
@@ -137,7 +122,7 @@ export const fetchHotresRooms = async (oid: string): Promise<RoomType[]> => {
     if (!response.ok) throw new Error(`Błąd API: ${response.status}`);
 
     const data: HotresRoomResponse[] = await response.json();
-    if (!Array.isArray(data)) throw new Error("Nieprawidłowy format danych z Hotres (oczekiwano tablicy)");
+    if (!Array.isArray(data)) throw new Error("Nieprawidłowy format danych z Hotres");
 
     return data.map((item, index) => {
       const single = parseInt(item.single) || 0;
@@ -227,11 +212,6 @@ export const updateHotresPrices = async (
     oid: oid
   });
 
-  console.group("🔥 HOTRES UPDATE REQUEST DEBUG 🔥");
-  console.log("Using Local Proxy:", USE_LOCAL_PROXY);
-  console.log("URL:", url);
-  console.groupEnd();
-
   try {
     const response = await fetch(url, {
       method: 'POST',
@@ -243,12 +223,10 @@ export const updateHotresPrices = async (
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("Hotres Error Body:", errorText);
       throw new Error(`Błąd HTTP: ${response.status} ${response.statusText} - ${errorText.substring(0, 200)}`);
     }
 
     const result = await response.json();
-    console.log("🔥 HOTRES RESPONSE:", result);
     
     if (result.result !== 'success') {
        throw new Error(`Hotres API Error: ${JSON.stringify(result)}`);
@@ -256,6 +234,94 @@ export const updateHotresPrices = async (
     
   } catch (error) {
     console.error("Hotres Update Prices Error:", error);
+    throw error;
+  }
+};
+
+/**
+ * Pushes manually calculated prices from the Calculator to Hotres for a specific date range.
+ * Does NOT update the internal database state.
+ */
+export const pushManualPriceUpdate = async (
+  oid: string,
+  room: RoomType,
+  startDate: string,
+  endDate: string,
+  channels: Channel[],
+  // Data from calculator
+  obpLadder: { occupancy: number, channelPrices: { id: string, listPrice: number }[] }[],
+  minNights: number
+): Promise<void> => {
+  if (!oid) throw new Error("Brak OID obiektu.");
+  if (!room.tid) throw new Error("Brak TID dla wybranego pokoju.");
+
+  const payloadMap = new Map<string, { type_id: number, rate_id: number, mode: string, prices: any[] }>();
+  
+  // Iterate only through channels that have a valid RID and are present in the calculation
+  channels.forEach(channel => {
+    if (!channel.rid || channel.rid.trim() === "") return;
+
+    // Get Base Price (Usually Max Occupancy price)
+    // In Hotres logic, 'baseprice' often acts as the standard rate or max occupancy rate depending on config.
+    // Here we take the price for Max Occupancy from the ladder.
+    const maxOccRow = obpLadder.find(r => r.occupancy === room.maxOccupancy);
+    if (!maxOccRow) return;
+
+    const channelMaxPrice = maxOccRow.channelPrices.find(cp => cp.id === channel.id)?.listPrice;
+    if (channelMaxPrice === undefined) return;
+
+    const priceEntry: any = {
+      from: startDate,
+      till: endDate,
+      baseprice: channelMaxPrice,
+      min: minNights,
+      child: 0
+    };
+
+    // Add per-person prices from the ladder
+    obpLadder.forEach(row => {
+       const cPrice = row.channelPrices.find(cp => cp.id === channel.id)?.listPrice;
+       if (cPrice !== undefined && row.occupancy <= 8) {
+          priceEntry[`pers${row.occupancy}`] = cPrice;
+       }
+    });
+
+    const key = `${room.tid}-${channel.rid}`;
+    payloadMap.set(key, {
+      type_id: parseInt(room.tid),
+      rate_id: parseInt(channel.rid),
+      mode: "delta",
+      prices: [priceEntry]
+    });
+  });
+
+  const payload = Array.from(payloadMap.values());
+  if (payload.length === 0) throw new Error("Brak zmapowanych kanałów (RID) dla tego obiektu.");
+
+  const url = buildUrl('/api_updateprices', {
+    user: USER,
+    password: PASS,
+    oid: oid
+  });
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Błąd HTTP: ${response.status} - ${errorText}`);
+    }
+
+    const result = await response.json();
+    if (result.result !== 'success') {
+       throw new Error(`Hotres Error: ${JSON.stringify(result)}`);
+    }
+  } catch (error) {
+    console.error("Hotres Manual Update Error:", error);
     throw error;
   }
 };

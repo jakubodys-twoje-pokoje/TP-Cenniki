@@ -1192,6 +1192,7 @@ const App: React.FC = () => {
            channels={activeProperty.channels}
            settings={activeProperty.settings}
            onClose={() => setShowCalculator(false)}
+           propertyOid={activeProperty.oid} // Pass OID for Hotres Sync
         />
       )}
 

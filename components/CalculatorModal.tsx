@@ -1,8 +1,9 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Channel, GlobalSettings, RoomType, Season } from '../types';
 import { calculateChannelPrice, calculateDirectPrice } from '../utils/pricingEngine';
-import { X, Calculator, TrendingUp, Users, Info } from 'lucide-react';
+import { pushManualPriceUpdate } from '../utils/hotresApi';
+import { X, Calculator, TrendingUp, Users, Info, Calendar, CloudUpload, Loader2, CheckCircle2 } from 'lucide-react';
 
 interface CalculatorModalProps {
   rooms: RoomType[];
@@ -10,6 +11,7 @@ interface CalculatorModalProps {
   channels: Channel[];
   settings: GlobalSettings;
   onClose: () => void;
+  propertyOid?: string; // Needed for sending to API
 }
 
 const CalculatorModal: React.FC<CalculatorModalProps> = ({
@@ -17,19 +19,36 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
   seasons,
   channels,
   settings,
-  onClose
+  onClose,
+  propertyOid
 }) => {
   // Form State
-  // Changed back to "targetNetInput" for Reverse Calculation
   const [targetNetInput, setTargetNetInput] = useState<number>(200);
   const [selectedRoomId, setSelectedRoomId] = useState<string>(rooms[0]?.id || "");
   const [selectedSeasonId, setSelectedSeasonId] = useState<string>(seasons[0]?.id || "");
   
+  // Custom Date Range State
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+
+  // Sending State
+  const [isSending, setIsSending] = useState(false);
+  const [sendSuccess, setSendSuccess] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+
   const selectedRoom = rooms.find(r => r.id === selectedRoomId);
   const selectedSeason = seasons.find(s => s.id === selectedSeasonId);
 
   const maxOcc = selectedRoom?.maxOccupancy || 2;
   const currentOccupancy = maxOcc; 
+
+  // Sync dates when season changes
+  useEffect(() => {
+    if (selectedSeason) {
+      setStartDate(selectedSeason.startDate);
+      setEndDate(selectedSeason.endDate);
+    }
+  }, [selectedSeasonId, seasons]);
 
   // --- CALCULATION LOGIC ---
   const calculationResult = useMemo(() => {
@@ -110,6 +129,34 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
   }, [targetNetInput, selectedRoomId, selectedSeasonId, currentOccupancy, rooms, seasons, channels, settings]);
 
 
+  const handleSendToHotres = async () => {
+    if (!propertyOid || !selectedRoom || !selectedSeason || !calculationResult) return;
+    
+    if (confirm(`Czy na pewno wysłać te ceny do Hotres na okres ${startDate} - ${endDate}? Ta operacja nadpisze ceny w panelu Hotres (dla połączonych kanałów), ale NIE zapisze ich w tej aplikacji.`)) {
+        setIsSending(true);
+        setSendError(null);
+        setSendSuccess(false);
+        try {
+            await pushManualPriceUpdate(
+                propertyOid,
+                selectedRoom,
+                startDate,
+                endDate,
+                channels,
+                calculationResult.obpLadder,
+                selectedSeason.minNights || 1
+            );
+            setSendSuccess(true);
+            setTimeout(() => setSendSuccess(false), 5000);
+        } catch (err: any) {
+            setSendError(err.message);
+        } finally {
+            setIsSending(false);
+        }
+    }
+  };
+
+
   const renderDiscountCell = (amount: number, percentage: number, colorClass: string, label: string) => {
       if (percentage === 0) return <td className="px-2 py-3 text-center text-slate-300">-</td>;
       return (
@@ -136,7 +183,7 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
             </div>
             <div>
               <h2 className="text-lg font-bold text-slate-800">Kalkulator Ceny</h2>
-              <p className="text-xs text-slate-500">Wylicz cenę bazową na podstawie oczekiwanego zarobku.</p>
+              <p className="text-xs text-slate-500">Wylicz cenę bazową i wyślij szybką aktualizację do Hotres.</p>
             </div>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
@@ -147,42 +194,91 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
         <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
            
            {/* Inputs Panel */}
-           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-sm">
-              <div className="col-span-1">
-                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Chcę zarobić (Netto)</label>
-                 <div className="relative">
-                    <input 
-                      type="number" 
-                      min="1"
-                      value={targetNetInput}
-                      onChange={(e) => setTargetNetInput(Number(e.target.value))}
-                      className={`${inputBaseClass} text-emerald-700 border-emerald-300 focus:ring-emerald-500 focus:border-emerald-500 pl-4 pr-12`}
-                    />
-                    <span className="absolute right-4 top-3 text-sm text-slate-400 font-bold">PLN</span>
-                 </div>
-              </div>
+           <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-sm space-y-4">
+               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="col-span-1">
+                     <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Chcę zarobić (Netto)</label>
+                     <div className="relative">
+                        <input 
+                          type="number" 
+                          min="1"
+                          value={targetNetInput}
+                          onChange={(e) => setTargetNetInput(Number(e.target.value))}
+                          className={`${inputBaseClass} text-emerald-700 border-emerald-300 focus:ring-emerald-500 focus:border-emerald-500 pl-4 pr-12`}
+                        />
+                        <span className="absolute right-4 top-3 text-sm text-slate-400 font-bold">PLN</span>
+                     </div>
+                  </div>
 
-              <div className="col-span-1">
-                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Obiekt / Pokój</label>
-                 <select 
-                   value={selectedRoomId}
-                   onChange={(e) => setSelectedRoomId(e.target.value)}
-                   className={inputBaseClass}
-                 >
-                    {rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                 </select>
-              </div>
+                  <div className="col-span-1">
+                     <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Obiekt / Pokój</label>
+                     <select 
+                       value={selectedRoomId}
+                       onChange={(e) => setSelectedRoomId(e.target.value)}
+                       className={inputBaseClass}
+                     >
+                        {rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                     </select>
+                  </div>
 
-              <div className="col-span-1">
-                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Sezon</label>
-                 <select 
-                   value={selectedSeasonId}
-                   onChange={(e) => setSelectedSeasonId(e.target.value)}
-                   className={inputBaseClass}
-                 >
-                    {seasons.map(s => <option key={s.id} value={s.id}>{s.name} (x{s.multiplier})</option>)}
-                 </select>
-              </div>
+                  <div className="col-span-1">
+                     <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Bazuj na sezonie</label>
+                     <select 
+                       value={selectedSeasonId}
+                       onChange={(e) => setSelectedSeasonId(e.target.value)}
+                       className={inputBaseClass}
+                     >
+                        {seasons.map(s => <option key={s.id} value={s.id}>{s.name} (x{s.multiplier})</option>)}
+                     </select>
+                  </div>
+               </div>
+
+               {/* Date Range Selection for API Push */}
+               <div className="border-t border-slate-200 pt-4 mt-2">
+                  <div className="flex flex-col md:flex-row gap-4 items-end">
+                      <div className="flex-1 w-full">
+                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1 flex items-center gap-1"><Calendar size={12}/> Obowiązuje od</label>
+                         <input 
+                           type="date" 
+                           value={startDate}
+                           onChange={(e) => setStartDate(e.target.value)}
+                           className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm font-medium"
+                         />
+                      </div>
+                      <div className="flex-1 w-full">
+                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1 flex items-center gap-1"><Calendar size={12}/> Obowiązuje do</label>
+                         <input 
+                           type="date" 
+                           value={endDate}
+                           onChange={(e) => setEndDate(e.target.value)}
+                           className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm font-medium"
+                         />
+                      </div>
+                      <div className="w-full md:w-auto">
+                         <button 
+                            onClick={handleSendToHotres}
+                            disabled={isSending || !propertyOid}
+                            className={`w-full md:w-auto px-6 py-2.5 rounded-lg font-bold text-white shadow-sm flex items-center justify-center gap-2 transition-all ${
+                                isSending ? 'bg-slate-400 cursor-not-allowed' : 'bg-orange-600 hover:bg-orange-700 active:scale-95'
+                            } ${!propertyOid ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            title={!propertyOid ? "Brak OID w konfiguracji" : "Wyślij ceny"}
+                         >
+                            {isSending ? <Loader2 size={20} className="animate-spin" /> : <CloudUpload size={20} />}
+                            {isSending ? 'Wysyłanie...' : 'Wyślij do Hotres'}
+                         </button>
+                      </div>
+                  </div>
+                  {sendSuccess && (
+                      <div className="mt-3 bg-green-50 text-green-700 px-4 py-2 rounded-md flex items-center gap-2 text-sm font-medium animate-in fade-in slide-in-from-top-1">
+                          <CheckCircle2 size={16} /> Pomyślnie wysłano ceny do Hotres!
+                      </div>
+                  )}
+                  {sendError && (
+                      <div className="mt-3 bg-red-50 text-red-700 px-4 py-2 rounded-md flex items-center gap-2 text-sm font-medium animate-in fade-in slide-in-from-top-1">
+                          <X size={16} /> Błąd: {sendError}
+                      </div>
+                  )}
+               </div>
            </div>
 
            {/* Results Area */}
