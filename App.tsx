@@ -88,15 +88,22 @@ const App: React.FC = () => {
 
     // 2. Database Lookup (Dynamic Roles)
     try {
+      const normalizedEmail = email.toLowerCase().trim();
       const { data, error } = await supabase
         .from('user_roles')
         .select('*')
-        .eq('email', email)
+        .eq('email', normalizedEmail)
         .single();
         
       if (data) {
+        // Sanitize Role from DB
+        let safeRole = data.role;
+        if (safeRole !== 'super_admin' && safeRole !== 'admin') {
+            safeRole = 'client';
+        }
+
         const dbPerms: UserPermissions = {
-          role: data.role,
+          role: safeRole,
           allowedPropertyIds: data.allowed_property_ids || []
         };
         setUserPermissions(dbPerms);
@@ -107,18 +114,25 @@ const App: React.FC = () => {
     }
     
     // 3. Fallback: Default Client (Safe Fail)
-    setUserPermissions(staticPerms);
-    return staticPerms;
+    // If we are here, it means not hardcoded admin AND not found in DB. Force Client Role.
+    const safeFallback: UserPermissions = { role: 'client', allowedPropertyIds: [] };
+    setUserPermissions(safeFallback);
+    return safeFallback;
   };
 
   const loadUserData = async (currentSession: any) => {
     if (!currentSession?.user?.email) return;
     
     try {
+      // 1. Load Permissions FIRST
       const perms = await loadDynamicPermissions(currentSession.user.email);
+      // 2. Then Load Properties using those permissions
       await fetchProperties(currentSession.user.email, perms);
     } catch (e) {
       console.error("Error loading user data:", e);
+    } finally {
+      // 3. Only remove loading screen when EVERYTHING is ready
+      setAuthLoading(false);
     }
   };
 
@@ -134,9 +148,11 @@ const App: React.FC = () => {
         if (mounted) {
            if (initialSession) {
              setSession(initialSession);
-             setAuthLoading(false);
+             // Note: NOT setting setAuthLoading(false) here yet. 
+             // We wait for loadUserData to finish inside it.
              await loadUserData(initialSession);
            } else {
+             // No session, we can stop loading immediately
              setAuthLoading(false);
            }
         }
@@ -151,13 +167,16 @@ const App: React.FC = () => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
       if (!mounted) return;
       setSession(currentSession);
-      if (event === 'SIGNED_IN') {
-        setAuthLoading(false);
-        loadUserData(currentSession);
+      
+      if (event === 'SIGNED_IN' && currentSession) {
+         setAuthLoading(true); // Show loading while fetching permissions
+         await loadUserData(currentSession);
       } else if (event === 'SIGNED_OUT') {
         setProperties([]);
         setUserPermissions({ role: 'client', allowedPropertyIds: [] });
         setAuthLoading(false);
+      } else if (event === 'TOKEN_REFRESHED') {
+         // Do nothing special, session updated
       }
     });
 
@@ -207,8 +226,7 @@ const App: React.FC = () => {
         if (perms.role === 'client') {
            const allowedIds = perms.allowedPropertyIds || [];
            
-           // CRITICAL FIX: If allowedIds is empty, we MUST return empty array immediately.
-           // Filter will handle it, but being explicit helps logic clarity.
+           // CRITICAL: Strict filter.
            loadedProps = loadedProps.filter(p => allowedIds.includes(p.id));
         }
 
@@ -849,7 +867,11 @@ const App: React.FC = () => {
             style={{ maxHeight: '60px' }}
           />
           <div className="text-center">
+             <span className="text-sm font-bold tracking-tight text-slate-400 uppercase">Cennik Twoje Pokoje</span>
              <div className="text-xs text-slate-600 mt-1 truncate px-2">{session.user.email}</div>
+             <div className={`text-[10px] uppercase font-bold mt-1 px-2 py-0.5 rounded inline-block ${userPermissions.role === 'super_admin' ? 'bg-blue-600' : userPermissions.role === 'admin' ? 'bg-purple-600' : 'bg-slate-700'}`}>
+                {userPermissions.role === 'super_admin' ? 'Super Admin' : userPermissions.role === 'admin' ? 'Admin' : 'Klient'}
+             </div>
           </div>
         </div>
 
@@ -1064,6 +1086,29 @@ const App: React.FC = () => {
         )}
 
         <div className="p-6 border-t border-slate-800 space-y-3 flex-shrink-0">
+           {/* Sync Status Indicator - HIDDEN FOR CLIENTS */}
+          {!isClientRole && (
+            <div className="flex items-center justify-between">
+               <div className={`flex items-center gap-2 text-xs transition-colors h-4 ${
+                  syncStatus === 'synced' ? 'text-green-400' : 
+                  syncStatus === 'saving' ? 'text-yellow-400' : 
+                  syncStatus === 'error' ? 'text-red-400' : 'text-slate-500 opacity-0'
+               }`}>
+                 {syncStatus === 'synced' && <><CheckCircle2 size={12} /> <span>Zapisano w chmurze</span></>}
+                 {syncStatus === 'saving' && <><Loader2 size={12} className="animate-spin" /> <span>Zapisywanie...</span></>}
+                 {syncStatus === 'error' && <><CloudOff size={12} /> <span>Błąd zapisu</span></>}
+               </div>
+               
+               <button 
+                 onClick={handleManualSync}
+                 className="text-slate-500 hover:text-white transition-colors p-1"
+                 title="Wymuś synchronizację"
+               >
+                 <RefreshCw size={12} className={isLoading ? "animate-spin" : ""} />
+               </button>
+            </div>
+          )}
+
           <button 
             onClick={handleLogout}
             className="w-full flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded transition-colors"
