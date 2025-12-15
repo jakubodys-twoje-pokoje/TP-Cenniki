@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from "react";
-import { LayoutDashboard, Settings as SettingsIcon, Menu, BedDouble, Calendar, Share2, Cog, ChevronDown, ChevronRight, Building, Plus, Trash2, Bed, CheckCircle2, Copy, Cloud, CloudOff, Loader2, RefreshCw, LogOut, Download, X, Lock, Users, Calculator, Eye } from "lucide-react";
+import { LayoutDashboard, Settings as SettingsIcon, Menu, BedDouble, Calendar, Share2, Cog, ChevronDown, ChevronRight, Building, Plus, Trash2, Bed, CheckCircle2, Copy, Cloud, CloudOff, Loader2, RefreshCw, LogOut, Download, X, Lock, Users, Calculator, Eye, ShieldAlert } from "lucide-react";
 import SettingsPanel from "./components/SettingsPanel";
 import Dashboard from "./components/Dashboard";
 import ClientDashboard from "./components/ClientDashboard";
@@ -28,6 +28,7 @@ const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [userPermissions, setUserPermissions] = useState<UserPermissions>({ role: 'client', allowedPropertyIds: [] });
+  const [accessDenied, setAccessDenied] = useState(false); // New State for explicit denial
 
   // Application State
   const [activeTab, setActiveTab] = useState<"dashboard" | "settings" | "client-view">("dashboard");
@@ -77,39 +78,48 @@ const App: React.FC = () => {
 
   // Function to load dynamic permissions from DB
   const loadDynamicPermissions = async (email: string) => {
-    // 1. PRIORITY: Check Static Config (Hardcoded Admins)
-    const staticPerms = getUserPermissions(email);
+    const lowerEmail = email.toLowerCase().trim();
+    setAccessDenied(false);
+
+    // 1. PRIORITY: Check Static Config (Hardcoded Super Admins ONLY)
+    // We only use static config for Super Admins to ensure we never get locked out.
+    const staticPerms = getUserPermissions(lowerEmail);
     
-    if (staticPerms.role === 'super_admin' || staticPerms.role === 'admin') {
-        console.log(`Found static permissions for ${email}: ${staticPerms.role}. Skipping DB fetch.`);
+    if (staticPerms.role === 'super_admin') {
+        console.log(`Found static Super Admin: ${lowerEmail}`);
         setUserPermissions(staticPerms);
         return staticPerms;
     }
 
     // 2. Check DB for dynamic roles
+    // If user is not Super Admin, they MUST exist in the DB.
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('user_roles')
         .select('*')
-        .eq('email', email)
+        .eq('email', lowerEmail)
         .single();
         
       if (data) {
-        console.log(`Loaded DB permissions for ${email}:`, data.role);
+        console.log(`Loaded DB permissions for ${lowerEmail}:`, data.role);
         const dbPerms: UserPermissions = {
           role: data.role,
           allowedPropertyIds: data.allowed_property_ids || []
         };
         setUserPermissions(dbPerms);
         return dbPerms;
+      } else {
+         // User logged in via Auth but has no entry in user_roles table -> ACCESS DENIED
+         console.warn(`User ${lowerEmail} authenticated but not found in user_roles DB.`);
+         setAccessDenied(true);
+         return null;
       }
     } catch (e) {
-      console.warn("Could not fetch dynamic permissions from DB (network error or not found). Using default.", e);
+      console.error("DB Permission check failed:", e);
+      // Network error or other issue -> Safe default is deny
+      setAccessDenied(true); 
+      return null;
     }
-    
-    // 3. Fallback
-    setUserPermissions(staticPerms);
-    return staticPerms;
   };
 
   // ---------------------------------------------------------------------------
@@ -121,7 +131,12 @@ const App: React.FC = () => {
     
     try {
       const perms = await loadDynamicPermissions(currentSession.user.email);
-      await fetchProperties(currentSession.user.email, perms);
+      if (perms) {
+         await fetchProperties(currentSession.user.email, perms);
+      } else {
+         // If no perms returned (Access Denied), clear properties
+         setProperties([]);
+      }
     } catch (e) {
       console.error("Error loading user data:", e);
     }
@@ -169,6 +184,7 @@ const App: React.FC = () => {
       } else if (event === 'SIGNED_OUT') {
         setProperties([]);
         setUserPermissions({ role: 'client', allowedPropertyIds: [] });
+        setAccessDenied(false);
         setAuthLoading(false);
       }
     });
@@ -218,7 +234,12 @@ const App: React.FC = () => {
 
         if (perms.role === 'client') {
            const allowedIds = perms.allowedPropertyIds || [];
-           loadedProps = loadedProps.filter(p => allowedIds.includes(p.id));
+           // Strict filter: If allowedIds is empty, result is empty.
+           if (allowedIds.length === 0) {
+              loadedProps = [];
+           } else {
+              loadedProps = loadedProps.filter(p => allowedIds.includes(p.id));
+           }
         }
 
         loadedProps.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
@@ -236,6 +257,9 @@ const App: React.FC = () => {
             if (!exists || activePropertyId === "default") {
                 setActivePropertyId(loadedProps[0].id);
             }
+        } else {
+            // No properties available for this user
+            setActivePropertyId("");
         }
       } else {
         if (perms.role === 'super_admin') {
@@ -284,8 +308,10 @@ const App: React.FC = () => {
             const newContent = payload.new.content as Property;
             const newId = payload.new.id;
             
-            if (userPermissions.role === 'client' && !userPermissions.allowedPropertyIds?.includes(newId)) {
-               return;
+            // Client Filter Check
+            if (userPermissions.role === 'client') {
+               const allowed = userPermissions.allowedPropertyIds || [];
+               if (!allowed.includes(newId)) return; // Strictly ignore if not allowed
             }
 
             if (newContent.rooms) {
@@ -792,6 +818,32 @@ const App: React.FC = () => {
     return <LoginScreen />;
   }
 
+  // --- ACCESS DENIED SCREEN ---
+  if (accessDenied) {
+     return (
+        <div className="flex flex-col h-screen items-center justify-center bg-slate-100 text-slate-800 p-4">
+           <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full text-center border border-red-100">
+               <div className="mx-auto w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mb-6">
+                  <ShieldAlert size={32} />
+               </div>
+               <h2 className="text-2xl font-bold text-slate-900 mb-2">Brak Dostępu</h2>
+               <p className="text-slate-600 mb-6">
+                 Twoje konto istnieje w systemie logowania, ale nie zostało przypisane do żadnej roli ani obiektów w bazie danych.
+               </p>
+               <p className="text-sm text-slate-500 mb-8 bg-slate-50 p-4 rounded-lg border border-slate-200">
+                 Skontaktuj się z administratorem (Super Admin), aby nadał Ci uprawnienia w panelu użytkowników.
+               </p>
+               <button 
+                 onClick={handleLogout}
+                 className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-slate-900 hover:bg-slate-800 text-white font-medium rounded-lg transition-colors"
+               >
+                 <LogOut size={18} /> Wyloguj i spróbuj ponownie
+               </button>
+           </div>
+        </div>
+     );
+  }
+
   if (loadError) {
     return (
        <div className="flex flex-col h-screen items-center justify-center bg-slate-50 text-slate-800 p-4">
@@ -822,12 +874,20 @@ const App: React.FC = () => {
     );
   }
   
+  // Handling case where permissions allow 0 properties
   if (!activeProperty && properties.length === 0 && !authLoading) {
       return (
         <div className="flex h-screen items-center justify-center bg-slate-50 text-slate-500 flex-col gap-4">
-            <Building className="opacity-20" size={64}/>
-            <p>Brak dostępnych obiektów. Skontaktuj się z administratorem.</p>
-            <button onClick={handleLogout} className="text-blue-600 underline">Wyloguj</button>
+            <div className="p-6 bg-white rounded-full shadow-sm">
+                <Building className="text-slate-300" size={48}/>
+            </div>
+            <h2 className="text-xl font-bold text-slate-700">Brak dostępnych obiektów</h2>
+            <p className="max-w-xs text-center text-slate-500">
+               Jesteś zalogowany, ale nie przypisano Ci jeszcze żadnych obiektów. Skontaktuj się z administratorem.
+            </p>
+            <button onClick={handleLogout} className="mt-4 px-6 py-2 bg-slate-800 text-white rounded-lg hover:bg-slate-700 transition-colors flex items-center gap-2">
+                <LogOut size={16}/> Wyloguj
+            </button>
         </div>
       );
   }
