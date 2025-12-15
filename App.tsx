@@ -75,18 +75,19 @@ const App: React.FC = () => {
   // Ref for clearing success message
   const statusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Function to load dynamic permissions from DB
+  // Function to load dynamic permissions from DB or Config
   const loadDynamicPermissions = async (email: string) => {
     // 1. PRIORITY: Check Static Config (Hardcoded Admins)
     const staticPerms = getUserPermissions(email);
     
+    // If user is hardcoded as Admin/Super Admin, use that role immediately
     if (staticPerms.role === 'super_admin' || staticPerms.role === 'admin') {
-        console.log(`Found static permissions for ${email}: ${staticPerms.role}. Skipping DB fetch.`);
+        console.log(`Found static permissions for ${email}: ${staticPerms.role}`);
         setUserPermissions(staticPerms);
         return staticPerms;
     }
 
-    // 2. Check DB for dynamic roles
+    // 2. Check DB for dynamic roles (e.g. Clients assigned via UI)
     try {
       const { data } = await supabase
         .from('user_roles')
@@ -104,10 +105,10 @@ const App: React.FC = () => {
         return dbPerms;
       }
     } catch (e) {
-      console.warn("Could not fetch dynamic permissions from DB (network error or not found). Using default.", e);
+      console.warn("No dynamic permissions found (or error), falling back to static config.", e);
     }
     
-    // 3. Fallback
+    // 3. Fallback to static config (likely just the Example Client or default Client)
     setUserPermissions(staticPerms);
     return staticPerms;
   };
@@ -120,7 +121,9 @@ const App: React.FC = () => {
     if (!currentSession?.user?.email) return;
     
     try {
+      // Load permissions first
       const perms = await loadDynamicPermissions(currentSession.user.email);
+      // Then fetch properties using those permissions
       await fetchProperties(currentSession.user.email, perms);
     } catch (e) {
       console.error("Error loading user data:", e);
@@ -133,7 +136,6 @@ const App: React.FC = () => {
     const initializeAuth = async () => {
       try {
         console.log("Initializing Auth...");
-        // 1. Get Session
         const { data: { session: initialSession }, error } = await supabase.auth.getSession();
         
         if (error) throw error;
@@ -216,8 +218,10 @@ const App: React.FC = () => {
            id: row.id
         }));
 
+        // STRICT Filtering for Clients
         if (perms.role === 'client') {
            const allowedIds = perms.allowedPropertyIds || [];
+           // Only keep properties that are explicitly allowed
            loadedProps = loadedProps.filter(p => allowedIds.includes(p.id));
         }
 
@@ -231,13 +235,20 @@ const App: React.FC = () => {
 
         processLoadedProperties(loadedProps);
         
+        // Ensure activePropertyId is valid
         if (loadedProps.length > 0) {
             const exists = loadedProps.find(p => p.id === activePropertyId);
+            // If active prop is invalid, pick the first one
             if (!exists || activePropertyId === "default") {
                 setActivePropertyId(loadedProps[0].id);
             }
+        } else {
+            // Client sees nothing
+            setActivePropertyId("");
+            // If they have 0 allowed properties, empty list is correct
         }
       } else {
+        // Init logic for Super Admin
         if (perms.role === 'super_admin') {
            const defaultProp: Property = {
              id: "default",
@@ -284,6 +295,7 @@ const App: React.FC = () => {
             const newContent = payload.new.content as Property;
             const newId = payload.new.id;
             
+            // SECURITY: Ignore updates for properties client shouldn't see
             if (userPermissions.role === 'client' && !userPermissions.allowedPropertyIds?.includes(newId)) {
                return;
             }
@@ -834,7 +846,7 @@ const App: React.FC = () => {
 
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden print:overflow-visible print:h-auto print:block">
-      {/* Sidebar - Added flex-col and h-full for scrolling fix */}
+      {/* Sidebar */}
       <aside className={`
         fixed inset-y-0 left-0 z-30 w-64 bg-slate-900 text-white transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0
         flex flex-col h-full print:hidden
@@ -857,7 +869,7 @@ const App: React.FC = () => {
         </div>
 
         {isClientRole ? (
-           // CLIENT SIDEBAR: Only Properties List
+           // CLIENT SIDEBAR: Strictly only Property List
            <div className="flex-1 p-4 text-slate-400 text-sm overflow-y-auto">
               <p className="mb-4 text-center text-slate-500 text-xs font-bold uppercase">TWOJE OBIEKTY</p>
               <div className="space-y-1">
@@ -876,9 +888,10 @@ const App: React.FC = () => {
                    </button>
                 ))}
               </div>
+              {properties.length === 0 && <p className="text-center italic text-xs mt-4">Brak przypisanych obiektów.</p>}
            </div>
         ) : (
-        // ADMIN SIDEBAR: Full Navigation + Properties
+        // ADMIN SIDEBAR: Full Navigation + Properties with expansion
         <nav className="p-4 space-y-2 flex-1 overflow-y-auto min-h-0">
           <button
             onClick={() => { setActiveTab("dashboard"); setSelectedRoomId(null); setIsSidebarOpen(false); }}
@@ -892,7 +905,6 @@ const App: React.FC = () => {
             <span className="font-medium">Panel</span>
           </button>
           
-          {/* Client View Button for Admins - MOVED UP */}
           <button
             onClick={() => { setActiveTab("client-view"); setIsSidebarOpen(false); }}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors flex-shrink-0 ${
@@ -905,7 +917,6 @@ const App: React.FC = () => {
             <span className="font-medium">Podgląd Klienta</span>
           </button>
 
-          {/* User Management Button (Super Admin Only) - MOVED UP */}
           {userPermissions.role === 'super_admin' && (
               <button
                 onClick={() => setShowUserPanel(true)}
@@ -916,7 +927,6 @@ const App: React.FC = () => {
               </button>
           )}
 
-          {/* Calculator Button */}
           <button
             onClick={() => setShowCalculator(true)}
             className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors flex-shrink-0 text-slate-400 hover:bg-slate-800 hover:text-white"
@@ -944,7 +954,6 @@ const App: React.FC = () => {
               {isConfigExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
             </button>
 
-            {/* Sub-menu */}
             {isConfigExpanded && (
               <div className="mt-1 ml-4 pl-4 border-l border-slate-700 space-y-1">
                 {(["rooms", "seasons", "channels", "global"] as SettingsTab[]).map(tab => (
@@ -1101,7 +1110,7 @@ const App: React.FC = () => {
           </button>
           
           <div className="text-xs text-slate-500">
-            <p>Wersja 1.7.0 (Strict Client Isolation)</p>
+            <p>Wersja 1.7.5 (Client View Isolation)</p>
             <p className="mt-1">© 2025 Twoje Pokoje & Strony Jakubowe</p>
           </div>
         </div>
@@ -1120,7 +1129,8 @@ const App: React.FC = () => {
         {/* Content Area */}
         <div className="flex-1 overflow-hidden p-4 md:p-8 print:p-0 print:overflow-visible print:h-auto">
           {isClientRole ? (
-             // CLIENT VIEW: ALWAYS Client Dashboard
+             // CLIENT VIEW: STRICTLY Client Dashboard Only
+             // Clients are filtered in fetchProperties, so activeProperty is safe.
              activeProperty ? (
                <ClientDashboard 
                  rooms={activeProperty.rooms}
