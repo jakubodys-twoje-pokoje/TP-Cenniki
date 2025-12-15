@@ -255,7 +255,6 @@ const Dashboard: React.FC<DashboardProps> = ({
     setColumnVisibility(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const occupancyOptions = [1, 2, 3, 4, 5, 6, 7];
   const selectedRoomName = useMemo(() => rooms.find(r => r.id === selectedRoomId)?.name, [rooms, selectedRoomId]);
 
   // Color helper for occupancy
@@ -309,7 +308,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             )}
              {isReadOnly && <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded border border-slate-200 flex items-center gap-1"><Lock size={10}/> Tylko do odczytu</span>}
           </h2>
-          <p className="text-sm text-slate-500">Widok główny: {occupancyFilter === "MAX" ? "Maksymalne obłożenie" : `${occupancyFilter} os.`}</p>
+          <p className="text-sm text-slate-500">Standardowy cennik (Max os.)</p>
         </div>
         
         <div className="flex items-center gap-3 flex-wrap">
@@ -414,28 +413,6 @@ const Dashboard: React.FC<DashboardProps> = ({
             </div>
           )}
 
-          <div className="h-8 w-px bg-slate-200 hidden md:block"></div>
-
-          <div className="flex items-center gap-3 overflow-x-auto max-w-full pb-1">
-             <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
-                {occupancyOptions.map(num => (
-                  <button 
-                    key={num}
-                    onClick={() => handleGlobalFilterChange(num)}
-                    className={`px-3 py-1.5 text-sm rounded-md transition-all whitespace-nowrap ${occupancyFilter === num ? 'bg-white shadow text-blue-600 font-medium' : 'text-slate-500 hover:text-slate-700'}`}
-                  >
-                    {num} Os.
-                  </button>
-                ))}
-                <div className="w-px h-6 bg-slate-300 mx-1"></div>
-                <button 
-                  onClick={() => handleGlobalFilterChange("MAX")}
-                  className={`px-3 py-1.5 text-sm rounded-md transition-all whitespace-nowrap ${occupancyFilter === "MAX" ? 'bg-white shadow text-blue-600 font-medium' : 'text-slate-500 hover:text-slate-700'}`}
-                >
-                  Maks.
-                </button>
-             </div>
-          </div>
         </div>
       </div>
 
