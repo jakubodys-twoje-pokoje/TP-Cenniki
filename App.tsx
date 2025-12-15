@@ -121,9 +121,13 @@ const App: React.FC = () => {
   };
 
   const loadUserData = async (currentSession: any) => {
-    if (!currentSession?.user?.email) return;
-    
+    // Wrap EVERYTHING in try/finally to ensure loading state is cleared
     try {
+      if (!currentSession?.user?.email) {
+         console.warn("Session exists but no email found.");
+         return;
+      }
+      
       // 1. Load Permissions FIRST
       const perms = await loadDynamicPermissions(currentSession.user.email);
       // 2. Then Load Properties using those permissions
@@ -131,7 +135,7 @@ const App: React.FC = () => {
     } catch (e) {
       console.error("Error loading user data:", e);
     } finally {
-      // 3. Only remove loading screen when EVERYTHING is ready
+      // 3. Only remove loading screen when EVERYTHING is ready (or failed)
       setAuthLoading(false);
     }
   };
@@ -148,8 +152,7 @@ const App: React.FC = () => {
         if (mounted) {
            if (initialSession) {
              setSession(initialSession);
-             // Note: NOT setting setAuthLoading(false) here yet. 
-             // We wait for loadUserData to finish inside it.
+             // Wait for loadUserData to finish
              await loadUserData(initialSession);
            } else {
              // No session, we can stop loading immediately
@@ -589,7 +592,8 @@ const App: React.FC = () => {
           sortOrder: properties.length,
         };
       } catch (e: any) {
-        alert("Błąd importu: " + e.message);
+        console.error("Import Error:", e);
+        alert(`Błąd importu: ${e.message}\nSprawdź konsolę (F12) dla szczegółów.`);
         setIsImporting(false);
         return;
       }

@@ -25,9 +25,9 @@ interface HotresRoomResponse {
 const USER = "admin@twojepokoje.com.pl";
 const PASS = "Admin123@@";
 
-// CHANGE: Detect DEV environment to force local Vite proxy usage.
-// This fixes 502 Bad Gateway errors on cloud IDEs (StackBlitz/Replit) where external CORS proxies fail.
-const USE_LOCAL_PROXY = (import.meta as any).env?.DEV ?? false;
+// CHANGE: Force local proxy to true because vite.config.ts is present and configured in this environment.
+// External proxies (corsproxy.io) are often unstable or blocked.
+const USE_LOCAL_PROXY = true;
 
 // Funkcja budująca poprawny URL w zależności od środowiska
 const buildUrl = (endpoint: string, params: Record<string, string>) => {
@@ -35,9 +35,10 @@ const buildUrl = (endpoint: string, params: Record<string, string>) => {
   
   if (USE_LOCAL_PROXY) {
     // LOKALNIE / DEV: Używamy proxy zdefiniowanego w vite.config.ts
+    // Vite Dev Server przekieruje to do https://panel.hotres.pl
     return `/api_hotres${endpoint}?${queryString}`;
   } else {
-    // PRODUKCJA: Używamy zewnętrznego proxy
+    // PRODUKCJA (tylko jeśli build statyczny bez Vite Servera): Używamy zewnętrznego proxy
     const targetUrl = `https://panel.hotres.pl${endpoint}?${queryString}`;
     return `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
   }
