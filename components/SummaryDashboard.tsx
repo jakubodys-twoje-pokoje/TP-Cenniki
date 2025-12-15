@@ -24,6 +24,14 @@ const SummaryDashboard: React.FC<SummaryDashboardProps> = ({ property }) => {
   const [filterRoomId, setFilterRoomId] = useState<string>("ALL");
   const [filterSeasonId, setFilterSeasonId] = useState<string>("ALL");
 
+  // Helper to shorten long axis labels
+  const formatXAxis = (tickItem: string) => {
+    if (tickItem.length > 15) {
+        return tickItem.substring(0, 15) + '...';
+    }
+    return tickItem;
+  };
+
   // 1. Calculate Full Pricing Grid (Base for everything)
   const fullGrid = useMemo(() => {
     return generatePricingGrid(rooms, seasons, channels, settings, "MAX");
@@ -285,7 +293,16 @@ const SummaryDashboard: React.FC<SummaryDashboardProps> = ({ property }) => {
                         </linearGradient>
                      </defs>
                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                     <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 11, fill: '#64748b'}} interval={0} />
+                     <XAxis 
+                        dataKey="name" 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{fontSize: 11, fill: '#64748b', angle: -30, textAnchor: 'end'}} 
+                        interval={0} 
+                        height={60}
+                        dy={5}
+                        tickFormatter={formatXAxis}
+                     />
                      <YAxis axisLine={false} tickLine={false} tick={{fontSize: 11, fill: '#64748b'}} />
                      <Tooltip 
                         contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
@@ -312,7 +329,16 @@ const SummaryDashboard: React.FC<SummaryDashboardProps> = ({ property }) => {
                 <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={occupancyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 11, fill: '#64748b'}} interval={0} />
+                        <XAxis 
+                            dataKey="name" 
+                            axisLine={false} 
+                            tickLine={false} 
+                            tick={{fontSize: 11, fill: '#64748b', angle: -30, textAnchor: 'end'}} 
+                            interval={0}
+                            height={60}
+                            dy={5}
+                            tickFormatter={formatXAxis}
+                        />
                         <YAxis axisLine={false} tickLine={false} tick={{fontSize: 11, fill: '#64748b'}} unit="%" domain={[0, 100]}/>
                         <Tooltip 
                             cursor={{fill: '#f8fafc'}}
