@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from "react";
-import { LayoutDashboard, Settings as SettingsIcon, Menu, BedDouble, Calendar, Share2, Cog, ChevronDown, ChevronRight, Building, Plus, Trash2, Bed, CheckCircle2, Copy, Cloud, CloudOff, Loader2, RefreshCw, LogOut, Download, X, Lock, Users, Calculator } from "lucide-react";
+import { LayoutDashboard, Settings as SettingsIcon, Menu, BedDouble, Calendar, Share2, Cog, ChevronDown, ChevronRight, Building, Plus, Trash2, Bed, CheckCircle2, Copy, Cloud, CloudOff, Loader2, RefreshCw, LogOut, Download, X, Lock, Users, Calculator, Eye } from "lucide-react";
 import SettingsPanel from "./components/SettingsPanel";
 import Dashboard from "./components/Dashboard";
 import ClientDashboard from "./components/ClientDashboard";
@@ -30,7 +30,8 @@ const App: React.FC = () => {
   const [userPermissions, setUserPermissions] = useState<UserPermissions>({ role: 'client', allowedPropertyIds: [] });
 
   // Application State
-  const [activeTab, setActiveTab] = useState<"dashboard" | "settings">("dashboard");
+  // Expanded type to include 'client-view'
+  const [activeTab, setActiveTab] = useState<"dashboard" | "settings" | "client-view">("dashboard");
   const [activeSettingsTab, setActiveSettingsTab] = useState<SettingsTab>("rooms");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isConfigExpanded, setIsConfigExpanded] = useState(true);
@@ -928,6 +929,19 @@ const App: React.FC = () => {
             <LayoutDashboard size={20} />
             <span className="font-medium">Panel</span>
           </button>
+          
+          {/* Client View Button for Admins */}
+          <button
+            onClick={() => { setActiveTab("client-view"); setIsSidebarOpen(false); }}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors flex-shrink-0 ${
+               activeTab === "client-view" 
+               ? "bg-blue-600 text-white" 
+               : "text-slate-400 hover:bg-slate-800 hover:text-white"
+            }`}
+          >
+            <Eye size={20} />
+            <span className="font-medium">Podgląd Klienta</span>
+          </button>
 
           {/* Calculator Button */}
           <button
@@ -1150,7 +1164,16 @@ const App: React.FC = () => {
              ) : <div className="p-4 text-center text-slate-500">Wybierz obiekt z menu.</div>
           ) : (
             <>
-              {activeTab === "dashboard" ? (
+              {activeTab === "client-view" ? (
+                 activeProperty ? (
+                   <ClientDashboard 
+                     rooms={activeProperty.rooms}
+                     seasons={activeProperty.seasons}
+                     channels={activeProperty.channels}
+                     settings={activeProperty.settings}
+                   />
+                 ) : <div className="p-4 text-center text-slate-500">Wczytywanie...</div>
+              ) : activeTab === "dashboard" ? (
                 activeProperty ? (
                 <Dashboard 
                   key={activeProperty.id} 
