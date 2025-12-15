@@ -928,7 +928,7 @@ const App: React.FC = () => {
             <span className="font-medium">Panel</span>
           </button>
           
-          {/* Client View Button for Admins */}
+          {/* Client View Button for Admins - Explicitly Added Here */}
           <button
             onClick={() => { setActiveTab("client-view"); setIsSidebarOpen(false); }}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors flex-shrink-0 ${
@@ -1102,7 +1102,7 @@ const App: React.FC = () => {
         )}
 
         <div className="p-6 border-t border-slate-800 space-y-3 flex-shrink-0">
-           {/* Sync Status Indicator */}
+           {/* Sync Status Indicator - HIDDEN FOR CLIENTS */}
           {!isClientRole && (
             <div className="flex items-center justify-between">
                <div className={`flex items-center gap-2 text-xs transition-colors h-4 ${
