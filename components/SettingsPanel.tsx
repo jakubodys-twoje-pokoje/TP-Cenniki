@@ -409,7 +409,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
       {/* Tabs */}
       <div className="flex border-b border-slate-200 bg-slate-50 overflow-x-auto">
-        {(["global", "rooms", "seasons", "channels"] as const).map((tab) => (
+        {(["global", "rooms", "seasons", "channels", "profiles"] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => onTabChange(tab)}
