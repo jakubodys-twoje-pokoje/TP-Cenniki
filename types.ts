@@ -1,5 +1,5 @@
 
-export type SettingsTab = "global" | "rooms" | "seasons" | "channels";
+export type SettingsTab = "global" | "rooms" | "seasons" | "channels" | "profiles";
 
 export type UserRole = 'super_admin' | 'admin' | 'client';
 

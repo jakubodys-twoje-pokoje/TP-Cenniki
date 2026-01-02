@@ -1341,6 +1341,13 @@ const App: React.FC = () => {
                   onDuplicateChannel={handleDuplicateChannelToProperty}
                   onDuplicateAllChannels={handleDuplicateAllChannelsToProperty}
                   isReadOnly={isReadOnly}
+                  profiles={activeProperty.profiles}
+                  activeProfileId={getCurrentProfileId()}
+                  onProfileChange={handleProfileChange}
+                  onAddProfile={handleAddProfile}
+                  onDeleteProfile={handleDeleteProfile}
+                  onDuplicateProfile={handleDuplicateProfile}
+                  onProfileUpdate={handleProfileUpdate}
                 />
                 )
               )}
