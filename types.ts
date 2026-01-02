@@ -93,14 +93,34 @@ export interface GlobalSettings {
   obpEnabled: boolean; // Global toggle for OBP logic
 }
 
-export interface Property {
+export interface Profile {
   id: string;
   name: string;
-  oid?: string; // Object ID
+  description?: string;
+  sortOrder?: number;
+  isDefault?: boolean;
+
+  // All pricing configuration lives at profile level
   settings: GlobalSettings;
   channels: Channel[];
   rooms: RoomType[];
   seasons: Season[];
+}
+
+export interface Property {
+  id: string;
+  name: string;
+  oid?: string; // Object ID
+
+  // NEW: Profiles array (primary data structure)
+  profiles: Profile[];
+
+  // DEPRECATED: Kept temporarily for backward compatibility during migration
+  settings?: GlobalSettings;
+  channels?: Channel[];
+  rooms?: RoomType[];
+  seasons?: Season[];
+
   notes?: string;
   sortOrder?: number;
 }
