@@ -1167,31 +1167,79 @@ const App: React.FC = () => {
                      
                      {isExpanded && (
                        <div className="ml-2 pl-4 border-l border-slate-800 space-y-1 mt-1">
-                          {p.rooms.map(room => {
-                            const isDraggingRoom = sidebarDragItem?.type === 'room' && sidebarDragItem.id === room.id;
-                            
+                          {/* Show Profiles */}
+                          {p.profiles?.map(profile => {
+                            const profileKey = `${p.id}-${profile.id}`;
+                            const isProfileExpanded = expandedProfiles.has(profileKey);
+                            const currentProfile = isActive && getCurrentProfileId() === profile.id;
+
                             return (
-                            <button
-                              key={room.id}
-                              onClick={() => handleRoomClick(p.id, room.id)}
-                              className={`w-full flex items-center gap-2 px-2 py-1.5 text-xs rounded text-left transition-colors ${
-                                isActive && activeTab === 'dashboard' && selectedRoomId === room.id
-                                ? "text-blue-300 font-medium bg-slate-800/50" 
-                                : "text-slate-500 hover:text-slate-300 hover:bg-slate-800/30"
-                              } ${isDraggingRoom ? 'opacity-40' : ''}`}
-                              draggable={!isReadOnly}
-                              onDragStart={(e) => handleSidebarDragStart(e, 'room', room.id, p.id)}
-                              onDragEnd={handleSidebarDragEnd}
-                              onDragOver={handleSidebarDragOver}
-                              onDrop={(e) => handleSidebarDrop(e, 'room', room.id, p.id)}
-                            >
-                              <Bed size={12} />
-                              <span className="truncate">{room.name}</span>
-                            </button>
-                            )
+                              <div key={profile.id} className="space-y-1">
+                                <div
+                                  className={`flex items-center gap-2 px-2 py-1.5 text-xs rounded cursor-pointer transition-colors ${
+                                    currentProfile
+                                      ? "text-purple-300 font-medium bg-slate-800/50"
+                                      : "text-slate-500 hover:text-slate-300 hover:bg-slate-800/30"
+                                  }`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setExpandedProfiles(prev => {
+                                      const next = new Set(prev);
+                                      if (next.has(profileKey)) next.delete(profileKey);
+                                      else next.add(profileKey);
+                                      return next;
+                                    });
+                                  }}
+                                >
+                                  {isProfileExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                                  <Layers size={12} />
+                                  <span className="truncate">{profile.name}</span>
+                                  {profile.isDefault && <span className="text-[10px] opacity-60">(domyślny)</span>}
+                                </div>
+
+                                {/* Show Rooms under Profile */}
+                                {isProfileExpanded && (
+                                  <div className="ml-4 pl-4 border-l border-slate-700 space-y-1">
+                                    {profile.rooms?.map(room => {
+                                      const isDraggingRoom = sidebarDragItem?.type === 'room' && sidebarDragItem.id === room.id;
+
+                                      return (
+                                        <button
+                                          key={room.id}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleRoomClick(p.id, room.id);
+                                            // Switch to this profile if not already active
+                                            if (activePropertyId === p.id && getCurrentProfileId() !== profile.id) {
+                                              handleProfileChange(profile.id);
+                                            }
+                                          }}
+                                          className={`w-full flex items-center gap-2 px-2 py-1.5 text-xs rounded text-left transition-colors ${
+                                            isActive && activeTab === 'dashboard' && selectedRoomId === room.id && currentProfile
+                                              ? "text-blue-300 font-medium bg-slate-800/50"
+                                              : "text-slate-500 hover:text-slate-300 hover:bg-slate-800/30"
+                                          } ${isDraggingRoom ? 'opacity-40' : ''}`}
+                                          draggable={!isReadOnly}
+                                          onDragStart={(e) => handleSidebarDragStart(e, 'room', room.id, p.id)}
+                                          onDragEnd={handleSidebarDragEnd}
+                                          onDragOver={handleSidebarDragOver}
+                                          onDrop={(e) => handleSidebarDrop(e, 'room', room.id, p.id)}
+                                        >
+                                          <Bed size={12} />
+                                          <span className="truncate">{room.name}</span>
+                                        </button>
+                                      );
+                                    })}
+                                    {(profile.rooms?.length || 0) === 0 && (
+                                      <div className="px-2 py-1 text-xs text-slate-600 italic">Brak pokoi</div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
                           })}
-                          {p.rooms.length === 0 && (
-                            <div className="px-2 py-1 text-xs text-slate-600 italic">Brak pokoi</div>
+                          {(p.profiles?.length || 0) === 0 && (
+                            <div className="px-2 py-1 text-xs text-slate-600 italic">Brak profili</div>
                           )}
                        </div>
                      )}
