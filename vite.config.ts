@@ -2,10 +2,12 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-// https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
   server: {
+    port: 3000,        // To jest kluczowe dla Nginxa
+    host: '0.0.0.0',   // To wystawia apkę na zewnątrz kontenera
+    allowedHosts: true, // To zdejmuje blokadę "Blocked request"
     proxy: {
       // Przekierowuje każde zapytanie zaczynające się od /api_hotres do panel.hotres.pl
       '/api_hotres': {
