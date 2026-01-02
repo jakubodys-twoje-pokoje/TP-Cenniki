@@ -1,7 +1,7 @@
 
 import React, { useState } from "react";
-import { Channel, ChannelDiscountProfile, ChannelDiscountLabels, GlobalSettings, Property, RoomType, Season, SettingsTab, Variant } from "../types";
-import { Plus, Trash2, X, Copy, GripVertical, ArrowRightLeft, Check, AlertCircle, Lock, ToggleLeft, ToggleRight, Layers, CloudUpload, Loader2, Link as LinkIcon, Edit3, Save, BedDouble, Calendar } from "lucide-react";
+import { Channel, GlobalSettings, RoomType, Season, SettingsTab } from "../types";
+import { Plus, Trash2, X, CloudUpload, Loader2, Link as LinkIcon, ToggleLeft, ToggleRight, AlertCircle } from "lucide-react";
 import { updateHotresPrices } from "../utils/hotresApi";
 
 interface SettingsPanelProps {
@@ -17,42 +17,22 @@ interface SettingsPanelProps {
   setRooms: (r: RoomType[]) => void;
   seasons: Season[];
   setSeasons: (s: Season[]) => void;
-  variants: Variant[];
-  activeVariantId: string;
-  onVariantChange: (id: string) => void;
-  onUpdateVariants: (vars: Variant[]) => void;
   activeTab: SettingsTab;
   onTabChange: (tab: SettingsTab) => void;
   onDeleteProperty: () => void;
-  onDuplicateProperty: () => void;
-  otherProperties: Property[];
-  onDuplicateSeasons: (targetPropertyId: string) => void;
-  onDuplicateChannel: (sourceChannel: Channel, targetPropertyId: string) => void;
-  onDuplicateAllChannels: (targetPropertyId: string) => void;
   isReadOnly?: boolean;
 }
 
 const SettingsPanel: React.FC<SettingsPanelProps> = ({
   propertyName, onPropertyNameChange, propertyOid, onPropertyOidChange,
   settings, setSettings, channels, setChannels, rooms, setRooms, seasons, setSeasons,
-  variants, activeVariantId, onVariantChange, onUpdateVariants,
-  activeTab, onTabChange, onDeleteProperty, isReadOnly = false,
+  activeTab, onTabChange, isReadOnly = false,
 }) => {
-  const [newVariantName, setNewVariantName] = useState("");
   const [isExporting, setIsExporting] = useState(false);
-
-  const addVariant = () => {
-    if (!newVariantName.trim()) return;
-    const currentVariant = variants.find(v => v.id === activeVariantId);
-    const newVariant: Variant = { ...deepClone(currentVariant!), id: "v-" + Date.now(), name: newVariantName };
-    onUpdateVariants([...variants, newVariant]);
-    onVariantChange(newVariant.id);
-    setNewVariantName("");
-  };
 
   const handleExportToHotres = async () => {
     if (isReadOnly || !propertyOid) return;
-    if (!confirm(`⚠️ UWAGA ⚠️\nZamierzasz wysłać wszystkie ceny z wariantu "${variants.find(v => v.id === activeVariantId)?.name}" do Hotres.\nKontynuować?`)) return;
+    if (!confirm(`⚠️ UWAGA ⚠️\nZamierzasz wysłać wszystkie ceny do Hotres.\nKontynuować?`)) return;
     setIsExporting(true);
     try {
       await updateHotresPrices(propertyOid, rooms, seasons, channels, settings);
@@ -61,14 +41,13 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     finally { setIsExporting(false); }
   };
 
-  function deepClone<T>(obj: T): T { return JSON.parse(JSON.stringify(obj)); }
   const inputClass = "block w-full rounded-md border border-slate-300 bg-white text-slate-900 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 disabled:bg-slate-100";
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 h-full flex flex-col relative overflow-hidden">
       <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50/50">
         <div>
-          <h2 className="text-xl font-bold text-slate-800">Ustawienia Strategii</h2>
+          <h2 className="text-xl font-bold text-slate-800">Ustawienia Obiektu</h2>
           <p className="text-sm text-slate-500">Zarządzasz: <span className="font-bold text-blue-600">{propertyName}</span></p>
         </div>
         {!isReadOnly && (
@@ -80,9 +59,9 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       </div>
 
       <div className="flex border-b border-slate-200 bg-white overflow-x-auto">
-        {(["global", "variants", "rooms", "seasons", "channels"] as const).map((tab) => (
+        {(["global", "rooms", "seasons", "channels"] as const).map((tab) => (
           <button key={tab} onClick={() => onTabChange(tab)} className={`px-4 py-3 text-sm font-bold capitalize transition-colors whitespace-nowrap ${activeTab === tab ? "text-blue-600 border-b-2 border-blue-600" : "text-slate-500 hover:bg-slate-50"}`}>
-            {tab === "global" ? "Obiekt" : tab === "variants" ? "Warianty" : tab === "rooms" ? "Pokoje (OBP)" : tab === "seasons" ? "Sezony" : "Kanały (OTA)"}
+            {tab === "global" ? "Obiekt" : tab === "rooms" ? "Pokoje (OBP)" : tab === "seasons" ? "Sezony" : "Kanały (OTA)"}
           </button>
         ))}
       </div>
@@ -100,30 +79,10 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 </button>
                 <div>
                   <h4 className="text-sm font-bold">Cennik Zależny od Obłożenia (OBP)</h4>
-                  <p className="text-xs text-slate-500">Włącz lub wyłącz logikę OBP globalnie dla tej strategii.</p>
+                  <p className="text-xs text-slate-500">Włącz lub wyłącz logikę OBP globalnie.</p>
                 </div>
              </div>
           </div>
-        )}
-
-        {activeTab === "variants" && (
-           <div className="space-y-6">
-              <div className="bg-blue-50 p-6 rounded-xl border border-blue-100 flex gap-4 items-end">
-                 <div className="flex-1"><label className="block text-xs font-bold text-blue-700 uppercase mb-1">Nowa Strategia (Kopia aktualnej)</label><input type="text" value={newVariantName} onChange={e => setNewVariantName(e.target.value)} placeholder="np. Strategia Last Minute" className={inputClass} /></div>
-                 <button onClick={addVariant} className="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold text-sm shadow-sm hover:bg-blue-700 transition-colors">Utwórz</button>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {variants.map(v => (
-                  <div key={v.id} className={`p-4 rounded-xl border-2 transition-all flex justify-between items-center ${v.id === activeVariantId ? 'border-blue-500 bg-white shadow-md' : 'border-slate-200 bg-slate-50'}`}>
-                    <div className="flex items-center gap-3">
-                      <Layers size={20} className={v.id === activeVariantId ? 'text-blue-500' : 'text-slate-400'} />
-                      <div><div className="font-bold text-slate-800">{v.name}</div><div className="text-[10px] text-slate-400">Pokoje: {v.rooms.length} | Sezony: {v.seasons.length}</div></div>
-                    </div>
-                    {v.id !== activeVariantId && <button onClick={() => onVariantChange(v.id)} className="text-xs font-bold text-blue-600 hover:underline">Przełącz</button>}
-                  </div>
-                ))}
-              </div>
-           </div>
         )}
 
         {activeTab === "rooms" && (
@@ -183,7 +142,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
         {activeTab === "channels" && (
            <div className="space-y-6">
               <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
-                 <h3 className="text-sm font-bold text-slate-800 mb-6 flex items-center gap-2"><LinkIcon size={16}/> Mapowanie Kanałów & RID (Strategia: {variants.find(v => v.id === activeVariantId)?.name})</h3>
+                 <h3 className="text-sm font-bold text-slate-800 mb-6 flex items-center gap-2"><LinkIcon size={16}/> Mapowanie Kanałów & RID</h3>
                  <div className="space-y-8">
                     {channels.map(channel => (
                        <div key={channel.id} className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
@@ -193,7 +152,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                                 <input type="text" value={channel.name} onChange={e => setChannels(channels.map(c => c.id === channel.id ? {...c, name: e.target.value} : c))} className="font-bold text-slate-800 bg-transparent border-none p-0 focus:ring-0" />
                              </div>
                              <div className="flex items-center gap-2">
-                                <label className="text-[10px] font-bold text-slate-400 uppercase">Hotres RID:</label>
+                                <label className="text-[10px] font-bold text-slate-400 uppercase">RID:</label>
                                 <input type="text" value={channel.rid || ""} onChange={e => setChannels(channels.map(c => c.id === channel.id ? {...c, rid: e.target.value} : c))} placeholder="RID" className="w-24 px-2 py-1 border rounded font-bold text-blue-600 text-xs" />
                                 <button onClick={() => setChannels(channels.filter(c => c.id !== channel.id))} className="text-slate-300 hover:text-red-500 ml-4"><Trash2 size={16}/></button>
                              </div>

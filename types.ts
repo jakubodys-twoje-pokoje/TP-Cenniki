@@ -1,5 +1,5 @@
 
-export type SettingsTab = "global" | "rooms" | "seasons" | "channels" | "variants";
+export type SettingsTab = "global" | "rooms" | "seasons" | "channels";
 
 export type UserRole = 'super_admin' | 'admin' | 'client';
 
@@ -75,23 +75,15 @@ export interface GlobalSettings {
   obpEnabled: boolean;
 }
 
-export interface Variant {
+export interface Property {
   id: string;
   name: string;
+  oid?: string; 
   rooms: RoomType[];
   seasons: Season[];
   channels: Channel[];
   settings: GlobalSettings;
   notes?: string;
-  isLocked?: boolean;
-}
-
-export interface Property {
-  id: string;
-  name: string;
-  oid?: string; 
-  variants: Variant[];
-  activeVariantId: string;
   sortOrder?: number;
 }
 

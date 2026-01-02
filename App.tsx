@@ -1,55 +1,37 @@
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { LayoutDashboard, Settings as SettingsIcon, Menu, BedDouble, Calendar, Share2, Cog, ChevronDown, ChevronRight, Building, Plus, Trash2, Bed, CheckCircle2, Copy, Cloud, CloudOff, Loader2, RefreshCw, LogOut, Download, X, Lock, Users, Calculator, Eye, ShieldAlert, BarChart3, Layers } from "lucide-react";
+import { LayoutDashboard, Settings as SettingsIcon, Menu, Building, Plus, Trash2, Loader2, RefreshCw, LogOut, Users, Calculator, BarChart3, ChevronDown, ChevronRight, X } from "lucide-react";
 import SettingsPanel from "./components/SettingsPanel";
 import Dashboard from "./components/Dashboard";
-import ClientDashboard from "./components/ClientDashboard";
 import SummaryDashboard from "./components/SummaryDashboard";
 import LoginScreen from "./components/LoginScreen";
 import UserManagementPanel from "./components/UserManagementPanel";
 import CalculatorModal from "./components/CalculatorModal";
-import {
-  INITIAL_CHANNELS,
-  INITIAL_ROOMS,
-  INITIAL_SEASONS,
-  INITIAL_SETTINGS,
-} from "./constants";
-import { Channel, Property, RoomType, SettingsTab, UserPermissions, UserRole, Variant, Season, GlobalSettings } from "./types";
+import { INITIAL_CHANNELS, INITIAL_ROOMS, INITIAL_SEASONS, INITIAL_SETTINGS } from "./constants";
+import { Channel, Property, RoomType, SettingsTab, UserPermissions, UserRole, Season, GlobalSettings } from "./types";
 import { supabase } from "./utils/supabaseClient";
-import { fetchSeasonOccupancyMap, fetchHotresRooms } from "./utils/hotresApi";
+import { fetchSeasonOccupancyMap } from "./utils/hotresApi";
 import { DEFAULT_DENIED_PERMISSION } from "./utils/userConfig";
 
 function deepClone<T>(obj: T): T {
-  try {
-    return JSON.parse(JSON.stringify(obj));
-  } catch (e) {
-    console.error("Deep clone error", e);
-    return obj;
-  }
+  try { return JSON.parse(JSON.stringify(obj)); } catch (e) { return obj; }
 }
 
 const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [userPermissions, setUserPermissions] = useState<UserPermissions>(DEFAULT_DENIED_PERMISSION);
-  const [permissionError, setPermissionError] = useState<string | null>(null);
-
-  const [activeTab, setActiveTab] = useState<"dashboard" | "settings" | "client-view" | "summary">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "settings" | "summary">("dashboard");
   const [activeSettingsTab, setActiveSettingsTab] = useState<SettingsTab>("rooms");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
-
   const [showAddPropertyModal, setShowAddPropertyModal] = useState(false);
   const [showUserPanel, setShowUserPanel] = useState(false);
   const [showCalculator, setShowCalculator] = useState(false);
-
-  const [syncStatus, setSyncStatus] = useState<'idle' | 'synced' | 'saving' | 'error' | 'offline'>('idle');
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'synced' | 'saving' | 'error'>('idle');
   const [isLoading, setIsLoading] = useState(false); 
-  const [loadError, setLoadError] = useState<string | null>(null);
-
   const [properties, setProperties] = useState<Property[]>([]);
   const [activePropertyId, setActivePropertyId] = useState<string>("");
-  const [expandedProperties, setExpandedProperties] = useState<Set<string>>(new Set());
+  const [isOccupancyRefreshing, setIsOccupancyRefreshing] = useState(false);
 
   const lastServerState = useRef<Record<string, string>>({});
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -68,7 +50,6 @@ const App: React.FC = () => {
       const perms = await fetchPermissionsFromDb(currentSession.user.email);
       if (!perms) {
           setUserPermissions(DEFAULT_DENIED_PERMISSION);
-          setPermissionError("Brak uprawnień.");
           setAuthLoading(false);
           return;
       }
@@ -98,24 +79,32 @@ const App: React.FC = () => {
       if (error) throw error;
       let loadedProps: Property[] = (data || []).map(row => {
           const content = row.content || {};
-          if (!content.variants) {
-              const v: Variant = { id: "v1", name: "Standard", rooms: content.rooms || INITIAL_ROOMS, seasons: content.seasons || INITIAL_SEASONS, channels: content.channels || INITIAL_CHANNELS, settings: content.settings || INITIAL_SETTINGS, notes: content.notes || "" };
-              content.variants = [v];
-              content.activeVariantId = v.id;
+          // Reverse Migration: If data was converted to variant format, flatten it back
+          if (content.variants && Array.isArray(content.variants)) {
+              const v = content.variants[0];
+              return {
+                  id: String(row.id),
+                  name: content.name || "Obiekt",
+                  oid: content.oid || "",
+                  rooms: v.rooms || INITIAL_ROOMS,
+                  seasons: v.seasons || INITIAL_SEASONS,
+                  channels: v.channels || INITIAL_CHANNELS,
+                  settings: v.settings || INITIAL_SETTINGS,
+                  notes: v.notes || "",
+                  sortOrder: content.sortOrder || 0
+              };
           }
           return { ...content, id: String(row.id) };
       });
+
       if (perms.role === 'client') {
           const allowed = new Set(perms.allowedPropertyIds);
           loadedProps = loadedProps.filter(p => allowed.has(p.id));
       }
       loadedProps.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
       setProperties(loadedProps);
-      if (loadedProps.length > 0 && !activePropertyId) {
-          setActivePropertyId(loadedProps[0].id);
-          setExpandedProperties(new Set([loadedProps[0].id]));
-      }
-    } catch (err: any) { setLoadError(err.message); } finally { setIsLoading(false); }
+      if (loadedProps.length > 0 && !activePropertyId) setActivePropertyId(loadedProps[0].id);
+    } catch (err: any) { console.error(err); } finally { setIsLoading(false); }
   };
 
   useEffect(() => {
@@ -134,38 +123,46 @@ const App: React.FC = () => {
   }, [properties, activePropertyId, isLoading]);
 
   const activeProperty = useMemo(() => properties.find(p => p.id === activePropertyId), [properties, activePropertyId]);
-  const activeVariant = useMemo(() => activeProperty?.variants.find(v => v.id === activeProperty.activeVariantId) || activeProperty?.variants[0], [activeProperty]);
 
   const updateActiveProperty = (updates: Partial<Property>) => {
     setProperties(prev => prev.map(p => p.id === activePropertyId ? { ...p, ...updates } : p));
   };
 
-  const updateActiveVariant = (updates: Partial<Variant>) => {
-    if (!activeProperty || !activeVariant) return;
-    const updatedVariants = activeProperty.variants.map(v => v.id === activeVariant.id ? { ...v, ...updates } : v);
-    updateActiveProperty({ variants: updatedVariants });
-  };
-
-  // Define handleRoomUpdate to fix reference error
   const handleRoomUpdate = (roomId: string, updates: Partial<RoomType>) => {
-    if (!activeVariant) return;
-    const updatedRooms = activeVariant.rooms.map(r => r.id === roomId ? { ...r, ...updates } : r);
-    updateActiveVariant({ rooms: updatedRooms });
+    if (!activeProperty) return;
+    updateActiveProperty({ rooms: activeProperty.rooms.map(r => r.id === roomId ? { ...r, ...updates } : r) });
   };
 
-  // Define handleOccupancyUpdate to fix reference error
   const handleOccupancyUpdate = (roomId: string, seasonId: string, rate: number) => {
-    if (!activeVariant) return;
-    const updatedRooms = activeVariant.rooms.map(r => {
-      if (r.id === roomId) {
-        return {
-          ...r,
-          seasonOccupancy: { ...(r.seasonOccupancy || {}), [seasonId]: rate }
-        };
+    if (!activeProperty) return;
+    updateActiveProperty({ rooms: activeProperty.rooms.map(r => r.id === roomId ? { ...r, seasonOccupancy: { ...(r.seasonOccupancy || {}), [seasonId]: rate } } : r) });
+  };
+
+  const syncPropertyOccupancy = async () => {
+    if (!activeProperty || !activeProperty.oid) return;
+    setIsOccupancyRefreshing(true);
+    try {
+      let updatedRooms = deepClone(activeProperty.rooms);
+      for (const season of activeProperty.seasons) {
+        const occupancyMap = await fetchSeasonOccupancyMap(activeProperty.oid, season.startDate, season.endDate);
+        updatedRooms = updatedRooms.map(room => {
+          if (room.tid && occupancyMap[room.tid] !== undefined) {
+              return { ...room, seasonOccupancy: { ...(room.seasonOccupancy || {}), [season.id]: occupancyMap[room.tid] } };
+          }
+          return room;
+        });
       }
-      return r;
-    });
-    updateActiveVariant({ rooms: updatedRooms });
+      updateActiveProperty({ rooms: updatedRooms });
+    } catch (e) { alert("Błąd synchronizacji."); } finally { setIsOccupancyRefreshing(false); }
+  };
+
+  const handleCreateProperty = async () => {
+    const newId = Date.now().toString();
+    const newProp: Property = { id: newId, name: "Nowy Obiekt", rooms: INITIAL_ROOMS, seasons: INITIAL_SEASONS, channels: INITIAL_CHANNELS, settings: INITIAL_SETTINGS, sortOrder: properties.length };
+    setProperties([...properties, newProp]);
+    setActivePropertyId(newId);
+    await supabase.from('properties').insert({ id: newId, content: newProp });
+    setShowAddPropertyModal(false);
   };
 
   if (!session) return <LoginScreen />;
@@ -181,27 +178,13 @@ const App: React.FC = () => {
           <button onClick={() => { setActiveTab("dashboard"); setIsSidebarOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === "dashboard" ? "bg-blue-600 text-white" : "text-slate-400 hover:bg-slate-800"}`}><LayoutDashboard size={20} /><span>Panel Główny</span></button>
           <button onClick={() => { setActiveTab("summary"); setIsSidebarOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === "summary" ? "bg-blue-600 text-white" : "text-slate-400 hover:bg-slate-800"}`}><BarChart3 size={20} /><span>Podsumowanie</span></button>
           <div className="w-full h-px bg-slate-800 my-2"></div>
-          <div className="px-4 py-2 text-xs font-bold text-slate-500 uppercase tracking-widest flex justify-between items-center"><span>Obiekty & Strategie</span>{userPermissions.role !== 'client' && <button onClick={() => setShowAddPropertyModal(true)} className="text-blue-400"><Plus size={16} /></button>}</div>
+          <div className="px-4 py-2 text-xs font-bold text-slate-500 uppercase tracking-widest flex justify-between items-center"><span>Twoje Obiekty</span>{userPermissions.role !== 'client' && <button onClick={() => setShowAddPropertyModal(true)} className="text-blue-400"><Plus size={16} /></button>}</div>
           <div className="space-y-1">
-            {properties.map(p => {
-              const isExpanded = expandedProperties.has(p.id);
-              return (
-                <div key={p.id} className="mb-1">
-                  <div onClick={() => { setActivePropertyId(p.id); setExpandedProperties(prev => { const n = new Set(prev); isExpanded ? n.delete(p.id) : n.add(p.id); return n; }); }} className={`flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer transition-colors ${activePropertyId === p.id ? "bg-slate-800 text-white" : "text-slate-400 hover:bg-slate-800/50"}`}>
-                    <Building size={14} /><span className="truncate flex-1">{p.name}</span>{isExpanded ? <ChevronDown size={14}/> : <ChevronRight size={14}/>}
-                  </div>
-                  {isExpanded && (
-                    <div className="ml-4 pl-3 border-l border-slate-700 mt-1 space-y-1">
-                      {p.variants.map(v => (
-                        <button key={v.id} onClick={() => { setActivePropertyId(p.id); updateActiveProperty({ activeVariantId: v.id }); setActiveTab("dashboard"); setIsSidebarOpen(false); }} className={`w-full flex items-center gap-2 px-2 py-1.5 text-xs rounded transition-colors ${p.id === activePropertyId && p.activeVariantId === v.id ? "text-blue-400 font-bold bg-blue-500/5" : "text-slate-500 hover:text-slate-300"}`}>
-                          <Layers size={12} /><span className="truncate">{v.name}</span>{p.id === activePropertyId && p.activeVariantId === v.id && <div className="w-1 h-1 rounded-full bg-blue-500 ml-auto" />}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+            {properties.map(p => (
+              <button key={p.id} onClick={() => { setActivePropertyId(p.id); setActiveTab("dashboard"); setIsSidebarOpen(false); }} className={`w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors ${activePropertyId === p.id ? "bg-slate-800 text-white" : "text-slate-400 hover:bg-slate-800/50"}`}>
+                <Building size={14} /><span className="truncate flex-1 text-left">{p.name}</span>
+              </button>
+            ))}
           </div>
         </nav>
         <div className="p-6 border-t border-slate-800 space-y-3">
@@ -212,20 +195,30 @@ const App: React.FC = () => {
       </aside>
 
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
-        <header className="md:hidden bg-white border-b p-4 flex justify-between items-center"><div className="flex flex-col"><span className="font-bold text-slate-800">{activeProperty?.name}</span><span className="text-[10px] text-blue-600 font-bold uppercase">{activeVariant?.name}</span></div><button onClick={() => setIsSidebarOpen(true)} className="text-slate-600"><Menu size={24} /></button></header>
+        <header className="md:hidden bg-white border-b p-4 flex justify-between items-center font-bold text-slate-800"><span>{activeProperty?.name}</span><button onClick={() => setIsSidebarOpen(true)} className="text-slate-600"><Menu size={24} /></button></header>
         <div className="flex-1 overflow-hidden p-4 md:p-8">
-          {activeProperty && activeVariant ? (
+          {activeProperty ? (
             <>
-              {activeTab === "dashboard" && <Dashboard rooms={activeVariant.rooms} seasons={activeVariant.seasons} channels={activeVariant.channels} settings={activeVariant.settings} propertyOid={activeProperty.oid || ""} selectedRoomId={selectedRoomId} notes={activeVariant.notes || ""} onNotesChange={(n) => updateActiveVariant({ notes: n })} onRoomUpdate={handleRoomUpdate} onOccupancyUpdate={handleOccupancyUpdate} onReorderRooms={(r) => updateActiveVariant({ rooms: r })} onSyncAllOccupancy={async () => {}} isReadOnly={userPermissions.role === 'client'} activeVariantName={activeVariant.name} onOpenCalculator={() => setShowCalculator(true)} />}
+              {activeTab === "dashboard" && <Dashboard rooms={activeProperty.rooms} seasons={activeProperty.seasons} channels={activeProperty.channels} settings={activeProperty.settings} propertyOid={activeProperty.oid || ""} notes={activeProperty.notes || ""} onNotesChange={(n) => updateActiveProperty({ notes: n })} onRoomUpdate={handleRoomUpdate} onOccupancyUpdate={handleOccupancyUpdate} onReorderRooms={(r) => updateActiveProperty({ rooms: r })} onSyncAllOccupancy={syncPropertyOccupancy} isReadOnly={userPermissions.role === 'client'} onOpenCalculator={() => setShowCalculator(true)} />}
               {activeTab === "summary" && <SummaryDashboard property={activeProperty} />}
-              {activeTab === "settings" && <SettingsPanel propertyName={activeProperty.name} onPropertyNameChange={(name) => updateActiveProperty({ name })} propertyOid={activeProperty.oid || ""} onPropertyOidChange={(oid) => updateActiveProperty({ oid })} settings={activeVariant.settings} setSettings={(s) => updateActiveVariant({ settings: s })} channels={activeVariant.channels} setChannels={(c) => updateActiveVariant({ channels: c })} rooms={activeVariant.rooms} setRooms={(r) => updateActiveVariant({ rooms: r })} seasons={activeVariant.seasons} setSeasons={(s) => updateActiveVariant({ seasons: s })} variants={activeProperty.variants} activeVariantId={activeProperty.activeVariantId} onVariantChange={(vid) => updateActiveProperty({ activeVariantId: vid })} onUpdateVariants={(vars) => updateActiveProperty({ variants: vars })} activeTab={activeSettingsTab} onTabChange={setActiveSettingsTab} onDeleteProperty={() => {}} onDuplicateProperty={() => {}} otherProperties={[]} onDuplicateSeasons={() => {}} onDuplicateChannel={() => {}} onDuplicateAllChannels={() => {}} isReadOnly={userPermissions.role === 'client'} />}
+              {activeTab === "settings" && <SettingsPanel propertyName={activeProperty.name} onPropertyNameChange={(n) => updateActiveProperty({ name: n })} propertyOid={activeProperty.oid || ""} onPropertyOidChange={(o) => updateActiveProperty({ oid: o })} settings={activeProperty.settings} setSettings={(s) => updateActiveProperty({ settings: s })} channels={activeProperty.channels} setChannels={(c) => updateActiveProperty({ channels: c })} rooms={activeProperty.rooms} setRooms={(r) => updateActiveProperty({ rooms: r })} seasons={activeProperty.seasons} setSeasons={(s) => updateActiveProperty({ seasons: s })} activeTab={activeSettingsTab} onTabChange={setActiveSettingsTab} onDeleteProperty={() => {}} isReadOnly={userPermissions.role === 'client'} />}
             </>
-          ) : <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-4"><Building size={48} className="opacity-20" /><p>Wybierz Obiekt i Strategię z menu po lewej.</p></div>}
+          ) : <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-4"><Building size={48} className="opacity-20" /><p>Wybierz obiekt z menu po lewej.</p></div>}
         </div>
       </main>
 
-      {showCalculator && activeVariant && <CalculatorModal rooms={activeVariant.rooms} seasons={activeVariant.seasons} channels={activeVariant.channels} settings={activeVariant.settings} onClose={() => setShowCalculator(false)} propertyOid={activeProperty?.oid} />}
+      {showCalculator && activeProperty && <CalculatorModal rooms={activeProperty.rooms} seasons={activeProperty.seasons} channels={activeProperty.channels} settings={activeProperty.settings} onClose={() => setShowCalculator(false)} propertyOid={activeProperty.oid} />}
       {showUserPanel && <UserManagementPanel properties={properties} onClose={() => setShowUserPanel(false)} />}
+      
+      {showAddPropertyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+           <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
+              <h3 className="font-bold text-slate-800 mb-4">Dodaj Nowy Obiekt</h3>
+              <button onClick={handleCreateProperty} className="w-full bg-blue-600 text-white font-bold py-3 rounded-lg">Utwórz Teraz</button>
+              <button onClick={() => setShowAddPropertyModal(false)} className="w-full mt-2 text-slate-400 text-sm">Anuluj</button>
+           </div>
+        </div>
+      )}
     </div>
   );
 };
