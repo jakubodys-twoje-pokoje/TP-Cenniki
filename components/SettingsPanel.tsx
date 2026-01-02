@@ -234,7 +234,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       alert("Błąd: Brak numeru OID obiektu w ustawieniach ogólnych.");
       return;
     }
-    
+
     // Check if at least one RID is set
     const hasAnyRid = channels.some(c => c.rid && c.rid.trim() !== "");
 
@@ -243,9 +243,13 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       return;
     }
 
-    // CONFIRMATION POPUP
-    const confirmMessage = `⚠️ CZY NA PEWNO CHCESZ WYSŁAĆ CENY? ⚠️\n\nOperacja ta NADPISZE wszystkie ceny w Hotres dla zdefiniowanych sezonów w tym obiekcie.\n\nOID: ${propertyOid}\nLiczba sezonów: ${seasons.length}\n\nCzy kontynuować?`;
-    
+    // Get current profile name for confirmation
+    const currentProfile = profiles.find(p => p.id === activeProfileId);
+    const profileName = currentProfile?.name || "Nieznany profil";
+
+    // CONFIRMATION POPUP WITH PROFILE INFO
+    const confirmMessage = `⚠️ CZY NA PEWNO CHCESZ WYSŁAĆ CENY? ⚠️\n\nOperacja ta NADPISZE wszystkie ceny w Hotres dla zdefiniowanych sezonów w tym obiekcie.\n\n📊 PROFIL DO EKSPORTU: "${profileName}"\n🏨 OID: ${propertyOid}\n📅 Liczba sezonów: ${seasons.length}\n🛏️ Liczba pokoi: ${rooms.length}\n\nUWAGA: Eksportujesz dane z profilu "${profileName}"!\n\nCzy kontynuować?`;
+
     if (!window.confirm(confirmMessage)) {
         return;
     }
@@ -253,7 +257,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     setIsExporting(true);
     try {
       await updateHotresPrices(propertyOid, rooms, seasons, channels, settings);
-      alert("Sukces! Cenniki zostały wysłane do Hotres.");
+      alert(`Sukces! Cenniki z profilu "${profileName}" zostały wysłane do Hotres.`);
     } catch (error: any) {
       alert("Błąd eksportu: " + error.message);
     } finally {
@@ -275,8 +279,14 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       return;
     }
 
-    // CONFIRMATION POPUP FOR SINGLE SEASON
-    if (!window.confirm(`Czy na pewno chcesz zaktualizować w Hotres tylko sezon: "${season.name}"?\n\nZakres: ${season.startDate} do ${season.endDate}`)) {
+    // Get current profile name for confirmation
+    const currentProfile = profiles.find(p => p.id === activeProfileId);
+    const profileName = currentProfile?.name || "Nieznany profil";
+
+    // CONFIRMATION POPUP FOR SINGLE SEASON WITH PROFILE INFO
+    const confirmMessage = `Czy na pewno chcesz zaktualizować w Hotres tylko sezon: "${season.name}"?\n\n📊 PROFIL: "${profileName}"\n📅 Zakres: ${season.startDate} do ${season.endDate}\n\nUWAGA: Eksportujesz sezon z profilu "${profileName}"!`;
+
+    if (!window.confirm(confirmMessage)) {
         return;
     }
 
@@ -284,7 +294,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     try {
       // Send array with single season
       await updateHotresPrices(propertyOid, rooms, [season], channels, settings);
-      alert(`Sukces! Sezon "${season.name}" został zaktualizowany w Hotres.`);
+      alert(`Sukces! Sezon "${season.name}" z profilu "${profileName}" został zaktualizowany w Hotres.`);
     } catch (error: any) {
       alert("Błąd eksportu: " + error.message);
     } finally {
