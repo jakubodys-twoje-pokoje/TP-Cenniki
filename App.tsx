@@ -987,7 +987,7 @@ const App: React.FC = () => {
 
         {isClientRole ? (
            // CLIENT SIDEBAR: Strictly only Property List
-           <div className="flex-1 p-4 text-slate-400 text-sm overflow-y-auto">
+           <div className="flex-1 p-4 text-slate-400 text-sm overflow-y-auto dark-scrollbar">
               <p className="mb-4 text-center text-slate-500 text-xs font-bold uppercase">TWOJE OBIEKTY</p>
               <div className="space-y-1">
                 {properties.map(p => (
@@ -1008,7 +1008,7 @@ const App: React.FC = () => {
            </div>
         ) : (
         // ADMIN SIDEBAR: Full Navigation
-        <nav className="p-4 space-y-2 flex-1 overflow-y-auto min-h-0">
+        <nav className="p-4 space-y-2 flex-1 overflow-y-auto min-h-0 dark-scrollbar">
           <button
             onClick={() => { setActiveTab("dashboard"); setSelectedRoomId(null); setIsSidebarOpen(false); }}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors flex-shrink-0 ${
@@ -1063,18 +1063,6 @@ const App: React.FC = () => {
             <span className="font-medium">Kalkulator</span>
           </button>
 
-          <button
-            onClick={() => { setActiveTab("settings"); setActiveSettingsTab("profiles"); setIsSidebarOpen(false); }}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors flex-shrink-0 ${
-              activeTab === "settings" && activeSettingsTab === "profiles"
-                ? "bg-purple-600 text-white"
-                : "text-slate-400 hover:bg-slate-800 hover:text-white"
-            }`}
-          >
-            <Layers size={20} />
-            <span className="font-medium">Zarządzaj Profilami</span>
-          </button>
-
           <div className="w-full h-px bg-slate-800 my-2"></div>
 
           {/* Configuration Dropdown */}
@@ -1096,7 +1084,7 @@ const App: React.FC = () => {
 
             {isConfigExpanded && (
               <div className="mt-1 ml-4 pl-4 border-l border-slate-700 space-y-1">
-                {(["rooms", "seasons", "channels", "global"] as SettingsTab[]).map(tab => (
+                {(["profiles", "rooms", "seasons", "channels", "global"] as SettingsTab[]).map(tab => (
                    <button
                     key={tab}
                     onClick={() => handleSettingsNav(tab)}
@@ -1106,12 +1094,13 @@ const App: React.FC = () => {
                         : "text-slate-400 hover:bg-slate-800/50 hover:text-white"
                     }`}
                   >
+                    {tab === 'profiles' && <Layers size={16} />}
                     {tab === 'rooms' && <BedDouble size={16} />}
                     {tab === 'seasons' && <Calendar size={16} />}
                     {tab === 'channels' && <Share2 size={16} />}
                     {tab === 'global' && <Cog size={16} />}
                     <span className="capitalize">
-                        {tab === 'rooms' ? 'Pokoje' : tab === 'seasons' ? 'Sezony' : tab === 'channels' ? 'Kanały' : 'Ogólne'}
+                        {tab === 'profiles' ? 'Profile' : tab === 'rooms' ? 'Pokoje' : tab === 'seasons' ? 'Sezony' : tab === 'channels' ? 'Kanały' : 'Ogólne'}
                     </span>
                   </button>
                 ))}

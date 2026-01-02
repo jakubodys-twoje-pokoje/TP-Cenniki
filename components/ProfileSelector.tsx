@@ -33,19 +33,19 @@ const ProfileSelector: React.FC<ProfileSelectorProps> = ({
   const activeColor = profileColors[activeColorIndex];
 
   return (
-    <div className={`sticky top-0 z-10 ${activeColor.bg} ${activeColor.text} shadow-lg mb-6 print:hidden`}>
-      <div className="container mx-auto px-4 py-3">
+    <div className={`sticky top-0 z-10 ${activeColor.bg} ${activeColor.text} shadow-md mb-4 print:hidden`}>
+      <div className="container mx-auto px-4 py-2">
         <div className="flex items-center justify-between">
           {/* Profile Name Display */}
-          <div className="flex items-center gap-3">
-            <div className="text-xs uppercase font-semibold opacity-90 tracking-wide">
-              Pracujesz w profilu:
+          <div className="flex items-center gap-2">
+            <div className="text-[10px] uppercase font-semibold opacity-80 tracking-wide">
+              Profil:
             </div>
-            <div className="text-2xl font-bold">
+            <div className="text-lg font-bold">
               {activeProfile.name}
             </div>
             {activeProfile.description && (
-              <div className="text-sm opacity-75 italic">
+              <div className="text-xs opacity-75 italic">
                 ({activeProfile.description})
               </div>
             )}
