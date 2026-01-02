@@ -63,6 +63,13 @@ const Dashboard: React.FC<DashboardProps> = ({
   // Collapsed Rooms State (Set of "roomId") - for hiding season rows of a room
   const [collapsedRoomIds, setCollapsedRoomIds] = useState<Set<string>>(new Set());
 
+  // Initialize all rooms as collapsed on first load
+  React.useEffect(() => {
+    if (rooms.length > 0 && collapsedRoomIds.size === 0) {
+      setCollapsedRoomIds(new Set(rooms.map(r => r.id)));
+    }
+  }, [rooms]);
+
   // Loading state for occupancy fetching: "roomId-seasonId"
   const [occupancyLoading, setOccupancyLoading] = useState<Set<string>>(new Set());
 
