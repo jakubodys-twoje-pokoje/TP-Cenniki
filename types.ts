@@ -67,10 +67,17 @@ export interface RoomType {
   seasonOccupancy?: Record<string, number>;
   
   // OBP Setting: Amount per person to deduct
-  obpPerPerson?: number; 
-  
+  obpPerPerson?: number;
+
   // OBP Setting: Active per season (Key: season.id, Value: boolean)
   seasonalObpActive?: Record<string, boolean>;
+
+  // Food (Wyżywienie) Settings: Prices for breakfast and full board
+  foodBreakfastPrice?: number;
+  foodFullPrice?: number;
+
+  // Food Setting: Which option is active per season (Key: season.id, Value: 'breakfast' | 'full' | 'none')
+  seasonalFoodOption?: Record<string, 'breakfast' | 'full' | 'none'>;
 
   // Sorting order
   sortOrder?: number;
@@ -91,6 +98,7 @@ export interface Season {
 
 export interface GlobalSettings {
   obpEnabled: boolean; // Global toggle for OBP logic
+  foodEnabled: boolean; // Global toggle for food pricing (wyżywienie)
 }
 
 export interface Profile {

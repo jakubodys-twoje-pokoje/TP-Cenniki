@@ -34,7 +34,7 @@ export const calculateDirectPrice = (
 
     // Calculate missing people based on this effective occupancy
     const missingPeople = Math.max(0, room.maxOccupancy - effectiveOccupancy);
-    
+
     // Use room-specific OBP amount, defaulting to 30 if unset
     const obpAmount = room.obpPerPerson ?? 30;
 
@@ -43,9 +43,25 @@ export const calculateDirectPrice = (
     }
   }
 
+  // 4. Apply Food Pricing (Wyżywienie)
+  // Logic: Must be globally enabled AND a specific food option is selected for this room/season
+  const seasonalFoodOption = room.seasonalFoodOption?.[season.id] ?? 'none';
+
+  if ((settings.foodEnabled ?? false) && seasonalFoodOption !== 'none') {
+    if (seasonalFoodOption === 'breakfast') {
+      // Add breakfast price (default 50 if not set)
+      const breakfastPrice = room.foodBreakfastPrice ?? 50;
+      price = price + breakfastPrice;
+    } else if (seasonalFoodOption === 'full') {
+      // Add full board price (default 100 if not set)
+      const fullPrice = room.foodFullPrice ?? 100;
+      price = price + fullPrice;
+    }
+  }
+
   // Prevent negative or zero prices (absolute sanity check)
   const finalPrice = Math.max(price, 50); // Minimum 50 currency units
-  
+
   return roundPrice(finalPrice);
 };
 

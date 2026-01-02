@@ -129,6 +129,20 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     }));
   };
 
+  const updateRoomSeasonalFood = (roomId: string, seasonId: string, option: 'breakfast' | 'full' | 'none') => {
+    if (isReadOnly) return;
+    setRooms(rooms.map(r => {
+      if (r.id !== roomId) return r;
+      return {
+        ...r,
+        seasonalFoodOption: {
+          ...r.seasonalFoodOption,
+          [seasonId]: option
+        }
+      };
+    }));
+  };
+
   const updateChannelLabel = (channelId: string, key: keyof ChannelDiscountLabels, value: string) => {
     if (isReadOnly) return;
     setChannels(channels.map(c => {
@@ -454,7 +468,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
               />
 
               <div className="mt-6 flex items-center gap-3 bg-white p-3 rounded border border-slate-200">
-                 <button 
+                 <button
                   onClick={() => !isReadOnly && setSettings({...settings, obpEnabled: !settings.obpEnabled})}
                   disabled={isReadOnly}
                   className={`text-slate-600 transition-colors ${settings.obpEnabled ? 'text-blue-600' : 'text-slate-400'}`}
@@ -464,6 +478,20 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                  <div>
                     <h4 className="text-sm font-semibold text-slate-800">Cennik Zależny od Obłożenia (OBP) - Globalnie</h4>
                     <p className="text-xs text-slate-500">Włącz lub wyłącz logikę OBP dla całego obiektu. Możesz też wyłączyć ją dla konkretnych pokoi i sezonów w zakładce Pokoje.</p>
+                 </div>
+              </div>
+
+              <div className="mt-4 flex items-center gap-3 bg-white p-3 rounded border border-slate-200">
+                 <button
+                  onClick={() => !isReadOnly && setSettings({...settings, foodEnabled: !(settings.foodEnabled ?? false)})}
+                  disabled={isReadOnly}
+                  className={`text-slate-600 transition-colors ${(settings.foodEnabled ?? false) ? 'text-green-600' : 'text-slate-400'}`}
+                 >
+                   {(settings.foodEnabled ?? false) ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
+                 </button>
+                 <div>
+                    <h4 className="text-sm font-semibold text-slate-800">Wyżywienie - Globalnie</h4>
+                    <p className="text-xs text-slate-500">Włącz lub wyłącz opcje wyżywienia (śniadanie/pełne). Możesz wybrać opcję dla konkretnych pokoi i sezonów w zakładce Pokoje.</p>
                  </div>
               </div>
             </div>
@@ -520,11 +548,22 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                       <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase whitespace-nowrap">Max. Os.</th>
                       <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase whitespace-nowrap" title="Min. osób do naliczania OBP">Min. OBP</th>
                       <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase whitespace-nowrap" title="Kwota odliczana za osobę">Wartość OBP</th>
-                      
+
                       {/* Dynamic Season Headers for OBP Toggles */}
                       {seasons.map(s => (
                         <th key={s.id} className="px-3 py-2 text-center text-xs font-medium text-slate-500 uppercase whitespace-nowrap min-w-[80px]">
                           {s.name} <br/><span className="text-[10px]">OBP</span>
+                        </th>
+                      ))}
+
+                      {/* Food (Wyżywienie) Headers */}
+                      <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase whitespace-nowrap" title="Cena za śniadanie">Śniadanie</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase whitespace-nowrap" title="Cena za pełne wyżywienie">Pełne</th>
+
+                      {/* Dynamic Season Headers for Food Option Selection */}
+                      {seasons.map(s => (
+                        <th key={`food-${s.id}`} className="px-3 py-2 text-center text-xs font-medium text-slate-500 uppercase whitespace-nowrap min-w-[100px]">
+                          {s.name} <br/><span className="text-[10px]">Wyżywienie</span>
                         </th>
                       ))}
 
@@ -587,9 +626,9 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                            const isActive = room.seasonalObpActive?.[s.id] ?? true;
                            return (
                              <td key={s.id} className="px-3 py-2 text-center">
-                                <input 
-                                  type="checkbox" 
-                                  checked={isActive} 
+                                <input
+                                  type="checkbox"
+                                  checked={isActive}
                                   disabled={isReadOnly || !settings.obpEnabled}
                                   onChange={(e) => updateRoomSeasonalObp(room.id, s.id, e.target.checked)}
                                   className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:opacity-30"
@@ -598,7 +637,50 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                              </td>
                            )
                         })}
-                        
+
+                        {/* Food Price Inputs */}
+                        <td className="px-3 py-2">
+                           <input
+                             disabled={isReadOnly || !(settings.foodEnabled ?? false)}
+                             type="number"
+                             value={room.foodBreakfastPrice ?? 50}
+                             onChange={(e) => updateItem<RoomType>(room.id, "foodBreakfastPrice", Number(e.target.value), rooms, setRooms)}
+                             className={`w-20 ${inputClass} ${!(settings.foodEnabled ?? false) ? 'bg-slate-100 text-slate-400' : ''}`}
+                             placeholder="50"
+                           />
+                        </td>
+
+                        <td className="px-3 py-2">
+                           <input
+                             disabled={isReadOnly || !(settings.foodEnabled ?? false)}
+                             type="number"
+                             value={room.foodFullPrice ?? 100}
+                             onChange={(e) => updateItem<RoomType>(room.id, "foodFullPrice", Number(e.target.value), rooms, setRooms)}
+                             className={`w-20 ${inputClass} ${!(settings.foodEnabled ?? false) ? 'bg-slate-100 text-slate-400' : ''}`}
+                             placeholder="100"
+                           />
+                        </td>
+
+                        {/* Season Food Option Dropdowns */}
+                        {seasons.map(s => {
+                           const currentOption = room.seasonalFoodOption?.[s.id] ?? 'none';
+                           return (
+                             <td key={`food-${s.id}`} className="px-3 py-2 text-center">
+                                <select
+                                  value={currentOption}
+                                  disabled={isReadOnly || !(settings.foodEnabled ?? false)}
+                                  onChange={(e) => updateRoomSeasonalFood(room.id, s.id, e.target.value as 'breakfast' | 'full' | 'none')}
+                                  className={`w-full text-xs rounded border-slate-300 ${!(settings.foodEnabled ?? false) ? 'bg-slate-100 text-slate-400' : ''}`}
+                                  title={`Opcja wyżywienia dla ${s.name}`}
+                                >
+                                  <option value="none">Brak</option>
+                                  <option value="breakfast">Śniadanie</option>
+                                  <option value="full">Pełne</option>
+                                </select>
+                             </td>
+                           )
+                        })}
+
                         <td className="px-3 py-2">
                            <input disabled={isReadOnly} type="text" value={room.tid || ""} onChange={(e) => updateItem<RoomType>(room.id, "tid", e.target.value, rooms, setRooms)} className={`w-20 ${inputClass}`} />
                         </td>
