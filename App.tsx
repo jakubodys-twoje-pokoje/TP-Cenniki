@@ -8,6 +8,7 @@ import SummaryDashboard from "./components/SummaryDashboard";
 import LoginScreen from "./components/LoginScreen";
 import UserManagementPanel from "./components/UserManagementPanel";
 import CalculatorModal from "./components/CalculatorModal";
+import ProfileSelector from "./components/ProfileSelector";
 import {
   INITIAL_CHANNELS,
   INITIAL_ROOMS,
@@ -18,6 +19,7 @@ import { Channel, Property, RoomType, SettingsTab, UserPermissions, UserRole } f
 import { supabase } from "./utils/supabaseClient";
 import { fetchSeasonOccupancyMap, fetchHotresRooms } from "./utils/hotresApi";
 import { DEFAULT_DENIED_PERMISSION } from "./utils/userConfig";
+import { migratePropertyToProfiles } from "./utils/profileMigration";
 
 // Utility for deep cloning
 function deepClone<T>(obj: T): T {
@@ -63,9 +65,13 @@ const App: React.FC = () => {
   // Property Data
   const [properties, setProperties] = useState<Property[]>([]);
   const [activePropertyId, setActivePropertyId] = useState<string>("");
-  
+
+  // Profile Data - maps propertyId to active profileId
+  const [activeProfileId, setActiveProfileId] = useState<Record<string, string>>({});
+
   // Track expanded sidebar items
   const [expandedProperties, setExpandedProperties] = useState<Set<string>>(new Set());
+  const [expandedProfiles, setExpandedProfiles] = useState<Set<string>>(new Set());
 
   // Occupancy State
   const [isOccupancyRefreshing, setIsOccupancyRefreshing] = useState(false);
@@ -249,7 +255,8 @@ const App: React.FC = () => {
   // ---------------------------------------------------------------------------
 
   const processLoadedProperties = (props: Property[]) => {
-    const migratedProps = props.map(p => ({
+    // First, apply legacy migrations (rooms, channels, seasons array validation)
+    const legacyMigrated = props.map(p => ({
        ...p,
        rooms: Array.isArray(p.rooms) ? p.rooms : [],
        channels: Array.isArray(p.channels) ? p.channels : [],
@@ -259,6 +266,9 @@ const App: React.FC = () => {
           channelRids: s.channelRids || (s.rid ? { 'direct': s.rid } : {})
        })) : []
     }));
+
+    // Then, migrate to profile structure
+    const migratedProps = legacyMigrated.map(migratePropertyToProfiles);
 
     migratedProps.forEach(p => {
       lastServerState.current[p.id] = JSON.stringify(p);
@@ -497,45 +507,177 @@ const App: React.FC = () => {
 
   const activeProperty = properties.find(p => p.id === activePropertyId);
 
+  // Get active profile ID for current property (defaults to 'default' or first profile)
+  const getCurrentProfileId = (): string => {
+    if (!activeProperty?.profiles || activeProperty.profiles.length === 0) return "default";
+    const storedProfileId = activeProfileId[activePropertyId];
+    if (storedProfileId && activeProperty.profiles.some(p => p.id === storedProfileId)) {
+      return storedProfileId;
+    }
+    // Default to the default profile or the first profile
+    const defaultProfile = activeProperty.profiles.find(p => p.isDefault);
+    return defaultProfile?.id || activeProperty.profiles[0]?.id || "default";
+  };
+
+  // Get active profile object
+  const activeProfile = activeProperty?.profiles?.find(p => p.id === getCurrentProfileId()) || null;
+
   const updateActiveProperty = (updates: Partial<Property>) => {
-    if (userPermissions.role === 'client') return; 
+    if (userPermissions.role === 'client') return;
     setProperties(prev => prev.map(p => p.id === activePropertyId ? { ...p, ...updates } : p));
   };
 
-  const handleRoomUpdate = (roomId: string, updates: Partial<RoomType>) => {
+  // ===== PROFILE HANDLERS =====
+
+  const handleProfileChange = (profileId: string) => {
+    setActiveProfileId(prev => ({ ...prev, [activePropertyId]: profileId }));
+  };
+
+  const updateActiveProfile = (updates: Partial<import("./types").Profile>) => {
+    if (userPermissions.role === 'client') return;
+    if (!activeProperty || !activeProfile) return;
+
+    const updatedProfiles = activeProperty.profiles.map(p =>
+      p.id === activeProfile.id ? { ...p, ...updates } : p
+    );
+
+    updateActiveProperty({ profiles: updatedProfiles });
+  };
+
+  const handleAddProfile = (name: string, duplicateFromProfileId?: string) => {
     if (userPermissions.role === 'client') return;
     if (!activeProperty) return;
-    const updatedRooms = activeProperty.rooms.map(r => r.id === roomId ? { ...r, ...updates } : r);
-    updateActiveProperty({ rooms: updatedRooms });
+
+    const newId = Date.now().toString() + Math.random().toString(36).substr(2, 5);
+
+    let newProfile: import("./types").Profile;
+
+    if (duplicateFromProfileId) {
+      // Duplicate from existing profile
+      const sourceProfile = activeProperty.profiles.find(p => p.id === duplicateFromProfileId);
+      if (!sourceProfile) return;
+      newProfile = {
+        ...deepClone(sourceProfile),
+        id: newId,
+        name,
+        isDefault: false,
+        sortOrder: activeProperty.profiles.length,
+      };
+    } else {
+      // Create blank profile with defaults
+      const { createDefaultProfile } = require("./constants");
+      const defaultProfile = createDefaultProfile();
+      newProfile = {
+        ...defaultProfile,
+        id: newId,
+        name,
+        isDefault: false,
+        sortOrder: activeProperty.profiles.length,
+      };
+    }
+
+    const updatedProfiles = [...activeProperty.profiles, newProfile];
+    updateActiveProperty({ profiles: updatedProfiles });
+
+    // Switch to the new profile
+    handleProfileChange(newId);
+  };
+
+  const handleDeleteProfile = (profileId: string) => {
+    if (userPermissions.role === 'client') return;
+    if (!activeProperty) return;
+
+    // Don't allow deleting if it's the only profile
+    if (activeProperty.profiles.length <= 1) {
+      alert("Nie można usunąć jedynego profilu. Musisz mieć przynajmniej jeden profil.");
+      return;
+    }
+
+    if (!confirm(`Czy na pewno chcesz usunąć ten profil?`)) return;
+
+    const updatedProfiles = activeProperty.profiles.filter(p => p.id !== profileId);
+    updateActiveProperty({ profiles: updatedProfiles });
+
+    // If we deleted the active profile, switch to the first remaining one
+    if (getCurrentProfileId() === profileId) {
+      handleProfileChange(updatedProfiles[0].id);
+    }
+  };
+
+  const handleDuplicateProfile = (profileId: string) => {
+    if (userPermissions.role === 'client') return;
+    if (!activeProperty) return;
+
+    const sourceProfile = activeProperty.profiles.find(p => p.id === profileId);
+    if (!sourceProfile) return;
+
+    const newName = `${sourceProfile.name} (Kopia)`;
+    handleAddProfile(newName, profileId);
+  };
+
+  const handleProfileUpdate = (profileId: string, updates: Partial<import("./types").Profile>) => {
+    if (userPermissions.role === 'client') return;
+    if (!activeProperty) return;
+
+    const updatedProfiles = activeProperty.profiles.map(p =>
+      p.id === profileId ? { ...p, ...updates } : p
+    );
+
+    updateActiveProperty({ profiles: updatedProfiles });
+  };
+
+  // ===== END PROFILE HANDLERS =====
+
+  const handleRoomUpdate = (roomId: string, updates: Partial<RoomType>) => {
+    if (userPermissions.role === 'client') return;
+    if (!activeProfile) return;
+    const updatedRooms = activeProfile.rooms.map(r => r.id === roomId ? { ...r, ...updates } : r);
+    updateActiveProfile({ rooms: updatedRooms });
   };
 
   const handleOccupancyUpdate = (roomId: string, seasonId: string, rate: number) => {
     if (userPermissions.role === 'client') return;
-    if (!activeProperty) return;
-    const room = activeProperty.rooms.find(r => r.id === roomId);
+    if (!activeProfile) return;
+    const room = activeProfile.rooms.find(r => r.id === roomId);
     if (!room) return;
     handleRoomUpdate(roomId, { seasonOccupancy: { ...(room.seasonOccupancy || {}), [seasonId]: rate } });
   };
 
   const handleReorderRooms = (reorderedRooms: RoomType[]) => {
     if (userPermissions.role === 'client') return;
-    updateActiveProperty({ rooms: reorderedRooms });
+    updateActiveProfile({ rooms: reorderedRooms });
   };
 
   const handleDuplicateSeasons = (targetPropertyId: string) => {
     if (userPermissions.role === 'client') return;
-    if (!activeProperty) return;
-    const seasonsCopy = deepClone(activeProperty.seasons);
-    setProperties(prev => prev.map(p => p.id === targetPropertyId ? { ...p, seasons: seasonsCopy } : p));
-    alert("Sezony zostały skopiowane.");
+    if (!activeProfile) return;
+    const seasonsCopy = deepClone(activeProfile.seasons);
+
+    // Copy to default profile of target property
+    const targetProp = properties.find(p => p.id === targetPropertyId);
+    if (!targetProp?.profiles?.[0]) return;
+
+    const updatedProfiles = targetProp.profiles.map((p, idx) =>
+      idx === 0 ? { ...p, seasons: seasonsCopy } : p
+    );
+
+    setProperties(prev => prev.map(p =>
+      p.id === targetPropertyId ? { ...p, profiles: updatedProfiles } : p
+    ));
+    alert("Sezony zostały skopiowane do profilu docelowego.");
   };
 
   const handleDuplicateChannelToProperty = async (sourceChannel: Channel, targetPropertyId: string) => {
     if (userPermissions.role === 'client') return;
     const targetProp = properties.find(p => p.id === targetPropertyId);
-    if (!targetProp) return;
+    if (!targetProp?.profiles?.[0]) return;
+
     const newChannel = { ...deepClone(sourceChannel), id: Date.now().toString() + Math.random().toString(36).substr(2, 5), name: `${sourceChannel.name} (Kopia)` };
-    const updatedTargetProp = { ...targetProp, channels: [...targetProp.channels, newChannel] };
+    const updatedProfiles = targetProp.profiles.map((p, idx) =>
+      idx === 0 ? { ...p, channels: [...p.channels, newChannel] } : p
+    );
+
+    const updatedTargetProp = { ...targetProp, profiles: updatedProfiles };
     setProperties(prev => prev.map(p => p.id === targetPropertyId ? updatedTargetProp : p));
     setSyncStatus('saving');
     lastServerState.current[targetPropertyId] = JSON.stringify(updatedTargetProp);
@@ -547,11 +689,16 @@ const App: React.FC = () => {
 
   const handleDuplicateAllChannelsToProperty = async (targetPropertyId: string) => {
     if (userPermissions.role === 'client') return;
-    if (!activeProperty) return;
+    if (!activeProfile) return;
     const targetProp = properties.find(p => p.id === targetPropertyId);
-    if (!targetProp) return;
-    const clonedChannels = deepClone(activeProperty.channels).map(c => ({ ...c, id: Date.now().toString() + Math.random().toString(36).substr(2, 5) }));
-    const updatedTargetProp = { ...targetProp, channels: clonedChannels };
+    if (!targetProp?.profiles?.[0]) return;
+
+    const clonedChannels = deepClone(activeProfile.channels).map(c => ({ ...c, id: Date.now().toString() + Math.random().toString(36).substr(2, 5) }));
+    const updatedProfiles = targetProp.profiles.map((p, idx) =>
+      idx === 0 ? { ...p, channels: clonedChannels } : p
+    );
+
+    const updatedTargetProp = { ...targetProp, profiles: updatedProfiles };
     setProperties(prev => prev.map(p => p.id === targetPropertyId ? updatedTargetProp : p));
     setSyncStatus('saving');
     lastServerState.current[targetPropertyId] = JSON.stringify(updatedTargetProp);
@@ -563,21 +710,36 @@ const App: React.FC = () => {
 
   const handleCreateProperty = async () => {
     if (userPermissions.role === 'client') return;
+    const { createDefaultProfile } = require("./constants");
     const newId = Date.now().toString();
     let newProperty: Property;
+
     if (addPropertyMode === 'import') {
       if (!importOid) { alert("Wpisz numer OID."); return; }
       setIsImporting(true);
       try {
         const importedRooms = await fetchHotresRooms(importOid);
+        const defaultProfile = createDefaultProfile();
+        defaultProfile.rooms = importedRooms;
         newProperty = {
-          id: newId, name: `Obiekt ${importOid}`, oid: importOid, settings: deepClone(INITIAL_SETTINGS), channels: deepClone(INITIAL_CHANNELS), rooms: importedRooms, seasons: deepClone(INITIAL_SEASONS), notes: `Zaimportowano z Hotres OID: ${importOid}`, sortOrder: properties.length,
+          id: newId,
+          name: `Obiekt ${importOid}`,
+          oid: importOid,
+          profiles: [defaultProfile],
+          notes: `Zaimportowano z Hotres OID: ${importOid}`,
+          sortOrder: properties.length,
         };
       } catch (e: any) { alert("Błąd importu: " + e.message); setIsImporting(false); return; }
       setIsImporting(false);
     } else {
+      const defaultProfile = createDefaultProfile();
       newProperty = {
-        id: newId, name: "Nowy Obiekt", oid: "", settings: deepClone(INITIAL_SETTINGS), channels: deepClone(INITIAL_CHANNELS), rooms: deepClone(INITIAL_ROOMS), seasons: deepClone(INITIAL_SEASONS), notes: "", sortOrder: properties.length,
+        id: newId,
+        name: "Nowy Obiekt",
+        oid: "",
+        profiles: [defaultProfile],
+        notes: "",
+        sortOrder: properties.length,
       };
     }
     setProperties([...properties, newProperty]);
@@ -1090,16 +1252,27 @@ const App: React.FC = () => {
         </header>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-hidden p-4 md:p-8 print:p-0 print:overflow-visible print:h-auto">
+        <div className="flex-1 overflow-hidden print:p-0 print:overflow-visible print:h-auto">
+          {/* Profile Selector - Always visible when property and profile are active */}
+          {activeProperty && activeProfile && (
+            <ProfileSelector
+              profiles={activeProperty.profiles}
+              activeProfileId={getCurrentProfileId()}
+              onProfileChange={handleProfileChange}
+              isReadOnly={isReadOnly}
+            />
+          )}
+
+          <div className="p-4 md:p-8">
           {isClientRole ? (
              // CLIENT VIEW: STRICTLY Client Dashboard Only
              // Clients are filtered in fetchProperties, so activeProperty is safe.
-             activeProperty ? (
-               <ClientDashboard 
-                 rooms={activeProperty.rooms}
-                 seasons={activeProperty.seasons}
-                 channels={activeProperty.channels}
-                 settings={activeProperty.settings}
+             activeProfile ? (
+               <ClientDashboard
+                 rooms={activeProfile.rooms}
+                 seasons={activeProfile.seasons}
+                 channels={activeProfile.channels}
+                 settings={activeProfile.settings}
                />
              ) : (
                 <div className="flex flex-col items-center justify-center h-full text-slate-500">
@@ -1112,22 +1285,22 @@ const App: React.FC = () => {
              // ADMIN VIEW: Conditional Rendering based on Tab
             <>
               {activeTab === "client-view" ? (
-                 activeProperty ? (
-                   <ClientDashboard 
-                     rooms={activeProperty.rooms}
-                     seasons={activeProperty.seasons}
-                     channels={activeProperty.channels}
-                     settings={activeProperty.settings}
+                 activeProfile ? (
+                   <ClientDashboard
+                     rooms={activeProfile.rooms}
+                     seasons={activeProfile.seasons}
+                     channels={activeProfile.channels}
+                     settings={activeProfile.settings}
                    />
                  ) : <div className="p-4 text-center text-slate-500">Wczytywanie...</div>
               ) : activeTab === "dashboard" ? (
-                activeProperty ? (
-                <Dashboard 
-                  key={activeProperty.id} 
-                  rooms={activeProperty.rooms} 
-                  seasons={activeProperty.seasons} 
-                  channels={activeProperty.channels}
-                  settings={activeProperty.settings}
+                activeProfile ? (
+                <Dashboard
+                  key={activeProperty.id}
+                  rooms={activeProfile.rooms}
+                  seasons={activeProfile.seasons}
+                  channels={activeProfile.channels}
+                  settings={activeProfile.settings}
                   propertyOid={activeProperty.oid || ""}
                   selectedRoomId={selectedRoomId}
                   notes={activeProperty.notes || ""}
@@ -1144,21 +1317,21 @@ const App: React.FC = () => {
                    <SummaryDashboard property={activeProperty} />
                  ) : <div className="p-4 text-center text-slate-500">Wczytywanie...</div>
               ) : (
-                activeProperty && (
-                <SettingsPanel 
+                activeProperty && activeProfile && (
+                <SettingsPanel
                   key={activeProperty.id}
                   propertyName={activeProperty.name}
                   onPropertyNameChange={(name) => updateActiveProperty({ name })}
                   propertyOid={activeProperty.oid || ""}
                   onPropertyOidChange={(oid) => updateActiveProperty({ oid })}
-                  settings={activeProperty.settings}
-                  setSettings={(s) => updateActiveProperty({ settings: s })}
-                  channels={activeProperty.channels}
-                  setChannels={(c) => updateActiveProperty({ channels: c })}
-                  rooms={activeProperty.rooms}
-                  setRooms={(r) => updateActiveProperty({ rooms: r })}
-                  seasons={activeProperty.seasons}
-                  setSeasons={(s) => updateActiveProperty({ seasons: s })}
+                  settings={activeProfile.settings}
+                  setSettings={(s) => updateActiveProfile({ settings: s })}
+                  channels={activeProfile.channels}
+                  setChannels={(c) => updateActiveProfile({ channels: c })}
+                  rooms={activeProfile.rooms}
+                  setRooms={(r) => updateActiveProfile({ rooms: r })}
+                  seasons={activeProfile.seasons}
+                  setSeasons={(s) => updateActiveProfile({ seasons: s })}
                   activeTab={activeSettingsTab}
                   onTabChange={setActiveSettingsTab}
                   onDeleteProperty={() => handleDeleteProperty(activePropertyId)}
@@ -1173,6 +1346,7 @@ const App: React.FC = () => {
               )}
             </>
           )}
+          </div>
         </div>
       </main>
 
