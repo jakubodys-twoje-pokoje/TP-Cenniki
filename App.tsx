@@ -382,15 +382,18 @@ const App: React.FC = () => {
                }));
             }
 
-            lastServerState.current[newId] = JSON.stringify(newContent);
-            
+            // Apply profile migration for multi-user sync
+            const migratedContent = migratePropertyToProfiles(newContent);
+
+            lastServerState.current[newId] = JSON.stringify(migratedContent);
+
             setProperties(prev => {
               const exists = prev.find(p => p.id === newId);
               let updatedList;
               if (exists) {
-                updatedList = prev.map(p => p.id === newId ? { ...newContent, id: newId } : p);
+                updatedList = prev.map(p => p.id === newId ? { ...migratedContent, id: newId } : p);
               } else {
-                updatedList = [...prev, { ...newContent, id: newId }];
+                updatedList = [...prev, { ...migratedContent, id: newId }];
               }
               if (userPermissions.role === 'client') {
                   const allowed = new Set(userPermissions.allowedPropertyIds);
@@ -1059,7 +1062,19 @@ const App: React.FC = () => {
             <Calculator size={20} />
             <span className="font-medium">Kalkulator</span>
           </button>
-          
+
+          <button
+            onClick={() => { setActiveTab("settings"); setActiveSettingsTab("profiles"); setIsSidebarOpen(false); }}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors flex-shrink-0 ${
+              activeTab === "settings" && activeSettingsTab === "profiles"
+                ? "bg-purple-600 text-white"
+                : "text-slate-400 hover:bg-slate-800 hover:text-white"
+            }`}
+          >
+            <Layers size={20} />
+            <span className="font-medium">Zarządzaj Profilami</span>
+          </button>
+
           <div className="w-full h-px bg-slate-800 my-2"></div>
 
           {/* Configuration Dropdown */}
@@ -1300,7 +1315,7 @@ const App: React.FC = () => {
         </header>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-hidden print:p-0 print:overflow-visible print:h-auto">
+        <div className="flex-1 overflow-auto print:p-0 print:overflow-visible print:h-auto">
           {/* Profile Selector - Always visible when property and profile are active */}
           {activeProperty && activeProfile && (
             <ProfileSelector
@@ -1311,7 +1326,7 @@ const App: React.FC = () => {
             />
           )}
 
-          <div className="p-4 md:p-8">
+          <div className="p-4 md:p-8 h-full">
           {isClientRole ? (
              // CLIENT VIEW: STRICTLY Client Dashboard Only
              // Clients are filtered in fetchProperties, so activeProperty is safe.

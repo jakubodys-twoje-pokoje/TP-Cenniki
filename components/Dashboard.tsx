@@ -420,7 +420,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 flex-1 min-h-0">
+      <div className="grid grid-cols-1 gap-6">
         <div className="bg-white rounded-lg shadow-sm border border-slate-200 flex flex-col overflow-hidden">
           <div className="flex border-b border-slate-200 overflow-x-auto">
              <button onClick={() => setActiveView("ALL")} className={`px-4 py-3 text-sm font-medium whitespace-nowrap ${activeView === "ALL" ? 'border-b-2 border-blue-600 text-blue-600' : 'text-slate-600 hover:bg-slate-50'}`}>Ceny Bezpośrednie (Baza)</button>
