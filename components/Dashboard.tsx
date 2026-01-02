@@ -30,6 +30,7 @@ type ColumnVisibility = {
   lastMinute: boolean;
   commission: boolean;
   pif: boolean; // Pay In Full toggle
+  food: boolean; // Food pricing info toggle
 };
 
 const Dashboard: React.FC<DashboardProps> = ({
@@ -78,6 +79,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     lastMinute: false,
     commission: true,
     pif: false, // Default hidden
+    food: false, // Default hidden
   });
   const [isColumnMenuOpen, setIsColumnMenuOpen] = useState(false);
 
@@ -402,13 +404,24 @@ const Dashboard: React.FC<DashboardProps> = ({
                       
                       {/* Booking PIF Toggle (Visible in Summary and Booking detailed view) */}
                       <label className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 rounded cursor-pointer border-t border-slate-100 mt-1">
-                          <input 
-                            type="checkbox" 
+                          <input
+                            type="checkbox"
                             checked={columnVisibility.pif}
                             onChange={() => toggleColumn('pif')}
                             className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                           />
                           <span className="text-sm text-slate-700 font-medium">PIF (Booking)</span>
+                      </label>
+
+                      {/* Food Pricing Toggle */}
+                      <label className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 rounded cursor-pointer border-t border-slate-100">
+                          <input
+                            type="checkbox"
+                            checked={columnVisibility.food}
+                            onChange={() => toggleColumn('food')}
+                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="text-sm text-slate-700 font-medium">Wyżywienie</span>
                       </label>
 
                   </div>
@@ -603,7 +616,19 @@ const Dashboard: React.FC<DashboardProps> = ({
                                    </div>
                                 </td>
                                 <td className="px-3 py-3 align-middle text-right font-bold text-blue-700 bg-blue-50/30 border-l border-blue-100">
-                                   {row.directPrice} zł
+                                   <div className="flex flex-col items-end">
+                                      <span>{row.directPrice} zł</span>
+                                      {columnVisibility.food && settings.foodEnabled && (() => {
+                                        const room = rooms.find(r => r.id === row.roomId);
+                                        const foodOption = room?.seasonalFoodOption?.[row.seasonId];
+                                        if (foodOption === 'breakfast') {
+                                          return <span className="text-[10px] text-green-600 font-normal">+Śniadanie ({room?.foodBreakfastPrice ?? 50})</span>;
+                                        } else if (foodOption === 'full') {
+                                          return <span className="text-[10px] text-green-600 font-normal">+Pełne ({room?.foodFullPrice ?? 100})</span>;
+                                        }
+                                        return null;
+                                      })()}
+                                   </div>
                                 </td>
 
                                 {activeView === "SUMMARY" && (
