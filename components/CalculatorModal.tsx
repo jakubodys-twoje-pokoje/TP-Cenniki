@@ -59,8 +59,8 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
     const desiredDirectPrice = targetNetInput;
 
     // 2. Reverse Calculate required Base Price
-    // Formula: BasePrice = (TargetNet + OBP_Deduction_At_Max) / Multiplier
-    // Usually OBP deduction at max is 0, but we keep logic generic if needed.
+    // Formula: BasePrice = (TargetNet + OBP_Deduction - Food_Price) / Multiplier
+    // OBP deduction at max is usually 0, but we keep logic generic if needed.
     let obpDeduction = 0;
     const isObpActive = selectedRoom.seasonalObpActive?.[selectedSeason.id] ?? true;
     const minObp = selectedRoom.minObpOccupancy || 1;
@@ -72,7 +72,18 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
        obpDeduction = missingPeople * obpAmount;
     }
 
-    const requiredBasePriceRaw = (desiredDirectPrice + obpDeduction) / selectedSeason.multiplier;
+    // Account for food pricing in reverse calculation
+    let foodAddition = 0;
+    const seasonalFoodOption = selectedRoom.seasonalFoodOption?.[selectedSeason.id] ?? 'none';
+    if ((settings.foodEnabled ?? false) && seasonalFoodOption !== 'none') {
+      if (seasonalFoodOption === 'breakfast') {
+        foodAddition = selectedRoom.foodBreakfastPrice ?? 50;
+      } else if (seasonalFoodOption === 'full') {
+        foodAddition = selectedRoom.foodFullPrice ?? 100;
+      }
+    }
+
+    const requiredBasePriceRaw = (desiredDirectPrice + obpDeduction - foodAddition) / selectedSeason.multiplier;
     const requiredBasePrice = Math.round(requiredBasePriceRaw);
 
     // 3. Create Virtual Room with this Calculated Base Price
@@ -290,15 +301,32 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
                 {/* Full OBP Matrix */}
                 <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
                    <div className="px-5 py-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                          <div className="text-sm font-bold text-slate-700 uppercase flex items-center gap-2">
-                            <TrendingUp size={18} className="text-blue-600"/> 
-                            Symulacja OBP
+                            <TrendingUp size={18} className="text-blue-600"/>
+                            Symulacja Cen
                          </div>
                          <div className="h-4 w-px bg-slate-300 mx-2"></div>
                          <div className="text-sm text-slate-600">
                             Wymagana Cena Bazowa: <span className="font-bold text-lg text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 ml-1">{calculationResult.requiredBasePrice} zł</span>
                          </div>
+                         {(settings.foodEnabled ?? false) && selectedRoom && (() => {
+                           const foodOption = selectedRoom.seasonalFoodOption?.[selectedSeasonId];
+                           if (foodOption === 'breakfast') {
+                             return (
+                               <div className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded border border-green-200 font-medium">
+                                 +Śniadanie ({selectedRoom.foodBreakfastPrice ?? 50} zł)
+                               </div>
+                             );
+                           } else if (foodOption === 'full') {
+                             return (
+                               <div className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded border border-green-200 font-medium">
+                                 +Pełne ({selectedRoom.foodFullPrice ?? 100} zł)
+                               </div>
+                             );
+                           }
+                           return null;
+                         })()}
                       </div>
                       <div className="text-[10px] text-slate-400 font-normal">
                          Góra: Cena Listowa (Brutto) • Dół: Twoje Netto
