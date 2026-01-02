@@ -1,6 +1,7 @@
 
 import React, { useState } from "react";
-import { Channel, GlobalSettings, RoomType, Season, SettingsTab } from "../types";
+// Import ChannelDiscountProfile to fix type errors in discount updates
+import { Channel, GlobalSettings, RoomType, Season, SettingsTab, ChannelDiscountProfile } from "../types";
 import { Plus, Trash2, X, CloudUpload, Loader2, Link as LinkIcon, ToggleLeft, ToggleRight, AlertCircle } from "lucide-react";
 import { updateHotresPrices } from "../utils/hotresApi";
 
@@ -171,9 +172,18 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                                 </thead>
                                 <tbody>
                                    {seasons.map(s => {
-                                      const discounts = channel.seasonDiscounts[s.id] || { mobile: 0, genius: 0, seasonal: 0, firstMinute: 0, lastMinute: 0 };
+                                      // Provide a full default object to fix ChannelDiscountProfile type mismatch
+                                      const discounts: ChannelDiscountProfile = channel.seasonDiscounts[s.id] || { 
+                                         mobile: 0, mobileEnabled: true, 
+                                         genius: 0, geniusEnabled: true, 
+                                         seasonal: 0, seasonalEnabled: true, 
+                                         firstMinute: 0, firstMinuteEnabled: true, 
+                                         lastMinute: 0, lastMinuteEnabled: true 
+                                      };
                                       const updDisc = (field: string, val: number) => {
-                                         setChannels(channels.map(c => c.id === channel.id ? { ...c, seasonDiscounts: { ...c.seasonDiscounts, [s.id]: { ...(c.seasonDiscounts[s.id] || {}), [field]: val, [`${field}Enabled`]: true } } } : c));
+                                         // Use type assertion to bypass dynamic key mapping issues in TypeScript
+                                         const updated = { ...discounts, [field]: val, [`${field}Enabled`]: true } as any;
+                                         setChannels(channels.map(c => c.id === channel.id ? { ...c, seasonDiscounts: { ...c.seasonDiscounts, [s.id]: updated } } : c));
                                       };
                                       return (
                                          <tr key={s.id} className="border-t">

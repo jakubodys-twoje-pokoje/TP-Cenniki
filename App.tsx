@@ -79,8 +79,8 @@ const App: React.FC = () => {
       if (error) throw error;
       let loadedProps: Property[] = (data || []).map(row => {
           const content = row.content || {};
-          // Reverse Migration: If data was converted to variant format, flatten it back
-          if (content.variants && Array.isArray(content.variants)) {
+          // Reverse Migration: If data was converted to variant format during the error, flatten it back
+          if (content.variants && Array.isArray(content.variants) && content.variants.length > 0) {
               const v = content.variants[0];
               return {
                   id: String(row.id),
