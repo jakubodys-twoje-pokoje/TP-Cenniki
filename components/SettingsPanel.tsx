@@ -1,8 +1,9 @@
 
 import React, { useState } from "react";
-import { Channel, ChannelDiscountProfile, ChannelDiscountLabels, GlobalSettings, Property, RoomType, Season, SettingsTab } from "../types";
+import { Channel, ChannelDiscountProfile, ChannelDiscountLabels, GlobalSettings, Profile, Property, RoomType, Season, SettingsTab } from "../types";
 import { Plus, Trash2, X, Copy, GripVertical, ArrowRightLeft, Check, AlertCircle, Lock, ToggleLeft, ToggleRight, Layers, CloudUpload, Loader2, Link as LinkIcon, Edit3 } from "lucide-react";
 import { updateHotresPrices } from "../utils/hotresApi";
+import ProfileManagement from "./ProfileManagement";
 
 interface SettingsPanelProps {
   propertyName: string;
@@ -26,6 +27,14 @@ interface SettingsPanelProps {
   onDuplicateChannel: (sourceChannel: Channel, targetPropertyId: string) => void;
   onDuplicateAllChannels: (targetPropertyId: string) => void;
   isReadOnly?: boolean;
+  // Profile management props
+  profiles?: Profile[];
+  activeProfileId?: string;
+  onProfileChange?: (profileId: string) => void;
+  onAddProfile?: (name: string, duplicateFromProfileId?: string) => void;
+  onDeleteProfile?: (profileId: string) => void;
+  onDuplicateProfile?: (profileId: string) => void;
+  onProfileUpdate?: (profileId: string, updates: Partial<Profile>) => void;
 }
 
 const SettingsPanel: React.FC<SettingsPanelProps> = ({
@@ -50,6 +59,14 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   onDuplicateChannel,
   onDuplicateAllChannels,
   isReadOnly = false,
+  // Profile management props
+  profiles = [],
+  activeProfileId = "",
+  onProfileChange = () => {},
+  onAddProfile = () => {},
+  onDeleteProfile = () => {},
+  onDuplicateProfile = () => {},
+  onProfileUpdate = () => {},
 }) => {
   // Drag and Drop State
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
@@ -360,6 +377,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
   const tabLabels: Record<SettingsTab, string> = {
     global: "Ogólne",
+    profiles: "Profile",
     rooms: "Pokoje",
     seasons: "Sezony",
     channels: "Kanały"
@@ -875,6 +893,22 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
               );
               })}
             </div>
+          </div>
+        )}
+
+        {/* Profiles Tab */}
+        {activeTab === "profiles" && (
+          <div className="space-y-6">
+            <ProfileManagement
+              profiles={profiles}
+              activeProfileId={activeProfileId}
+              onProfileChange={onProfileChange}
+              onAddProfile={onAddProfile}
+              onDeleteProfile={onDeleteProfile}
+              onDuplicateProfile={onDuplicateProfile}
+              onProfileUpdate={onProfileUpdate}
+              isReadOnly={isReadOnly}
+            />
           </div>
         )}
       </div>
