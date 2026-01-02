@@ -557,12 +557,12 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                       ))}
 
                       {/* Food (Wyżywienie) Headers */}
-                      <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase whitespace-nowrap" title="Cena za śniadanie">Śniadanie</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase whitespace-nowrap" title="Cena za pełne wyżywienie">Pełne</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase whitespace-nowrap min-w-[100px]" title="Cena za śniadanie">Śniadanie</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase whitespace-nowrap min-w-[100px]" title="Cena za pełne wyżywienie">Pełne</th>
 
                       {/* Dynamic Season Headers for Food Option Selection */}
                       {seasons.map(s => (
-                        <th key={`food-${s.id}`} className="px-3 py-2 text-center text-xs font-medium text-slate-500 uppercase whitespace-nowrap min-w-[100px]">
+                        <th key={`food-${s.id}`} className="px-3 py-2 text-center text-xs font-medium text-slate-500 uppercase whitespace-nowrap min-w-[110px]">
                           {s.name} <br/><span className="text-[10px]">Wyżywienie</span>
                         </th>
                       ))}
@@ -645,7 +645,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                              type="number"
                              value={room.foodBreakfastPrice ?? 50}
                              onChange={(e) => updateItem<RoomType>(room.id, "foodBreakfastPrice", Number(e.target.value), rooms, setRooms)}
-                             className={`w-20 ${inputClass} ${!(settings.foodEnabled ?? false) ? 'bg-slate-100 text-slate-400' : ''}`}
+                             className={`w-24 ${inputClass} ${!(settings.foodEnabled ?? false) ? 'bg-slate-100 text-slate-400' : ''}`}
                              placeholder="50"
                            />
                         </td>
@@ -656,7 +656,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                              type="number"
                              value={room.foodFullPrice ?? 100}
                              onChange={(e) => updateItem<RoomType>(room.id, "foodFullPrice", Number(e.target.value), rooms, setRooms)}
-                             className={`w-20 ${inputClass} ${!(settings.foodEnabled ?? false) ? 'bg-slate-100 text-slate-400' : ''}`}
+                             className={`w-24 ${inputClass} ${!(settings.foodEnabled ?? false) ? 'bg-slate-100 text-slate-400' : ''}`}
                              placeholder="100"
                            />
                         </td>
