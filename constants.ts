@@ -1,5 +1,5 @@
 
-import { Channel, GlobalSettings, RoomType, Season } from "./types";
+import { Channel, GlobalSettings, Profile, RoomType, Season } from "./types";
 
 export const INITIAL_SETTINGS: GlobalSettings = {
   obpEnabled: true, // Default to enabled
@@ -125,3 +125,19 @@ export const INITIAL_SEASONS: Season[] = [
     minNights: 3,
   },
 ];
+
+// Helper to create a deep clone of an object
+const deepClone = <T>(obj: T): T => JSON.parse(JSON.stringify(obj));
+
+// Create a default profile with initial data
+export const createDefaultProfile = (): Profile => ({
+  id: "default",
+  name: "Domyślny",
+  description: "Standardowy cennik",
+  sortOrder: 0,
+  isDefault: true,
+  settings: { ...INITIAL_SETTINGS },
+  channels: deepClone(INITIAL_CHANNELS),
+  rooms: deepClone(INITIAL_ROOMS),
+  seasons: deepClone(INITIAL_SEASONS),
+});
