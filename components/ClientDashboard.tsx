@@ -285,9 +285,24 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({
                                     {seasons.map((s, i) => {
                                         const color = getSeasonColor(i);
                                         const price = calculateDirectPrice(room, s, room.maxOccupancy, settings);
+                                        const foodOption = room.seasonalFoodOption?.[s.id];
                                         return (
                                             <td key={s.id} className={`px-2 py-3 text-center font-bold text-${color}-700 text-sm bg-${color}-50/20 border-l border-${color}-50`}>
-                                                {price} zł
+                                                <div className="flex flex-col items-center">
+                                                    <span>{price} zł</span>
+                                                    {settings.foodEnabled && foodOption && foodOption !== 'none' && (() => {
+                                                        const pricePerPerson = foodOption === 'breakfast'
+                                                            ? (room.foodBreakfastPrice ?? 50)
+                                                            : (room.foodFullPrice ?? 100);
+                                                        const totalPrice = pricePerPerson * room.maxOccupancy;
+                                                        const label = foodOption === 'breakfast' ? 'Śniadanie' : 'Pełne';
+                                                        return (
+                                                            <span className="text-[9px] text-green-600 font-normal mt-0.5">
+                                                                +{label} ({pricePerPerson}×{room.maxOccupancy})
+                                                            </span>
+                                                        );
+                                                    })()}
+                                                </div>
                                             </td>
                                         )
                                     })}
@@ -322,9 +337,23 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({
                                                                     {seasons.map((s, i) => {
                                                                         const color = getSeasonColor(i);
                                                                         const occPrice = calculateDirectPrice(room, s, occ, settings);
+                                                                        const foodOption = room.seasonalFoodOption?.[s.id];
                                                                         return (
                                                                             <td key={s.id} className={`px-3 py-2 text-center text-${color}-700 border-l border-slate-100 font-medium bg-${color}-50/10`}>
-                                                                                {occPrice} zł
+                                                                                <div className="flex flex-col items-center">
+                                                                                    <span>{occPrice} zł</span>
+                                                                                    {settings.foodEnabled && foodOption && foodOption !== 'none' && (() => {
+                                                                                        const pricePerPerson = foodOption === 'breakfast'
+                                                                                            ? (room.foodBreakfastPrice ?? 50)
+                                                                                            : (room.foodFullPrice ?? 100);
+                                                                                        const label = foodOption === 'breakfast' ? 'Ś' : 'P';
+                                                                                        return (
+                                                                                            <span className="text-[8px] text-green-600 font-normal">
+                                                                                                +{label} ({pricePerPerson}×{occ})
+                                                                                            </span>
+                                                                                        );
+                                                                                    })()}
+                                                                                </div>
                                                                             </td>
                                                                         )
                                                                     })}
@@ -381,7 +410,25 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({
                         <span className="font-medium">{row.room.maxOccupancy} os.</span>
                         </td>
                         <td className="px-6 py-4 text-right font-bold text-blue-700 text-lg bg-blue-50/30 border-l border-blue-100 print:bg-transparent print:border-none">
-                        {row.directPrice} zł
+                        <div className="flex flex-col items-end">
+                            <span>{row.directPrice} zł</span>
+                            {settings.foodEnabled && (() => {
+                                const foodOption = row.room.seasonalFoodOption?.[selectedSeason.id];
+                                if (foodOption && foodOption !== 'none') {
+                                    const pricePerPerson = foodOption === 'breakfast'
+                                        ? (row.room.foodBreakfastPrice ?? 50)
+                                        : (row.room.foodFullPrice ?? 100);
+                                    const totalPrice = pricePerPerson * row.room.maxOccupancy;
+                                    const label = foodOption === 'breakfast' ? 'Śniadanie' : 'Pełne';
+                                    return (
+                                        <span className="text-[10px] text-green-600 font-normal mt-0.5">
+                                            +{label} ({pricePerPerson}×{row.room.maxOccupancy} = {totalPrice})
+                                        </span>
+                                    );
+                                }
+                                return null;
+                            })()}
+                        </div>
                         </td>
                         {row.channelPrices.filter(cp => visibleChannels.has(cp.id)).map(cp => {
                         return (

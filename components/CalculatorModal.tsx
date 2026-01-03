@@ -24,9 +24,9 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
 }) => {
   // Form State
   const [targetNetInput, setTargetNetInput] = useState<number>(200);
-  const [selectedRoomId, setSelectedRoomId] = useState<string>(rooms[0]?.id || "");
+  const [selectedRoomIds, setSelectedRoomIds] = useState<string[]>(rooms[0] ? [rooms[0].id] : []);
   const [selectedSeasonId, setSelectedSeasonId] = useState<string>(seasons[0]?.id || "");
-  
+
   // Custom Date Range State
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -37,8 +37,17 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
   const [sendSuccess, setSendSuccess] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
 
-  const selectedRoom = rooms.find(r => r.id === selectedRoomId);
+  // Use first selected room for calculation preview
+  const selectedRoom = rooms.find(r => r.id === selectedRoomIds[0]);
   const selectedSeason = seasons.find(s => s.id === selectedSeasonId);
+
+  const toggleRoomSelection = (roomId: string) => {
+    setSelectedRoomIds(prev =>
+      prev.includes(roomId)
+        ? prev.filter(id => id !== roomId)
+        : [...prev, roomId]
+    );
+  };
 
   const maxOcc = selectedRoom?.maxOccupancy || 2;
   const currentOccupancy = maxOcc; 
@@ -142,13 +151,16 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
       channelResults,
       obpLadder
     };
-  }, [targetNetInput, selectedRoomId, selectedSeasonId, currentOccupancy, rooms, seasons, channels, settings]);
+  }, [targetNetInput, selectedRoomIds, selectedSeasonId, currentOccupancy, rooms, seasons, channels, settings]);
 
 
   const handleSendToHotres = async () => {
-    if (!propertyOid || !selectedRoom || !selectedSeason || !calculationResult) return;
-    
-    if (!confirm(`⚠️ POTWIERDZENIE WYSYŁKI ⚠️\n\nZamierzasz wysłać ceny na okres:\n📅 ${startDate} - ${endDate}\n\nTa operacja NADPISZE ceny w Hotres. Zmiany nie zostaną zapisane w lokalnej bazie danych aplikacji.\n\nKontynuować?`)) {
+    if (!propertyOid || selectedRoomIds.length === 0 || !selectedSeason || !calculationResult) return;
+
+    const selectedRooms = rooms.filter(r => selectedRoomIds.includes(r.id));
+    const roomNames = selectedRooms.map(r => r.name).join(', ');
+
+    if (!confirm(`⚠️ POTWIERDZENIE WYSYŁKI ⚠️\n\nZamierzasz wysłać ceny dla:\n🏠 ${roomNames}\n📅 ${startDate} - ${endDate}\n\nTa operacja NADPISZE ceny w Hotres. Zmiany nie zostaną zapisane w lokalnej bazie danych aplikacji.\n\nKontynuować?`)) {
         return;
     }
 
@@ -156,15 +168,18 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
     setSendError(null);
     setSendSuccess(false);
     try {
-        await pushManualPriceUpdate(
-            propertyOid,
-            selectedRoom,
-            startDate,
-            endDate,
-            channels,
-            calculationResult.obpLadder,
-            minNights
-        );
+        // Send updates for all selected rooms
+        for (const room of selectedRooms) {
+            await pushManualPriceUpdate(
+                propertyOid,
+                room,
+                startDate,
+                endDate,
+                channels,
+                calculationResult.obpLadder,
+                minNights
+            );
+        }
         setSendSuccess(true);
         setTimeout(() => setSendSuccess(false), 5000);
     } catch (err: any) {
@@ -229,14 +244,21 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
                   </div>
 
                   <div className="col-span-1">
-                     <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Obiekt / Pokój</label>
-                     <select 
-                       value={selectedRoomId}
-                       onChange={(e) => setSelectedRoomId(e.target.value)}
-                       className={inputBaseClass}
-                     >
-                        {rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                     </select>
+                     <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Wybierz Pokoje</label>
+                     <div className="border border-slate-300 rounded-lg p-3 bg-white max-h-[120px] overflow-y-auto space-y-2">
+                        {rooms.map(r => (
+                          <label key={r.id} className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 p-1 rounded transition-colors">
+                            <input
+                              type="checkbox"
+                              checked={selectedRoomIds.includes(r.id)}
+                              onChange={() => toggleRoomSelection(r.id)}
+                              className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="text-sm font-medium text-slate-700">{r.name}</span>
+                          </label>
+                        ))}
+                     </div>
+                     <div className="text-xs text-slate-500 mt-1">{selectedRoomIds.length} wybranych</div>
                   </div>
 
                   <div className="col-span-1">
