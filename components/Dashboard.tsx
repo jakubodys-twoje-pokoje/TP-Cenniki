@@ -871,26 +871,26 @@ const Dashboard: React.FC<DashboardProps> = ({
                 </select>
               </div>
             </div>
-            <div style={{ width: '100%', height: '400px' }}>
+            <div style={{ width: '100%', height: '280px' }}>
               {chartData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={400}>
-                  <BarChart data={chartData} margin={{ top: 10, right: 10, bottom: 80, left: 10 }}>
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart data={chartData} margin={{ top: 10, right: 10, bottom: 70, left: 10 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                     <XAxis
                       dataKey="name"
-                      tick={{fontSize: 11, fill: '#64748b'}}
+                      tick={{fontSize: 10, fill: '#64748b'}}
                       interval={0}
                       angle={-45}
                       textAnchor="end"
-                      height={80}
+                      height={70}
                     />
-                    <YAxis tick={{fontSize: 11, fill: '#64748b'}} domain={[0, 100]} />
+                    <YAxis tick={{fontSize: 10, fill: '#64748b'}} domain={[0, 100]} />
                     <Tooltip
                       contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
                       cursor={{fill: '#f1f5f9'}}
                       formatter={(value: number) => `${value}%`}
                     />
-                    <Bar dataKey="occupancy" name="Obłożenie" fill="#10b981" radius={[6, 6, 0, 0]} barSize={40} />
+                    <Bar dataKey="occupancy" name="Obłożenie" fill="#10b981" radius={[6, 6, 0, 0]} barSize={35} />
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
@@ -902,7 +902,7 @@ const Dashboard: React.FC<DashboardProps> = ({
              <h3 className="text-lg font-bold text-slate-800 mb-3 flex items-center gap-2"><StickyNote size={20} className="text-amber-500"/> Notatki</h3>
              <textarea
                disabled={isReadOnly}
-               className="w-full h-[360px] p-3 border border-slate-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm text-slate-700 bg-amber-50/50 resize-none placeholder:text-slate-400 disabled:opacity-70 disabled:cursor-not-allowed"
+               className="w-full h-[240px] p-3 border border-slate-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm text-slate-700 bg-amber-50/50 resize-none placeholder:text-slate-400 disabled:opacity-70 disabled:cursor-not-allowed"
                placeholder="Wpisz ważne informacje dla tego obiektu..."
                value={notes}
                onChange={(e) => onNotesChange(e.target.value)}

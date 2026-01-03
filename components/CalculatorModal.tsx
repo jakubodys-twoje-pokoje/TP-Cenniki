@@ -87,20 +87,22 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
     }
 
     // Account for food pricing in reverse calculation
-    // Food price is per person, so multiply by occupancy
-    let foodAddition = 0;
+    // When toggle is OFF: subtract food from calculation (user wants net WITHOUT food costs)
+    // When toggle is ON: don't subtract (user wants food cost added to final price)
+    let foodDeduction = 0;
     const seasonalFoodOption = selectedRoom.seasonalFoodOption?.[selectedSeason.id] ?? 'none';
-    if (includeFoodPricing && (settings.foodEnabled ?? false) && seasonalFoodOption !== 'none') {
+    if (!includeFoodPricing && (settings.foodEnabled ?? false) && seasonalFoodOption !== 'none') {
+      // Only deduct food cost if toggle is OFF
       if (seasonalFoodOption === 'breakfast') {
         const breakfastPricePerPerson = selectedRoom.foodBreakfastPrice ?? 50;
-        foodAddition = breakfastPricePerPerson * currentOccupancy;
+        foodDeduction = breakfastPricePerPerson * currentOccupancy;
       } else if (seasonalFoodOption === 'full') {
         const fullPricePerPerson = selectedRoom.foodFullPrice ?? 100;
-        foodAddition = fullPricePerPerson * currentOccupancy;
+        foodDeduction = fullPricePerPerson * currentOccupancy;
       }
     }
 
-    const requiredBasePriceRaw = (desiredDirectPrice + obpDeduction - foodAddition) / selectedSeason.multiplier;
+    const requiredBasePriceRaw = (desiredDirectPrice + obpDeduction - foodDeduction) / selectedSeason.multiplier;
     const requiredBasePrice = Math.round(requiredBasePriceRaw);
 
     // 3. Create Virtual Room with this Calculated Base Price
