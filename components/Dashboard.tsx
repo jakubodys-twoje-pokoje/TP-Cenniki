@@ -871,9 +871,9 @@ const Dashboard: React.FC<DashboardProps> = ({
                 </select>
               </div>
             </div>
-            <div style={{ width: '100%', height: '280px' }}>
+            <div style={{ width: '100%', height: '400px' }}>
               {chartData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={280}>
+                <ResponsiveContainer width="100%" height={400}>
                   <BarChart data={chartData} margin={{ top: 5, right: 5, bottom: 70, left: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
                     <XAxis
