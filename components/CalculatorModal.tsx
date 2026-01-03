@@ -32,6 +32,9 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
   const [endDate, setEndDate] = useState("");
   const [minNights, setMinNights] = useState<number>(1);
 
+  // Food pricing toggle for calculator
+  const [includeFoodPricing, setIncludeFoodPricing] = useState(true);
+
   // Sending State
   const [isSending, setIsSending] = useState(false);
   const [sendSuccess, setSendSuccess] = useState(false);
@@ -87,7 +90,7 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
     // Food price is per person, so multiply by occupancy
     let foodAddition = 0;
     const seasonalFoodOption = selectedRoom.seasonalFoodOption?.[selectedSeason.id] ?? 'none';
-    if ((settings.foodEnabled ?? false) && seasonalFoodOption !== 'none') {
+    if (includeFoodPricing && (settings.foodEnabled ?? false) && seasonalFoodOption !== 'none') {
       if (seasonalFoodOption === 'breakfast') {
         const breakfastPricePerPerson = selectedRoom.foodBreakfastPrice ?? 50;
         foodAddition = breakfastPricePerPerson * currentOccupancy;
@@ -151,7 +154,7 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
       channelResults,
       obpLadder
     };
-  }, [targetNetInput, selectedRoomIds, selectedSeasonId, currentOccupancy, rooms, seasons, channels, settings]);
+  }, [targetNetInput, selectedRoomIds, selectedSeasonId, currentOccupancy, rooms, seasons, channels, settings, includeFoodPricing]);
 
 
   const handleSendToHotres = async () => {
@@ -273,6 +276,24 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
                   </div>
                </div>
 
+               {/* Food Pricing Toggle */}
+               {(settings.foodEnabled ?? false) && (
+                 <div className="border-t border-slate-200 pt-3">
+                   <label className="flex items-center gap-3 cursor-pointer">
+                     <input
+                       type="checkbox"
+                       checked={includeFoodPricing}
+                       onChange={(e) => setIncludeFoodPricing(e.target.checked)}
+                       className="w-5 h-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                     />
+                     <div className="flex flex-col">
+                       <span className="text-sm font-bold text-slate-700">Uwzględnij wyżywienie w kalkulacji</span>
+                       <span className="text-xs text-slate-500">Dolicza koszt wyżywienia do ceny bazowej</span>
+                     </div>
+                   </label>
+                 </div>
+               )}
+
                {/* Date Range Selection for API Push */}
                <div className="border-t border-slate-200 pt-4 mt-2">
                   <div className="flex flex-col md:flex-row gap-4 items-end">
@@ -348,22 +369,22 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
                          <div className="text-sm text-slate-600">
                             Wymagana Cena Bazowa: <span className="font-bold text-lg text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 ml-1">{calculationResult.requiredBasePrice} zł</span>
                          </div>
-                         {(settings.foodEnabled ?? false) && selectedRoom && (() => {
+                         {includeFoodPricing && (settings.foodEnabled ?? false) && selectedRoom && (() => {
                            const foodOption = selectedRoom.seasonalFoodOption?.[selectedSeasonId];
                            if (foodOption === 'breakfast') {
                              const pricePerPerson = selectedRoom.foodBreakfastPrice ?? 50;
                              const totalPrice = pricePerPerson * currentOccupancy;
                              return (
-                               <div className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded border border-green-200 font-medium">
-                                 +Śniadanie ({pricePerPerson} zł × {currentOccupancy} os. = {totalPrice} zł)
+                               <div className="text-xs bg-green-100 text-green-800 px-3 py-1.5 rounded-md border-2 border-green-300 font-bold shadow-sm">
+                                 ✓ Z WYŻYWIENIEM: Śniadanie ({pricePerPerson} zł × {currentOccupancy} os. = {totalPrice} zł)
                                </div>
                              );
                            } else if (foodOption === 'full') {
                              const pricePerPerson = selectedRoom.foodFullPrice ?? 100;
                              const totalPrice = pricePerPerson * currentOccupancy;
                              return (
-                               <div className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded border border-green-200 font-medium">
-                                 +Pełne ({pricePerPerson} zł × {currentOccupancy} os. = {totalPrice} zł)
+                               <div className="text-xs bg-green-100 text-green-800 px-3 py-1.5 rounded-md border-2 border-green-300 font-bold shadow-sm">
+                                 ✓ Z WYŻYWIENIEM: Pełne ({pricePerPerson} zł × {currentOccupancy} os. = {totalPrice} zł)
                                </div>
                              );
                            }
