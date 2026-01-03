@@ -45,17 +45,18 @@ export const calculateDirectPrice = (
 
   // 4. Apply Food Pricing (Wyżywienie)
   // Logic: Must be globally enabled AND a specific food option is selected for this room/season
+  // Food price is multiplied by occupancy (number of people)
   const seasonalFoodOption = room.seasonalFoodOption?.[season.id] ?? 'none';
 
   if ((settings.foodEnabled ?? false) && seasonalFoodOption !== 'none') {
     if (seasonalFoodOption === 'breakfast') {
-      // Add breakfast price (default 50 if not set)
-      const breakfastPrice = room.foodBreakfastPrice ?? 50;
-      price = price + breakfastPrice;
+      // Add breakfast price per person (default 50 if not set)
+      const breakfastPricePerPerson = room.foodBreakfastPrice ?? 50;
+      price = price + (breakfastPricePerPerson * occupancy);
     } else if (seasonalFoodOption === 'full') {
-      // Add full board price (default 100 if not set)
-      const fullPrice = room.foodFullPrice ?? 100;
-      price = price + fullPrice;
+      // Add full board price per person (default 100 if not set)
+      const fullPricePerPerson = room.foodFullPrice ?? 100;
+      price = price + (fullPricePerPerson * occupancy);
     }
   }
 

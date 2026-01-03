@@ -622,9 +622,13 @@ const Dashboard: React.FC<DashboardProps> = ({
                                         const room = rooms.find(r => r.id === row.roomId);
                                         const foodOption = room?.seasonalFoodOption?.[row.seasonId];
                                         if (foodOption === 'breakfast') {
-                                          return <span className="text-[10px] text-green-600 font-normal">+Śniadanie ({room?.foodBreakfastPrice ?? 50})</span>;
+                                          const pricePerPerson = room?.foodBreakfastPrice ?? 50;
+                                          const totalPrice = pricePerPerson * row.occupancy;
+                                          return <span className="text-[10px] text-green-600 font-normal">+Śniadanie ({pricePerPerson}×{row.occupancy} = {totalPrice})</span>;
                                         } else if (foodOption === 'full') {
-                                          return <span className="text-[10px] text-green-600 font-normal">+Pełne ({room?.foodFullPrice ?? 100})</span>;
+                                          const pricePerPerson = room?.foodFullPrice ?? 100;
+                                          const totalPrice = pricePerPerson * row.occupancy;
+                                          return <span className="text-[10px] text-green-600 font-normal">+Pełne ({pricePerPerson}×{row.occupancy} = {totalPrice})</span>;
                                         }
                                         return null;
                                       })()}

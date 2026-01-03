@@ -73,13 +73,16 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
     }
 
     // Account for food pricing in reverse calculation
+    // Food price is per person, so multiply by occupancy
     let foodAddition = 0;
     const seasonalFoodOption = selectedRoom.seasonalFoodOption?.[selectedSeason.id] ?? 'none';
     if ((settings.foodEnabled ?? false) && seasonalFoodOption !== 'none') {
       if (seasonalFoodOption === 'breakfast') {
-        foodAddition = selectedRoom.foodBreakfastPrice ?? 50;
+        const breakfastPricePerPerson = selectedRoom.foodBreakfastPrice ?? 50;
+        foodAddition = breakfastPricePerPerson * currentOccupancy;
       } else if (seasonalFoodOption === 'full') {
-        foodAddition = selectedRoom.foodFullPrice ?? 100;
+        const fullPricePerPerson = selectedRoom.foodFullPrice ?? 100;
+        foodAddition = fullPricePerPerson * currentOccupancy;
       }
     }
 
@@ -313,15 +316,19 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
                          {(settings.foodEnabled ?? false) && selectedRoom && (() => {
                            const foodOption = selectedRoom.seasonalFoodOption?.[selectedSeasonId];
                            if (foodOption === 'breakfast') {
+                             const pricePerPerson = selectedRoom.foodBreakfastPrice ?? 50;
+                             const totalPrice = pricePerPerson * currentOccupancy;
                              return (
                                <div className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded border border-green-200 font-medium">
-                                 +Śniadanie ({selectedRoom.foodBreakfastPrice ?? 50} zł)
+                                 +Śniadanie ({pricePerPerson} zł × {currentOccupancy} os. = {totalPrice} zł)
                                </div>
                              );
                            } else if (foodOption === 'full') {
+                             const pricePerPerson = selectedRoom.foodFullPrice ?? 100;
+                             const totalPrice = pricePerPerson * currentOccupancy;
                              return (
                                <div className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded border border-green-200 font-medium">
-                                 +Pełne ({selectedRoom.foodFullPrice ?? 100} zł)
+                                 +Pełne ({pricePerPerson} zł × {currentOccupancy} os. = {totalPrice} zł)
                                </div>
                              );
                            }
