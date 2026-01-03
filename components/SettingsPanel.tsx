@@ -4,6 +4,7 @@ import { Channel, ChannelDiscountProfile, ChannelDiscountLabels, GlobalSettings,
 import { Plus, Trash2, X, Copy, GripVertical, ArrowRightLeft, Check, AlertCircle, Lock, ToggleLeft, ToggleRight, Layers, CloudUpload, Loader2, Link as LinkIcon, Edit3 } from "lucide-react";
 import { updateHotresPrices } from "../utils/hotresApi";
 import ProfileManagement from "./ProfileManagement";
+import { useScrollRestoration } from "../hooks/useScrollRestoration";
 
 interface SettingsPanelProps {
   propertyName: string;
@@ -91,6 +92,9 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const [isExporting, setIsExporting] = useState(false);
   // Track specific season export
   const [exportingSeasonId, setExportingSeasonId] = useState<string | null>(null);
+
+  // Scroll restoration for settings content
+  const scrollRef = useScrollRestoration(`settings-${activeTab}`, [activeTab]);
 
   // Generic Handlers for Arrays
   const deleteItem = <T extends { id: string }>(
@@ -438,7 +442,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
         ))}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto p-6" ref={scrollRef}>
         {/* Global Tab */}
         {activeTab === "global" && (
           <div className="space-y-6">

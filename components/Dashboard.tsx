@@ -5,6 +5,7 @@ import { generatePricingGrid, calculateDirectPrice, calculateChannelPrice } from
 import { TrendingUp, Users, StickyNote, ChevronDown, ChevronRight, GripVertical, Columns, RefreshCw, Loader2, AlertCircle, CloudDownload, Lock, TableProperties, ChevronUp, Home, Filter } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { fetchHotresOccupancy } from "../utils/hotresApi";
+import { useScrollRestoration } from "../hooks/useScrollRestoration";
 
 interface DashboardProps {
   rooms: RoomType[];
@@ -50,7 +51,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 }) => {
   const [occupancyFilter, setOccupancyFilter] = useState<"MAX" | number>("MAX");
   const [activeView, setActiveView] = useState<"ALL" | "SUMMARY" | string>("ALL");
-  
+
   // Dashboard Filters
   const [typeFilter, setTypeFilter] = useState<string>("ALL");
   const [capacityFilter, setCapacityFilter] = useState<string>("ALL");
@@ -82,6 +83,9 @@ const Dashboard: React.FC<DashboardProps> = ({
     food: false, // Default hidden
   });
   const [isColumnMenuOpen, setIsColumnMenuOpen] = useState(false);
+
+  // Scroll restoration for main content area
+  const scrollRef = useScrollRestoration('dashboard', [activeView]);
 
   // Determine Type helper
   const getRoomType = (name: string) => {
@@ -450,7 +454,7 @@ const Dashboard: React.FC<DashboardProps> = ({
              ))}
           </div>
 
-          <div className="overflow-auto flex-1">
+          <div className="overflow-auto flex-1" ref={scrollRef}>
             <table className="min-w-full divide-y divide-slate-200 text-sm">
               <thead className="bg-slate-50 sticky top-0 z-10 shadow-sm">
                 <tr>

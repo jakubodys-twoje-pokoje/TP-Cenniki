@@ -1344,7 +1344,6 @@ const App: React.FC = () => {
               ) : activeTab === "dashboard" ? (
                 activeProfile ? (
                 <Dashboard
-                  key={activeProperty.id}
                   rooms={activeProfile.rooms}
                   seasons={activeProfile.seasons}
                   channels={activeProfile.channels}
@@ -1367,7 +1366,6 @@ const App: React.FC = () => {
               ) : (
                 activeProperty && activeProfile && (
                 <SettingsPanel
-                  key={activeProperty.id}
                   propertyName={activeProperty.name}
                   onPropertyNameChange={(name) => updateActiveProperty({ name })}
                   propertyOid={activeProperty.oid || ""}
