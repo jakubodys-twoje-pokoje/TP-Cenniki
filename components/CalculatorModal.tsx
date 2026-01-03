@@ -262,6 +262,41 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
                          <span className="text-[10px] text-slate-500">Jeśli skonfigurowane</span>
                        </div>
                      </label>
+
+                     {/* Direct Price Display */}
+                     {calculationResult && (
+                       <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Cena Direct</label>
+                         <div className="flex flex-col gap-1">
+                           <div className="text-2xl font-bold text-blue-700">
+                             {calculationResult.actualDirectPrice} zł
+                           </div>
+                           {includeFoodPricing && selectedRoom && selectedSeason && (() => {
+                             const foodOption = selectedRoom.seasonalFoodOption?.[selectedSeason.id];
+                             if (foodOption === 'breakfast') {
+                               const pricePerPerson = selectedRoom.foodBreakfastPrice ?? 50;
+                               const totalFood = pricePerPerson * currentOccupancy;
+                               const netAmount = calculationResult.actualDirectPrice - totalFood;
+                               return (
+                                 <div className="text-[10px] text-slate-600">
+                                   {netAmount} zł + Śniadanie ({pricePerPerson}×{currentOccupancy} = {totalFood} zł)
+                                 </div>
+                               );
+                             } else if (foodOption === 'full') {
+                               const pricePerPerson = selectedRoom.foodFullPrice ?? 100;
+                               const totalFood = pricePerPerson * currentOccupancy;
+                               const netAmount = calculationResult.actualDirectPrice - totalFood;
+                               return (
+                                 <div className="text-[10px] text-slate-600">
+                                   {netAmount} zł + Pełne ({pricePerPerson}×{currentOccupancy} = {totalFood} zł)
+                                 </div>
+                               );
+                             }
+                             return null;
+                           })()}
+                         </div>
+                       </div>
+                     )}
                   </div>
 
                   <div className="col-span-1">
