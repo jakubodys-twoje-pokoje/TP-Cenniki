@@ -294,15 +294,6 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
                              }
                              return null;
                            })()}
-                           {/* Debug info */}
-                           {selectedRoom && selectedSeason && (
-                             <div className="text-[9px] text-slate-400 mt-1 border-t border-blue-200 pt-1">
-                               Debug: Toggle={includeFoodPricing ? 'ON' : 'OFF'},
-                               Food={selectedRoom.seasonalFoodOption?.[selectedSeason.id] || 'none'},
-                               Settings.food={settings.foodEnabled ? 'ON' : 'OFF'},
-                               Base={calculationResult.requiredBasePrice}
-                             </div>
-                           )}
                          </div>
                        </div>
                      )}
