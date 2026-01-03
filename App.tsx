@@ -1300,7 +1300,7 @@ const App: React.FC = () => {
         </header>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-hidden print:p-0 print:overflow-visible print:h-auto">
+        <div className="flex-1 overflow-hidden print:p-0 print:overflow-visible print:h-auto flex flex-col">
           {/* Profile Selector - Always visible when property and profile are active */}
           {activeProperty && activeProfile && (
             <ProfileSelector
@@ -1311,7 +1311,7 @@ const App: React.FC = () => {
             />
           )}
 
-          <div className="p-4 md:p-8">
+          <div className="p-4 md:p-8 flex-1 overflow-hidden flex flex-col">
           {isClientRole ? (
              // CLIENT VIEW: STRICTLY Client Dashboard Only
              // Clients are filtered in fetchProperties, so activeProperty is safe.
