@@ -276,8 +276,8 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
                   </div>
                </div>
 
-               {/* Food Pricing Toggle */}
-               {(settings.foodEnabled ?? false) && (
+               {/* Food Pricing Toggle - show if room has food pricing configured */}
+               {selectedRoom && selectedSeason && selectedRoom.seasonalFoodOption?.[selectedSeason.id] && selectedRoom.seasonalFoodOption[selectedSeason.id] !== 'none' && (
                  <div className="border-t border-slate-200 pt-3">
                    <label className="flex items-center gap-3 cursor-pointer">
                      <input
