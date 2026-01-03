@@ -1412,12 +1412,12 @@ const App: React.FC = () => {
       )}
 
       {/* Calculator Modal */}
-      {showCalculator && activeProperty && (
+      {showCalculator && activeProperty && activeProfile && (
         <CalculatorModal
-           rooms={activeProperty.rooms}
-           seasons={activeProperty.seasons}
-           channels={activeProperty.channels}
-           settings={activeProperty.settings}
+           rooms={activeProfile.rooms}
+           seasons={activeProfile.seasons}
+           channels={activeProfile.channels}
+           settings={activeProfile.settings}
            onClose={() => setShowCalculator(false)}
            propertyOid={activeProperty.oid} // Pass OID for Hotres Sync
         />
