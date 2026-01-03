@@ -232,18 +232,34 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
            {/* Inputs Panel */}
            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-sm space-y-4">
                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="col-span-1">
-                     <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Chcę zarobić (Netto)</label>
-                     <div className="relative">
-                        <input 
-                          type="number" 
-                          min="1"
-                          value={targetNetInput}
-                          onChange={(e) => setTargetNetInput(Number(e.target.value))}
-                          className={`${inputBaseClass} text-emerald-700 border-emerald-300 focus:ring-emerald-500 focus:border-emerald-500 pl-4 pr-12`}
-                        />
-                        <span className="absolute right-4 top-3 text-sm text-slate-400 font-bold">PLN</span>
+                  <div className="col-span-1 space-y-3">
+                     <div>
+                       <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Chcę zarobić (Netto)</label>
+                       <div className="relative">
+                          <input
+                            type="number"
+                            min="1"
+                            value={targetNetInput}
+                            onChange={(e) => setTargetNetInput(Number(e.target.value))}
+                            className={`${inputBaseClass} text-emerald-700 border-emerald-300 focus:ring-emerald-500 focus:border-emerald-500 pl-4 pr-12`}
+                          />
+                          <span className="absolute right-4 top-3 text-sm text-slate-400 font-bold">PLN</span>
+                       </div>
                      </div>
+
+                     {/* Food Pricing Toggle - under target net input */}
+                     <label className="flex items-center gap-2 cursor-pointer bg-white p-3 rounded-lg border border-slate-200 hover:border-emerald-300 transition-colors">
+                       <input
+                         type="checkbox"
+                         checked={includeFoodPricing}
+                         onChange={(e) => setIncludeFoodPricing(e.target.checked)}
+                         className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                       />
+                       <div className="flex flex-col">
+                         <span className="text-xs font-bold text-slate-700">Uwzględnij wyżywienie</span>
+                         <span className="text-[10px] text-slate-500">Jeśli skonfigurowane</span>
+                       </div>
+                     </label>
                   </div>
 
                   <div className="col-span-1">
@@ -266,7 +282,7 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
 
                   <div className="col-span-1">
                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Bazuj na sezonie</label>
-                     <select 
+                     <select
                        value={selectedSeasonId}
                        onChange={(e) => setSelectedSeasonId(e.target.value)}
                        className={inputBaseClass}
@@ -274,22 +290,6 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
                         {seasons.map(s => <option key={s.id} value={s.id}>{s.name} (x{s.multiplier})</option>)}
                      </select>
                   </div>
-               </div>
-
-               {/* Food Pricing Toggle - always visible, calculations handle whether food applies */}
-               <div className="border-t border-slate-200 pt-3">
-                 <label className="flex items-center gap-3 cursor-pointer">
-                   <input
-                     type="checkbox"
-                     checked={includeFoodPricing}
-                     onChange={(e) => setIncludeFoodPricing(e.target.checked)}
-                     className="w-5 h-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-                   />
-                   <div className="flex flex-col">
-                     <span className="text-sm font-bold text-slate-700">Uwzględnij wyżywienie w kalkulacji</span>
-                     <span className="text-xs text-slate-500">Dolicza koszt wyżywienia do ceny bazowej (jeśli skonfigurowane)</span>
-                   </div>
-                 </label>
                </div>
 
                {/* Date Range Selection for API Push */}
