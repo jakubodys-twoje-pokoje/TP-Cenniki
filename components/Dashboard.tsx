@@ -165,8 +165,11 @@ const Dashboard: React.FC<DashboardProps> = ({
         ? relevantRows.reduce((acc, r) => acc + (r.occupancyRate ?? 0), 0) / relevantRows.length
         : 0;
 
+      // Extract season name without dates (remove everything after first digit or "od")
+      const cleanName = s.name.split(/\s+\d+/)[0].split(/\s+od\s+/i)[0].trim();
+
       return {
-        name: s.name,
+        name: cleanName,
         occupancy: Math.round(avgOccupancy),
       };
     });
@@ -868,18 +871,18 @@ const Dashboard: React.FC<DashboardProps> = ({
                 </select>
               </div>
             </div>
-            <div style={{ width: '100%', height: '250px' }}>
+            <div style={{ width: '100%', height: '280px' }}>
               {chartData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={chartData}>
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart data={chartData} margin={{ top: 5, right: 20, bottom: 70, left: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
                     <XAxis
                       dataKey="name"
-                      tick={{fontSize: 9}}
+                      tick={{fontSize: 10}}
                       interval={0}
                       angle={-45}
                       textAnchor="end"
-                      height={60}
+                      height={70}
                     />
                     <YAxis tick={{fontSize: 10}} domain={[0, 100]} />
                     <Tooltip
