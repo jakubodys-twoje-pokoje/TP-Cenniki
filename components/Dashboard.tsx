@@ -84,6 +84,9 @@ const Dashboard: React.FC<DashboardProps> = ({
   });
   const [isColumnMenuOpen, setIsColumnMenuOpen] = useState(false);
 
+  // Chart filter - room selection for occupancy chart
+  const [chartRoomFilter, setChartRoomFilter] = useState<string>("ALL");
+
   // Scroll restoration for main content area
   const scrollRef = useScrollRestoration('dashboard', [activeView]);
 
@@ -147,19 +150,27 @@ const Dashboard: React.FC<DashboardProps> = ({
      }));
   }, [rooms, pricingGrid, selectedRoomId, typeFilter, capacityFilter]);
 
-  // Charts data
+  // Occupancy chart data
   const chartData = useMemo(() => {
     return seasons.map(s => {
-      const seasonRows = pricingGrid.filter(r => r.seasonName === s.name);
-      const avgDirect = seasonRows.length > 0 
-        ? seasonRows.reduce((acc, r) => acc + r.directPrice, 0) / seasonRows.length
+      let relevantRows = pricingGrid.filter(r => r.seasonName === s.name);
+
+      // Filter by selected room if not "ALL"
+      if (chartRoomFilter !== "ALL") {
+        relevantRows = relevantRows.filter(r => r.roomId === chartRoomFilter);
+      }
+
+      // Calculate average occupancy
+      const avgOccupancy = relevantRows.length > 0
+        ? relevantRows.reduce((acc, r) => acc + (r.occupancyRate ?? 0), 0) / relevantRows.length
         : 0;
+
       return {
         name: s.name,
-        avgDirect: Math.round(avgDirect),
+        occupancy: Math.round(avgOccupancy),
       };
     });
-  }, [seasons, pricingGrid]);
+  }, [seasons, pricingGrid, chartRoomFilter]);
 
   const handleGlobalFilterChange = (val: "MAX" | number) => {
     setOccupancyFilter(val);
@@ -837,18 +848,39 @@ const Dashboard: React.FC<DashboardProps> = ({
           </div>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
-            <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><TrendingUp size={20} className="text-blue-600"/> Średnie Stawki</h3>
+        <div className="flex flex-col md:flex-row gap-6">
+          <div className="flex-1 md:w-2/3 bg-white p-6 rounded-lg shadow-sm border border-slate-200">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                <TrendingUp size={20} className="text-emerald-600"/> Obłożenie
+              </h3>
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-medium text-slate-500">Pokój:</label>
+                <select
+                  value={chartRoomFilter}
+                  onChange={(e) => setChartRoomFilter(e.target.value)}
+                  className="text-xs px-2 py-1 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="ALL">Średnia wszystkich</option>
+                  {rooms.map(r => (
+                    <option key={r.id} value={r.id}>{r.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
             <div style={{ width: '100%', height: '250px' }}>
               {chartData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={250}>
                   <BarChart data={chartData}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
                     <XAxis dataKey="name" tick={{fontSize: 10}} interval={0} />
-                    <YAxis tick={{fontSize: 10}} />
-                    <Tooltip contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} cursor={{fill: '#f1f5f9'}} />
-                    <Bar dataKey="avgDirect" name="Śr. Cena Bezp." fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={40} />
+                    <YAxis tick={{fontSize: 10}} domain={[0, 100]} />
+                    <Tooltip
+                      contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
+                      cursor={{fill: '#f1f5f9'}}
+                      formatter={(value: number) => `${value}%`}
+                    />
+                    <Bar dataKey="occupancy" name="Obłożenie" fill="#10b981" radius={[4, 4, 0, 0]} barSize={40} />
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
@@ -856,7 +888,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               )}
             </div>
           </div>
-          <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200 flex flex-col">
+          <div className="flex-1 md:w-1/3 bg-white p-6 rounded-lg shadow-sm border border-slate-200 flex flex-col">
              <h3 className="text-lg font-bold text-slate-800 mb-3 flex items-center gap-2"><StickyNote size={20} className="text-amber-500"/> Notatki</h3>
              <textarea 
                disabled={isReadOnly}
