@@ -852,7 +852,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
         
         <div className="flex flex-col md:flex-row gap-6">
-          <div className="w-full md:w-2/3 bg-white p-6 rounded-lg shadow-sm border border-slate-200">
+          <div className="w-full md:w-2/3 bg-white pt-6 px-6 pb-2 rounded-lg shadow-sm border border-slate-200">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                 <TrendingUp size={20} className="text-emerald-600"/> Obłożenie
@@ -898,7 +898,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               )}
             </div>
           </div>
-          <div className="w-full md:w-1/3 bg-white p-6 rounded-lg shadow-sm border border-slate-200">
+          <div className="w-full md:w-1/3 bg-white pt-6 px-6 pb-3 rounded-lg shadow-sm border border-slate-200">
              <h3 className="text-lg font-bold text-slate-800 mb-3 flex items-center gap-2"><StickyNote size={20} className="text-amber-500"/> Notatki</h3>
              <textarea
                disabled={isReadOnly}
