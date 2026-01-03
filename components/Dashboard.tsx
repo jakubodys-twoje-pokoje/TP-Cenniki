@@ -79,8 +79,8 @@ const Dashboard: React.FC<DashboardProps> = ({
     firstMinute: false,
     lastMinute: false,
     commission: true,
-    pif: false, // Default hidden
-    food: false, // Default hidden
+    pif: true, // Default visible
+    food: true, // Default visible
   });
   const [isColumnMenuOpen, setIsColumnMenuOpen] = useState(false);
 

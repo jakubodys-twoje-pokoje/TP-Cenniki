@@ -30,6 +30,7 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
   // Custom Date Range State
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [minNights, setMinNights] = useState<number>(1);
 
   // Sending State
   const [isSending, setIsSending] = useState(false);
@@ -42,11 +43,12 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
   const maxOcc = selectedRoom?.maxOccupancy || 2;
   const currentOccupancy = maxOcc; 
 
-  // Sync dates when season changes
+  // Sync dates and minNights when season changes
   useEffect(() => {
     if (selectedSeason) {
       setStartDate(selectedSeason.startDate);
       setEndDate(selectedSeason.endDate);
+      setMinNights(selectedSeason.minNights || 1);
     }
   }, [selectedSeasonId, seasons]);
 
@@ -161,7 +163,7 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
             endDate,
             channels,
             calculationResult.obpLadder,
-            selectedSeason.minNights || 1
+            minNights
         );
         setSendSuccess(true);
         setTimeout(() => setSendSuccess(false), 5000);
@@ -254,8 +256,8 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
                   <div className="flex flex-col md:flex-row gap-4 items-end">
                       <div className="flex-1 w-full">
                          <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1 flex items-center gap-1"><Calendar size={12}/> Obowiązuje od</label>
-                         <input 
-                           type="date" 
+                         <input
+                           type="date"
                            value={startDate}
                            onChange={(e) => setStartDate(e.target.value)}
                            className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm font-medium"
@@ -263,10 +265,21 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
                       </div>
                       <div className="flex-1 w-full">
                          <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1 flex items-center gap-1"><Calendar size={12}/> Obowiązuje do</label>
-                         <input 
-                           type="date" 
+                         <input
+                           type="date"
                            value={endDate}
                            onChange={(e) => setEndDate(e.target.value)}
+                           className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm font-medium"
+                         />
+                      </div>
+                      <div className="w-32">
+                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Min. nocy</label>
+                         <input
+                           type="number"
+                           min="1"
+                           max="30"
+                           value={minNights}
+                           onChange={(e) => setMinNights(Number(e.target.value))}
                            className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm font-medium"
                          />
                       </div>
