@@ -276,23 +276,21 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
                   </div>
                </div>
 
-               {/* Food Pricing Toggle - show if room has food pricing configured */}
-               {selectedRoom && selectedSeason && selectedRoom.seasonalFoodOption?.[selectedSeason.id] && selectedRoom.seasonalFoodOption[selectedSeason.id] !== 'none' && (
-                 <div className="border-t border-slate-200 pt-3">
-                   <label className="flex items-center gap-3 cursor-pointer">
-                     <input
-                       type="checkbox"
-                       checked={includeFoodPricing}
-                       onChange={(e) => setIncludeFoodPricing(e.target.checked)}
-                       className="w-5 h-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-                     />
-                     <div className="flex flex-col">
-                       <span className="text-sm font-bold text-slate-700">Uwzględnij wyżywienie w kalkulacji</span>
-                       <span className="text-xs text-slate-500">Dolicza koszt wyżywienia do ceny bazowej</span>
-                     </div>
-                   </label>
-                 </div>
-               )}
+               {/* Food Pricing Toggle - always visible, calculations handle whether food applies */}
+               <div className="border-t border-slate-200 pt-3">
+                 <label className="flex items-center gap-3 cursor-pointer">
+                   <input
+                     type="checkbox"
+                     checked={includeFoodPricing}
+                     onChange={(e) => setIncludeFoodPricing(e.target.checked)}
+                     className="w-5 h-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                   />
+                   <div className="flex flex-col">
+                     <span className="text-sm font-bold text-slate-700">Uwzględnij wyżywienie w kalkulacji</span>
+                     <span className="text-xs text-slate-500">Dolicza koszt wyżywienia do ceny bazowej (jeśli skonfigurowane)</span>
+                   </div>
+                 </label>
+               </div>
 
                {/* Date Range Selection for API Push */}
                <div className="border-t border-slate-200 pt-4 mt-2">
