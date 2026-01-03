@@ -852,7 +852,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
         
         <div className="flex flex-col md:flex-row gap-6">
-          <div className="w-full md:w-3/5 bg-white p-6 rounded-lg shadow-sm border border-slate-200">
+          <div className="w-full md:w-2/5 bg-white p-6 rounded-lg shadow-sm border border-slate-200">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                 <TrendingUp size={20} className="text-emerald-600"/> Obłożenie
@@ -874,7 +874,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             <div style={{ width: '100%', height: '280px' }}>
               {chartData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={280}>
-                  <BarChart data={chartData} margin={{ top: 5, right: 20, bottom: 70, left: 0 }}>
+                  <BarChart data={chartData} margin={{ top: 5, right: 5, bottom: 70, left: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
                     <XAxis
                       dataKey="name"
@@ -890,7 +890,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                       cursor={{fill: '#f1f5f9'}}
                       formatter={(value: number) => `${value}%`}
                     />
-                    <Bar dataKey="occupancy" name="Obłożenie" fill="#10b981" radius={[4, 4, 0, 0]} barSize={40} />
+                    <Bar dataKey="occupancy" name="Obłożenie" fill="#10b981" radius={[4, 4, 0, 0]} barSize={30} />
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
@@ -898,7 +898,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               )}
             </div>
           </div>
-          <div className="w-full md:w-2/5 bg-white p-6 rounded-lg shadow-sm border border-slate-200 flex flex-col">
+          <div className="w-full md:w-3/5 bg-white p-6 rounded-lg shadow-sm border border-slate-200 flex flex-col">
              <h3 className="text-lg font-bold text-slate-800 mb-3 flex items-center gap-2"><StickyNote size={20} className="text-amber-500"/> Notatki</h3>
              <textarea 
                disabled={isReadOnly}
