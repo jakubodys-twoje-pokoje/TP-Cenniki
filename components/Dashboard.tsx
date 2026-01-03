@@ -849,7 +849,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
         
         <div className="flex flex-col md:flex-row gap-6">
-          <div className="flex-1 md:w-2/3 bg-white p-6 rounded-lg shadow-sm border border-slate-200">
+          <div className="w-full md:w-2/3 bg-white p-6 rounded-lg shadow-sm border border-slate-200">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                 <TrendingUp size={20} className="text-emerald-600"/> Obłożenie
@@ -873,7 +873,14 @@ const Dashboard: React.FC<DashboardProps> = ({
                 <ResponsiveContainer width="100%" height={250}>
                   <BarChart data={chartData}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey="name" tick={{fontSize: 10}} interval={0} />
+                    <XAxis
+                      dataKey="name"
+                      tick={{fontSize: 9}}
+                      interval={0}
+                      angle={-45}
+                      textAnchor="end"
+                      height={60}
+                    />
                     <YAxis tick={{fontSize: 10}} domain={[0, 100]} />
                     <Tooltip
                       contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
@@ -888,7 +895,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               )}
             </div>
           </div>
-          <div className="flex-1 md:w-1/3 bg-white p-6 rounded-lg shadow-sm border border-slate-200 flex flex-col">
+          <div className="w-full md:w-1/3 bg-white p-6 rounded-lg shadow-sm border border-slate-200 flex flex-col">
              <h3 className="text-lg font-bold text-slate-800 mb-3 flex items-center gap-2"><StickyNote size={20} className="text-amber-500"/> Notatki</h3>
              <textarea 
                disabled={isReadOnly}
