@@ -104,9 +104,13 @@ const UserManagementPanel: React.FC<UserManagementPanelProps> = ({ properties, o
 
       // Handle specific Auth cases
       if (authError) {
-        if (authError.message.includes('already registered')) {
-          // If user exists in Auth but not DB, step 1 fixed it. Just notify.
-          setStatusMessage({ type: 'success', text: 'Zaktualizowano uprawnienia dla istniejącego użytkownika.' });
+        if (authError.message.includes('already registered') || authError.code === 'user_already_exists') {
+          // User exists in Auth - instruct to reset password manually
+          throw new Error(
+            `Użytkownik ${email.trim()} już istnieje w systemie auth. ` +
+            `Usuń go w Supabase Dashboard (Authentication → Users) i spróbuj ponownie, ` +
+            `lub zresetuj hasło ręcznie w dashboardzie.`
+          );
         } else if (authError.message.includes('Signups not allowed')) {
           throw new Error("Rejestracja jest wyłączona w Supabase. Włącz 'Enable Email Signup' w Authentication → Providers → Email.");
         } else if (authError.message.includes('Email link is invalid') || authError.message.includes('confirmation')) {
