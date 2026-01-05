@@ -105,12 +105,14 @@ const UserManagementPanel: React.FC<UserManagementPanelProps> = ({ properties, o
           // If user exists in Auth but not DB, step 1 fixed it. Just notify.
           setStatusMessage({ type: 'success', text: 'Zaktualizowano uprawnienia dla istniejącego użytkownika.' });
         } else if (authError.message.includes('Signups not allowed')) {
-          throw new Error("Rejestracja jest wyłączona w Supabase. Włącz 'Enable Email Signup' w Authentication -> Providers -> Email.");
+          throw new Error("Rejestracja jest wyłączona w Supabase. Włącz 'Enable Email Signup' w Authentication → Providers → Email.");
+        } else if (authError.message.includes('Email link is invalid') || authError.message.includes('confirmation')) {
+          throw new Error("Problem z konfirmacją email. Wyłącz 'Confirm email' w Supabase: Authentication → Providers → Email.");
         } else {
           throw new Error("Błąd tworzenia konta: " + authError.message);
         }
       } else {
-        setStatusMessage({ type: 'success', text: 'Użytkownik dodany pomyślnie!' });
+        setStatusMessage({ type: 'success', text: 'Użytkownik dodany! Jeśli nie może się zalogować, wyłącz "Confirm email" w Supabase.' });
       }
 
       // Reset Form
@@ -167,7 +169,21 @@ const UserManagementPanel: React.FC<UserManagementPanelProps> = ({ properties, o
             <h3 className="font-semibold text-slate-700 flex items-center gap-2">
               <Plus size={18} className="text-blue-500"/> Dodaj Nowego
             </h3>
-            
+
+            {/* Configuration Warning */}
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+              <div className="flex items-start gap-2">
+                <AlertCircle size={14} className="text-amber-600 mt-0.5 flex-shrink-0"/>
+                <div className="text-xs text-amber-800">
+                  <p className="font-semibold mb-1">Wymagana konfiguracja Supabase:</p>
+                  <p className="text-[11px] leading-relaxed">
+                    Authentication → Providers → Email →
+                    <span className="font-mono bg-amber-100 px-1 rounded"> Confirm email: OFF</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+
             <form onSubmit={handleCreateUser} className="space-y-4">
                <div>
                  <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Email (Login)</label>
