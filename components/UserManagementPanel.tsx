@@ -94,10 +94,13 @@ const UserManagementPanel: React.FC<UserManagementPanelProps> = ({ properties, o
         }
       });
 
-      const { error: authError } = await tempClient.auth.signUp({
+      const { data: signUpData, error: authError } = await tempClient.auth.signUp({
         email: email.trim(),
         password: password,
       });
+
+      // DEBUG: Log signup response
+      console.log('SignUp Response:', { data: signUpData, error: authError });
 
       // Handle specific Auth cases
       if (authError) {
