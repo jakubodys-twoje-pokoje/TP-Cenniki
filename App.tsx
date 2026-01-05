@@ -229,7 +229,7 @@ const App: React.FC = () => {
     });
 
     // Auth Change Listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
         if (mounted) {
             setSession(session);
             if (event === 'SIGNED_IN' && session) {
@@ -237,9 +237,16 @@ const App: React.FC = () => {
                 // We should handle it gracefully without blocking UI.
                 initUser(session);
             } else if (event === 'SIGNED_OUT') {
-                setProperties([]);
-                setUserPermissions(DEFAULT_DENIED_PERMISSION);
-                setAuthLoading(false);
+                // PROTECTION: Verify we actually lost the session before logging out
+                // This prevents false logouts when UserManagementPanel creates temp users
+                const { data: { session: currentSession } } = await supabase.auth.getSession();
+                if (!currentSession) {
+                    // Actually logged out - clear everything
+                    setProperties([]);
+                    setUserPermissions(DEFAULT_DENIED_PERMISSION);
+                    setAuthLoading(false);
+                }
+                // If session still exists, ignore this SIGNED_OUT event (was a temp client)
             }
         }
     });
