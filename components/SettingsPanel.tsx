@@ -1,7 +1,7 @@
 
 import React, { useState } from "react";
 import { Channel, ChannelDiscountProfile, ChannelDiscountLabels, GlobalSettings, Profile, Property, RoomType, Season, SettingsTab } from "../types";
-import { Plus, Trash2, X, Copy, GripVertical, ArrowRightLeft, Check, AlertCircle, Lock, ToggleLeft, ToggleRight, Layers, CloudUpload, Loader2, Link as LinkIcon, Edit3 } from "lucide-react";
+import { Plus, Trash2, X, Copy, GripVertical, ArrowRightLeft, Check, AlertCircle, Lock, ToggleLeft, ToggleRight, Layers, CloudUpload, Loader2, Link as LinkIcon, Edit3, Settings } from "lucide-react";
 import { updateHotresPrices } from "../utils/hotresApi";
 import ProfileManagement from "./ProfileManagement";
 import { useScrollRestoration } from "../hooks/useScrollRestoration";
@@ -88,6 +88,9 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   // RID Mapping Modal State
   const [showRidModal, setShowRidModal] = useState(false);
 
+  // Seasonal Config Modal State
+  const [seasonalConfigRoomId, setSeasonalConfigRoomId] = useState<string | null>(null);
+
   // Export State
   const [isExporting, setIsExporting] = useState(false);
   // Track specific season export
@@ -142,6 +145,38 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
         seasonalFoodOption: {
           ...r.seasonalFoodOption,
           [seasonId]: option
+        }
+      };
+    }));
+  };
+
+  const updateRoomSeasonalConfig = (
+    roomId: string,
+    seasonId: string,
+    field: 'obpPerPerson' | 'minObpOccupancy' | 'foodBreakfastPrice' | 'foodFullPrice',
+    value: number | undefined
+  ) => {
+    if (isReadOnly) return;
+    setRooms(rooms.map(r => {
+      if (r.id !== roomId) return r;
+      const currentSeasonalConfig = r.seasonalConfig || {};
+      const currentSeasonConfig = currentSeasonalConfig[seasonId] || {};
+
+      // If value is undefined or empty, remove the field
+      const updatedSeasonConfig = value !== undefined && value !== null && value !== 0
+        ? { ...currentSeasonConfig, [field]: value }
+        : { ...currentSeasonConfig };
+
+      // Remove the field if it's being cleared
+      if (value === undefined || value === null || value === 0) {
+        delete updatedSeasonConfig[field];
+      }
+
+      return {
+        ...r,
+        seasonalConfig: {
+          ...currentSeasonalConfig,
+          [seasonId]: updatedSeasonConfig
         }
       };
     }));
@@ -688,9 +723,20 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                         <td className="px-3 py-2">
                            <input disabled={isReadOnly} type="text" value={room.tid || ""} onChange={(e) => updateItem<RoomType>(room.id, "tid", e.target.value, rooms, setRooms)} className={`w-20 ${inputClass}`} />
                         </td>
-                        
+
                         <td className="px-3 py-2 text-right">
-                          {!isReadOnly && <button onClick={() => deleteItem(room.id, rooms, setRooms)} className="text-red-500 hover:text-red-700"><Trash2 size={16}/></button>}
+                          <div className="flex items-center justify-end gap-2">
+                            {!isReadOnly && (
+                              <button
+                                onClick={() => setSeasonalConfigRoomId(room.id)}
+                                className="text-blue-500 hover:text-blue-700"
+                                title="Konfiguruj wartości sezonowe"
+                              >
+                                <Settings size={16}/>
+                              </button>
+                            )}
+                            {!isReadOnly && <button onClick={() => deleteItem(room.id, rooms, setRooms)} className="text-red-500 hover:text-red-700"><Trash2 size={16}/></button>}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1172,6 +1218,164 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
           </div>
         </div>
       )}
+
+      {/* Seasonal Config Modal */}
+      {seasonalConfigRoomId && !isReadOnly && (() => {
+        const room = rooms.find(r => r.id === seasonalConfigRoomId);
+        if (!room) return null;
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden border border-slate-200 flex flex-col">
+              {/* Header */}
+              <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-gradient-to-r from-blue-50 to-slate-50">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800">Konfiguracja Sezonowa</h3>
+                  <p className="text-sm text-slate-600">Pokój: <span className="font-semibold">{room.name}</span></p>
+                </div>
+                <button onClick={() => setSeasonalConfigRoomId(null)} className="text-slate-400 hover:text-slate-600 transition-colors">
+                  <X size={24} />
+                </button>
+              </div>
+
+              {/* Info Box */}
+              <div className="px-6 py-3 bg-blue-50 border-b border-blue-100">
+                <div className="flex items-start gap-2">
+                  <AlertCircle size={16} className="text-blue-600 mt-0.5 flex-shrink-0"/>
+                  <div className="text-xs text-blue-800">
+                    <p className="font-semibold mb-1">Wartości domyślne vs. sezonowe</p>
+                    <p className="text-[11px] leading-relaxed">
+                      Puste pola używają wartości domyślnych pokoju. Wpisz wartość aby nadpisać dla konkretnego sezonu.
+                      Wpisz 0 aby wyczyścić nadpisanie i wrócić do wartości domyślnej.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Content - Scrollable */}
+              <div className="flex-1 overflow-y-auto p-6">
+                <div className="space-y-4">
+                  {/* Default Values Summary */}
+                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                    <h4 className="text-sm font-bold text-slate-700 mb-3 uppercase tracking-wide">Wartości Domyślne (Globalne)</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                      <div>
+                        <span className="text-slate-500 text-xs">OBP/osoba:</span>
+                        <p className="font-semibold text-slate-700">{room.obpPerPerson ?? 30} zł</p>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 text-xs">Min osób (OBP):</span>
+                        <p className="font-semibold text-slate-700">{room.minObpOccupancy ?? 1}</p>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 text-xs">Śniadanie:</span>
+                        <p className="font-semibold text-slate-700">{room.foodBreakfastPrice ?? 50} zł</p>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 text-xs">Pełne wyżywienie:</span>
+                        <p className="font-semibold text-slate-700">{room.foodFullPrice ?? 100} zł</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Seasonal Overrides Table */}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm border border-slate-200 rounded-lg overflow-hidden">
+                      <thead className="bg-slate-100">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Sezon</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">OBP/osoba</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Min osób</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Śniadanie</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Pełne</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200 bg-white">
+                        {seasons.map(season => {
+                          const seasonConfig = room.seasonalConfig?.[season.id] || {};
+                          const hasOverrides = Object.keys(seasonConfig).length > 0;
+
+                          return (
+                            <tr key={season.id} className={hasOverrides ? 'bg-blue-50' : ''}>
+                              <td className="px-4 py-3 font-medium text-slate-700">
+                                {season.name}
+                                {hasOverrides && (
+                                  <span className="ml-2 text-xs bg-blue-600 text-white px-2 py-0.5 rounded-full">Nadpisane</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3">
+                                <input
+                                  type="number"
+                                  value={seasonConfig.obpPerPerson ?? ''}
+                                  onChange={(e) => {
+                                    const val = e.target.value === '' ? undefined : Number(e.target.value);
+                                    updateRoomSeasonalConfig(room.id, season.id, 'obpPerPerson', val);
+                                  }}
+                                  placeholder={String(room.obpPerPerson ?? 30)}
+                                  className="w-24 px-2 py-1 border border-slate-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                />
+                              </td>
+                              <td className="px-4 py-3">
+                                <input
+                                  type="number"
+                                  min={1}
+                                  max={room.maxOccupancy}
+                                  value={seasonConfig.minObpOccupancy ?? ''}
+                                  onChange={(e) => {
+                                    const val = e.target.value === '' ? undefined : Number(e.target.value);
+                                    updateRoomSeasonalConfig(room.id, season.id, 'minObpOccupancy', val);
+                                  }}
+                                  placeholder={String(room.minObpOccupancy ?? 1)}
+                                  className="w-20 px-2 py-1 border border-slate-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                />
+                              </td>
+                              <td className="px-4 py-3">
+                                <input
+                                  type="number"
+                                  value={seasonConfig.foodBreakfastPrice ?? ''}
+                                  onChange={(e) => {
+                                    const val = e.target.value === '' ? undefined : Number(e.target.value);
+                                    updateRoomSeasonalConfig(room.id, season.id, 'foodBreakfastPrice', val);
+                                  }}
+                                  placeholder={String(room.foodBreakfastPrice ?? 50)}
+                                  className="w-24 px-2 py-1 border border-slate-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                />
+                              </td>
+                              <td className="px-4 py-3">
+                                <input
+                                  type="number"
+                                  value={seasonConfig.foodFullPrice ?? ''}
+                                  onChange={(e) => {
+                                    const val = e.target.value === '' ? undefined : Number(e.target.value);
+                                    updateRoomSeasonalConfig(room.id, season.id, 'foodFullPrice', val);
+                                  }}
+                                  placeholder={String(room.foodFullPrice ?? 100)}
+                                  className="w-24 px-2 py-1 border border-slate-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                />
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex justify-end">
+                <button
+                  onClick={() => setSeasonalConfigRoomId(null)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center gap-2"
+                >
+                  <Check size={18}/>
+                  Gotowe
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
     </div>
   );
