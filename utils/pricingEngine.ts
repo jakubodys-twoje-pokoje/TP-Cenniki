@@ -27,16 +27,19 @@ export const calculateDirectPrice = (
   const isSeasonObpActive = room.seasonalObpActive?.[season.id] ?? true;
 
   if (settings.obpEnabled && isSeasonObpActive) {
+    // Get seasonal config for this season (if exists)
+    const seasonalConfig = room.seasonalConfig?.[season.id];
+
     // Determine the effective occupancy for pricing calculation.
-    // We cannot go below the minObpOccupancy set for the room.
-    const minObpOccupancy = room.minObpOccupancy || 1;
+    // Check seasonal override first, then room default, then fallback to 1
+    const minObpOccupancy = seasonalConfig?.minObpOccupancy ?? room.minObpOccupancy ?? 1;
     const effectiveOccupancy = Math.max(occupancy, minObpOccupancy);
 
     // Calculate missing people based on this effective occupancy
     const missingPeople = Math.max(0, room.maxOccupancy - effectiveOccupancy);
 
-    // Use room-specific OBP amount, defaulting to 30 if unset
-    const obpAmount = room.obpPerPerson ?? 30;
+    // Check seasonal override first, then room default, then fallback to 30
+    const obpAmount = seasonalConfig?.obpPerPerson ?? room.obpPerPerson ?? 30;
 
     if (missingPeople > 0) {
       price = price - (missingPeople * obpAmount);
@@ -49,13 +52,16 @@ export const calculateDirectPrice = (
   const seasonalFoodOption = room.seasonalFoodOption?.[season.id] ?? 'none';
 
   if ((settings.foodEnabled ?? false) && seasonalFoodOption !== 'none') {
+    // Get seasonal config for this season (if exists)
+    const seasonalConfig = room.seasonalConfig?.[season.id];
+
     if (seasonalFoodOption === 'breakfast') {
-      // Add breakfast price per person (default 50 if not set)
-      const breakfastPricePerPerson = room.foodBreakfastPrice ?? 50;
+      // Check seasonal override first, then room default, then fallback to 50
+      const breakfastPricePerPerson = seasonalConfig?.foodBreakfastPrice ?? room.foodBreakfastPrice ?? 50;
       price = price + (breakfastPricePerPerson * occupancy);
     } else if (seasonalFoodOption === 'full') {
-      // Add full board price per person (default 100 if not set)
-      const fullPricePerPerson = room.foodFullPrice ?? 100;
+      // Check seasonal override first, then room default, then fallback to 100
+      const fullPricePerPerson = seasonalConfig?.foodFullPrice ?? room.foodFullPrice ?? 100;
       price = price + (fullPricePerPerson * occupancy);
     }
   }

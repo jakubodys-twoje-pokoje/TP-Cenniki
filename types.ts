@@ -38,6 +38,14 @@ export interface ChannelDiscountLabels {
   lastMinute: string;
 }
 
+// Per-season room configuration (overrides global defaults)
+export interface SeasonalRoomConfig {
+  obpPerPerson?: number;          // Override OBP amount for this season
+  minObpOccupancy?: number;       // Override min occupancy threshold for this season
+  foodBreakfastPrice?: number;    // Override breakfast price for this season
+  foodFullPrice?: number;         // Override full board price for this season
+}
+
 export interface Channel {
   id: string;
   name: string;
@@ -78,6 +86,10 @@ export interface RoomType {
 
   // Food Setting: Which option is active per season (Key: season.id, Value: 'breakfast' | 'full' | 'none')
   seasonalFoodOption?: Record<string, 'breakfast' | 'full' | 'none'>;
+
+  // NEW: Per-season configuration overrides (takes precedence over global values)
+  // Key: season.id, Value: season-specific config
+  seasonalConfig?: Record<string, SeasonalRoomConfig>;
 
   // Sorting order
   sortOrder?: number;
