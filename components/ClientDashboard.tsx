@@ -302,6 +302,9 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({
                                                             </span>
                                                         );
                                                     })()}
+                                                    <span className="text-[9px] text-slate-400 font-normal mt-0.5">
+                                                        min {s.minNights || 2} noc{(s.minNights || 2) === 1 ? '' : 'e/y'}
+                                                    </span>
                                                 </div>
                                             </td>
                                         )
