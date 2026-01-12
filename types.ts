@@ -91,6 +91,10 @@ export interface RoomType {
   // Key: season.id, Value: season-specific config
   seasonalConfig?: Record<string, SeasonalRoomConfig>;
 
+  // Manual Direct Price overrides - when set, this price is used instead of calculated
+  // Key: season.id, Value: manually set direct price
+  manualDirectPrices?: Record<string, number>;
+
   // Sorting order
   sortOrder?: number;
 }

@@ -13,8 +13,13 @@ export const calculateDirectPrice = (
   room: RoomType,
   season: Season,
   occupancy: number,
-  settings: GlobalSettings
+  settings: GlobalSettings,
+  useManualPrice: boolean = true // Flag to control whether to use manual override
 ): number => {
+  // Check if there's a manual override for this room/season combination
+  if (useManualPrice && room.manualDirectPrices?.[season.id]) {
+    return room.manualDirectPrices[season.id];
+  }
   // 1. Determine Base Price
   // Use specific season base price if available, otherwise global peak
   const basePrice = room.seasonBasePrices?.[season.id] ?? room.basePricePeak;

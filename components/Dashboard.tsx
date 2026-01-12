@@ -2,7 +2,7 @@
 import React, { useMemo, useState } from "react";
 import { Channel, GlobalSettings, RoomType, Season } from "../types";
 import { generatePricingGrid, calculateDirectPrice, calculateChannelPrice } from "../utils/pricingEngine";
-import { TrendingUp, Users, StickyNote, ChevronDown, ChevronRight, GripVertical, Columns, RefreshCw, Loader2, AlertCircle, CloudDownload, Lock, TableProperties, ChevronUp, Home, Filter } from "lucide-react";
+import { TrendingUp, Users, StickyNote, ChevronDown, ChevronRight, GripVertical, Columns, RefreshCw, Loader2, AlertCircle, CloudDownload, Lock, TableProperties, ChevronUp, Home, Filter, RotateCcw } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { fetchHotresOccupancy } from "../utils/hotresApi";
 import { useScrollRestoration } from "../hooks/useScrollRestoration";
@@ -185,6 +185,23 @@ const Dashboard: React.FC<DashboardProps> = ({
     if (!room) return;
     const currentComments = room.seasonComments || {};
     onRoomUpdate(roomId, { seasonComments: { ...currentComments, [seasonId]: newValue } });
+  };
+
+  const handleManualDirectPriceChange = (roomId: string, seasonId: string, price: number) => {
+    if (isReadOnly) return;
+    const room = rooms.find(r => r.id === roomId);
+    if (!room) return;
+    const currentManualPrices = room.manualDirectPrices || {};
+    onRoomUpdate(roomId, { manualDirectPrices: { ...currentManualPrices, [seasonId]: price } });
+  };
+
+  const handleClearManualDirectPrice = (roomId: string, seasonId: string) => {
+    if (isReadOnly) return;
+    const room = rooms.find(r => r.id === roomId);
+    if (!room || !room.manualDirectPrices) return;
+    const updatedManualPrices = { ...room.manualDirectPrices };
+    delete updatedManualPrices[seasonId];
+    onRoomUpdate(roomId, { manualDirectPrices: updatedManualPrices });
   };
   
   const handleFetchOccupancy = async (roomId: string, seasonId: string) => {
@@ -635,7 +652,47 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 </td>
                                 <td className="px-3 py-3 align-middle text-right font-bold text-blue-700 bg-blue-50/30 border-l border-blue-100">
                                    <div className="flex flex-col items-end">
-                                      <span>{row.directPrice} zł</span>
+                                      {(() => {
+                                        const room = rooms.find(r => r.id === row.roomId);
+                                        const hasManualPrice = room?.manualDirectPrices?.[row.seasonId] !== undefined;
+
+                                        return (
+                                          <div className="flex items-center gap-1">
+                                            {isReadOnly ? (
+                                              <span>{row.directPrice} zł</span>
+                                            ) : (
+                                              <>
+                                                <input
+                                                  type="number"
+                                                  value={row.directPrice}
+                                                  onChange={(e) => {
+                                                    const value = Number(e.target.value);
+                                                    if (value > 0) {
+                                                      handleManualDirectPriceChange(row.roomId, row.seasonId, value);
+                                                    }
+                                                  }}
+                                                  className={`w-20 px-2 py-0.5 text-sm font-bold text-right border rounded transition-all ${
+                                                    hasManualPrice
+                                                      ? 'border-orange-400 bg-orange-50 text-orange-700'
+                                                      : 'border-transparent hover:border-slate-200 focus:border-blue-500'
+                                                  } focus:bg-white`}
+                                                  title={hasManualPrice ? 'Cena ręczna (nadpisana)' : 'Cena kalkulowana'}
+                                                />
+                                                <span className="text-xs">zł</span>
+                                                {hasManualPrice && (
+                                                  <button
+                                                    onClick={() => handleClearManualDirectPrice(row.roomId, row.seasonId)}
+                                                    className="p-0.5 text-orange-500 hover:text-orange-700 hover:bg-orange-100 rounded transition-colors"
+                                                    title="Przywróć cenę kalkulowaną"
+                                                  >
+                                                    <RotateCcw size={12}/>
+                                                  </button>
+                                                )}
+                                              </>
+                                            )}
+                                          </div>
+                                        );
+                                      })()}
                                       {columnVisibility.food && settings.foodEnabled && (() => {
                                         const room = rooms.find(r => r.id === row.roomId);
                                         const foodOption = room?.seasonalFoodOption?.[row.seasonId];
