@@ -383,6 +383,7 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({
                     <tr>
                     <th className="px-6 py-4 font-bold uppercase tracking-wider text-xs">Pokój / Apartament</th>
                     <th className="px-6 py-4 font-bold uppercase tracking-wider text-center w-32 text-xs">Pojemność</th>
+                    <th className="px-6 py-4 font-bold uppercase tracking-wider text-center w-32 text-xs">Min. Noclegi</th>
                     <th className="px-6 py-4 font-bold uppercase tracking-wider text-right text-blue-700 w-40 text-xs bg-blue-50/50 print:bg-transparent">Cena Direct</th>
                     {channels.filter(c => visibleChannels.has(c.id)).map(c => {
                         const isBooking = c.id.toLowerCase().includes('booking') || c.name.toLowerCase().includes('booking');
@@ -408,6 +409,9 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({
                         <td className="px-6 py-4 text-center text-slate-600 flex justify-center items-center gap-1.5">
                         <Users size={16} className="text-slate-400"/>
                         <span className="font-medium">{row.room.maxOccupancy} os.</span>
+                        </td>
+                        <td className="px-6 py-4 text-center text-slate-600">
+                        <span className="font-medium">{selectedSeason.minNights || 2} noc{(selectedSeason.minNights || 2) === 1 ? '' : 'e/y'}</span>
                         </td>
                         <td className="px-6 py-4 text-right font-bold text-blue-700 text-lg bg-blue-50/30 border-l border-blue-100 print:bg-transparent print:border-none">
                         <div className="flex flex-col items-end">
