@@ -75,7 +75,9 @@ export const calculateDirectPrice = (
   }
 
   // Prevent negative or zero prices (absolute sanity check)
-  const finalPrice = Math.max(price, 50); // Minimum 50 currency units
+  // EXCEPTION: Don't apply minimum for manual prices - allow user to set any value
+  const hasManualPrice = useManualPrice && room.manualDirectPrices?.[season.id] !== undefined;
+  const finalPrice = hasManualPrice ? price : Math.max(price, 50);
 
   return roundPrice(finalPrice);
 };

@@ -663,12 +663,21 @@ const Dashboard: React.FC<DashboardProps> = ({
                                             ) : (
                                               <>
                                                 <input
+                                                  key={`${row.roomId}-${row.seasonId}-${row.directPrice}`}
                                                   type="number"
-                                                  value={row.directPrice}
-                                                  onChange={(e) => {
+                                                  defaultValue={row.directPrice}
+                                                  onBlur={(e) => {
                                                     const value = Number(e.target.value);
-                                                    if (value > 0) {
+                                                    if (value > 0 && value !== row.directPrice) {
                                                       handleManualDirectPriceChange(row.roomId, row.seasonId, value);
+                                                    } else if (!value || value <= 0) {
+                                                      // Reset to calculated if invalid
+                                                      e.target.value = String(row.directPrice);
+                                                    }
+                                                  }}
+                                                  onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                      e.currentTarget.blur();
                                                     }
                                                   }}
                                                   className={`w-20 px-2 py-0.5 text-sm font-bold text-right border rounded transition-all ${
