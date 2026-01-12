@@ -16,16 +16,19 @@ export const calculateDirectPrice = (
   settings: GlobalSettings,
   useManualPrice: boolean = true // Flag to control whether to use manual override
 ): number => {
-  // Check if there's a manual override for this room/season combination
-  if (useManualPrice && room.manualDirectPrices?.[season.id]) {
-    return room.manualDirectPrices[season.id];
-  }
   // 1. Determine Base Price
-  // Use specific season base price if available, otherwise global peak
-  const basePrice = room.seasonBasePrices?.[season.id] ?? room.basePricePeak;
+  // Manual price replaces the base calculation (basePrice * multiplier), but OBP and food still apply
+  let price: number;
 
-  // 2. Base Price * Season Multiplier
-  let price = basePrice * season.multiplier;
+  if (useManualPrice && room.manualDirectPrices?.[season.id]) {
+    // Use manual price as the starting point (replaces basePrice * multiplier)
+    price = room.manualDirectPrices[season.id];
+  } else {
+    // Calculate normally: use specific season base price if available, otherwise global peak
+    const basePrice = room.seasonBasePrices?.[season.id] ?? room.basePricePeak;
+    // Base Price * Season Multiplier
+    price = basePrice * season.multiplier;
+  }
 
   // 3. Apply OBP
   // Logic: Must be globally enabled AND (enabled for this specific season on this room OR undefined which defaults to true)
