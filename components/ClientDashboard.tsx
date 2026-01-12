@@ -18,6 +18,13 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({
   settings
 }) => {
   const [activeView, setActiveView] = useState<'OVERVIEW' | 'SEASON'>('OVERVIEW');
+
+  // Helper for Polish night plural forms
+  const getNightLabel = (count: number): string => {
+    if (count === 1) return 'noc';
+    if (count >= 2 && count <= 4) return 'noce';
+    return 'nocy';
+  };
   const [selectedSeasonId, setSelectedSeasonId] = useState<string>(seasons[0]?.id || "");
   const [visibleChannels, setVisibleChannels] = useState<Set<string>>(new Set(channels.map(c => c.id)));
   const [showPif, setShowPif] = useState(false); // Toggle for PIF
@@ -303,7 +310,7 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({
                                                         );
                                                     })()}
                                                     <span className="text-[9px] text-slate-400 font-normal mt-0.5">
-                                                        min {s.minNights || 2} noc{(s.minNights || 2) === 1 ? '' : 'e/y'}
+                                                        min {s.minNights || 2} {getNightLabel(s.minNights || 2)}
                                                     </span>
                                                 </div>
                                             </td>
@@ -414,7 +421,7 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({
                         <span className="font-medium">{row.room.maxOccupancy} os.</span>
                         </td>
                         <td className="px-6 py-4 text-center text-slate-600">
-                        <span className="font-medium">{selectedSeason.minNights || 2} noc{(selectedSeason.minNights || 2) === 1 ? '' : 'e/y'}</span>
+                        <span className="font-medium">{selectedSeason.minNights || 2} {getNightLabel(selectedSeason.minNights || 2)}</span>
                         </td>
                         <td className="px-6 py-4 text-right font-bold text-blue-700 text-lg bg-blue-50/30 border-l border-blue-100 print:bg-transparent print:border-none">
                         <div className="flex flex-col items-end">
