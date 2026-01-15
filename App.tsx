@@ -14,6 +14,7 @@ import {
   INITIAL_ROOMS,
   INITIAL_SEASONS,
   INITIAL_SETTINGS,
+  createDefaultProfile,
 } from "./constants";
 import { Channel, Property, RoomType, SettingsTab, UserPermissions, UserRole } from "./types";
 import { supabase } from "./utils/supabaseClient";
@@ -717,7 +718,6 @@ const App: React.FC = () => {
 
   const handleCreateProperty = async () => {
     if (userPermissions.role === 'client') return;
-    const { createDefaultProfile } = require("./constants");
     const newId = Date.now().toString();
     let newProperty: Property;
 
@@ -725,7 +725,14 @@ const App: React.FC = () => {
       if (!importOid) { alert("Wpisz numer OID."); return; }
       setIsImporting(true);
       try {
+        console.log('Starting Hotres import for OID:', importOid);
         const importedRooms = await fetchHotresRooms(importOid);
+        console.log('Successfully imported rooms:', importedRooms);
+
+        if (!importedRooms || importedRooms.length === 0) {
+          throw new Error('Nie znaleziono pokoi dla tego OID');
+        }
+
         const defaultProfile = createDefaultProfile();
         defaultProfile.rooms = importedRooms;
         newProperty = {
@@ -736,7 +743,12 @@ const App: React.FC = () => {
           notes: `Zaimportowano z Hotres OID: ${importOid}`,
           sortOrder: properties.length,
         };
-      } catch (e: any) { alert("Błąd importu: " + e.message); setIsImporting(false); return; }
+      } catch (e: any) {
+        console.error('Hotres import error details:', e);
+        alert("Błąd importu z Hotres: " + (e.message || String(e)));
+        setIsImporting(false);
+        return;
+      }
       setIsImporting(false);
     } else {
       const defaultProfile = createDefaultProfile();

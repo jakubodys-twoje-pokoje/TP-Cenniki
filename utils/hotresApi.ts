@@ -117,14 +117,30 @@ export const fetchHotresRooms = async (oid: string): Promise<RoomType[]> => {
     oid: oid
   });
 
+  console.log('Fetching Hotres rooms from:', url);
+
   try {
     const response = await fetch(url);
-    if (!response.ok) throw new Error(`Błąd API: ${response.status}`);
+    console.log('Hotres API response status:', response.status);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Hotres API error response:', errorText);
+      throw new Error(`Błąd API Hotres: ${response.status} - ${errorText.substring(0, 100)}`);
+    }
 
     const data: HotresRoomResponse[] = await response.json();
-    if (!Array.isArray(data)) throw new Error("Nieprawidłowy format danych z Hotres");
+    console.log('Hotres API raw data:', data);
 
-    return data.map((item, index) => {
+    if (!Array.isArray(data)) {
+      throw new Error("Nieprawidłowy format danych z Hotres - oczekiwano tablicy");
+    }
+
+    if (data.length === 0) {
+      throw new Error("Hotres zwrócił pustą listę pokoi dla OID: " + oid);
+    }
+
+    const rooms = data.map((item, index) => {
       const single = parseInt(item.single) || 0;
       const double = parseInt(item.double) || 0;
       const sofa = parseInt(item.sofa) || 0;
@@ -143,9 +159,15 @@ export const fetchHotresRooms = async (oid: string): Promise<RoomType[]> => {
       };
     });
 
+    console.log('Mapped rooms:', rooms);
+    return rooms;
+
   } catch (error) {
     console.error("Hotres Rooms Fetch Error:", error);
-    throw error;
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error("Nieznany błąd podczas importu pokoi z Hotres");
   }
 };
 
