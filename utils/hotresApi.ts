@@ -36,7 +36,8 @@ const buildUrl = (endpoint: string, params: Record<string, string>) => {
     return `/api_hotres${endpoint}?${queryString}`;
   } else {
     const targetUrl = `https://panel.hotres.pl${endpoint}?${queryString}`;
-    return `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+    // Using api.codetabs.com as CORS proxy (more reliable than corsproxy.io)
+    return `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`;
   }
 };
 
