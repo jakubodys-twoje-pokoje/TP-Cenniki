@@ -39,8 +39,11 @@ supabase link --project-ref stdepyblwccelpbrqjux
 ### 4. Wdróż Edge Function
 
 ```bash
-supabase functions deploy hotres-proxy
+# Wdróż Edge Function (autoryzacja jest obsługiwana automatycznie)
+supabase functions deploy hotres-proxy --no-verify-jwt
 ```
+
+**Uwaga:** Flaga `--no-verify-jwt` jest wymagana, aby Edge Function była dostępna publicznie (nie wymaga tokenu użytkownika).
 
 ### 5. Sprawdź czy działa
 
