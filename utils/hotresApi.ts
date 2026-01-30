@@ -6,6 +6,7 @@ import { calculateDirectPrice, calculateChannelPrice } from "./pricingEngine";
 const USER = "admin@twojepokoje.com.pl";
 const PASS = "Admin123@@";
 const USE_LOCAL_PROXY = false;
+const TRY_DIRECT_FIRST = true; // Try direct connection first, fallback to proxy on CORS error
 
 // --- INTERFACES ---
 interface HotresDay {
@@ -30,15 +31,38 @@ interface HotresRoomResponse {
 
 // --- HELPERS ---
 
-const buildUrl = (endpoint: string, params: Record<string, string>) => {
+const buildUrl = (endpoint: string, params: Record<string, string>, useDirect: boolean = false) => {
   const queryString = new URLSearchParams(params).toString();
   if (USE_LOCAL_PROXY) {
     return `/api_hotres${endpoint}?${queryString}`;
+  } else if (useDirect) {
+    // Direct connection (may fail due to CORS)
+    return `https://panel.hotres.pl${endpoint}?${queryString}`;
   } else {
     const targetUrl = `https://panel.hotres.pl${endpoint}?${queryString}`;
-    // Using api.codetabs.com as CORS proxy (more reliable than corsproxy.io)
-    return `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`;
+    // Using corsproxy.org - simple and stable
+    return `https://corsproxy.org/?${encodeURIComponent(targetUrl)}`;
   }
+};
+
+// Helper to try fetch with fallback from direct to proxy
+const fetchWithFallback = async (endpoint: string, params: Record<string, string>, options?: RequestInit): Promise<Response> => {
+  if (TRY_DIRECT_FIRST) {
+    try {
+      const directUrl = buildUrl(endpoint, params, true);
+      console.log('Trying direct connection to Hotres:', directUrl);
+      const response = await fetch(directUrl, options);
+      console.log('Direct connection successful!');
+      return response;
+    } catch (directError) {
+      console.log('Direct connection failed, falling back to proxy:', directError);
+    }
+  }
+
+  // Fallback to proxy
+  const proxyUrl = buildUrl(endpoint, params, false);
+  console.log('Using CORS proxy:', proxyUrl);
+  return await fetch(proxyUrl, options);
 };
 
 const calculatePercentage = (totalDays: number, bookedDays: number): number => {
@@ -56,18 +80,17 @@ export const fetchHotresOccupancy = async (
 ): Promise<number> => {
   if (!oid || !tid) throw new Error("Brak konfiguracji OID lub TID");
 
-  const url = buildUrl('/api_availability', {
-    user: USER, password: PASS, oid: oid, type_id: tid, from: startDate, till: endDate
-  });
-
   try {
-    const response = await fetch(url);
+    const response = await fetchWithFallback('/api_availability', {
+      user: USER, password: PASS, oid: oid, type_id: tid, from: startDate, till: endDate
+    });
+
     if (!response.ok) throw new Error(`Błąd API: ${response.status}`);
     const data: HotresResponseItem[] = await response.json();
     if (!Array.isArray(data) || data.length === 0) throw new Error("Pusta odpowiedź z API");
     const roomData = data.find(item => item.type_id === Number(tid));
     if (!roomData) throw new Error("Brak danych dla tego pokoju");
-    
+
     const total = roomData.dates.length;
     const booked = roomData.dates.filter(d => d.available === "0").length;
     return calculatePercentage(total, booked);
@@ -84,12 +107,11 @@ export const fetchSeasonOccupancyMap = async (
 ): Promise<Record<string, number>> => {
   if (!oid) throw new Error("Brak OID");
 
-  const url = buildUrl('/api_availability', {
-    user: USER, password: PASS, oid: oid, from: startDate, till: endDate
-  });
-
   try {
-    const response = await fetch(url);
+    const response = await fetchWithFallback('/api_availability', {
+      user: USER, password: PASS, oid: oid, from: startDate, till: endDate
+    });
+
     if (!response.ok) throw new Error(`Błąd API: ${response.status}`);
     const data: HotresResponseItem[] = await response.json();
     if (!Array.isArray(data)) return {};
@@ -112,16 +134,15 @@ export const fetchSeasonOccupancyMap = async (
 export const fetchHotresRooms = async (oid: string): Promise<RoomType[]> => {
   if (!oid) throw new Error("Brak OID");
 
-  const url = buildUrl('/api_rooms', {
-    user: USER,
-    password: PASS,
-    oid: oid
-  });
-
-  console.log('Fetching Hotres rooms from:', url);
+  console.log('Fetching Hotres rooms for OID:', oid);
 
   try {
-    const response = await fetch(url);
+    const response = await fetchWithFallback('/api_rooms', {
+      user: USER,
+      password: PASS,
+      oid: oid
+    });
+
     console.log('Hotres API response status:', response.status);
 
     if (!response.ok) {
@@ -229,14 +250,12 @@ export const updateHotresPrices = async (
   const payload = Array.from(payloadMap.values());
   if (payload.length === 0) throw new Error("Brak danych do wysłania.");
 
-  const url = buildUrl('/api_updateprices', {
-    user: USER,
-    password: PASS,
-    oid: oid
-  });
-
   try {
-    const response = await fetch(url, {
+    const response = await fetchWithFallback('/api_updateprices', {
+      user: USER,
+      password: PASS,
+      oid: oid
+    }, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -321,14 +340,12 @@ export const pushManualPriceUpdate = async (
   const payload = Array.from(payloadMap.values());
   if (payload.length === 0) throw new Error("Brak zmapowanych kanałów (RID) dla tego obiektu.");
 
-  const url = buildUrl('/api_updateprices', {
-    user: USER,
-    password: PASS,
-    oid: oid
-  });
-
   try {
-    const response = await fetch(url, {
+    const response = await fetchWithFallback('/api_updateprices', {
+      user: USER,
+      password: PASS,
+      oid: oid
+    }, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
