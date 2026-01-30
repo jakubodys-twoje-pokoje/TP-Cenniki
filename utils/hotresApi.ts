@@ -5,8 +5,11 @@ import { calculateDirectPrice, calculateChannelPrice } from "./pricingEngine";
 // --- API CREDENTIALS ---
 const USER = "admin@twojepokoje.com.pl";
 const PASS = "Admin123@@";
-const USE_LOCAL_PROXY = false;
-const TRY_DIRECT_FIRST = true; // Try direct connection first, fallback to proxy on CORS error
+
+// CORS Proxy Configuration
+const USE_SUPABASE_PROXY = true; // Use Supabase Edge Function as CORS proxy
+const SUPABASE_PROJECT_URL = "https://stdepyblwccelpbrqjux.supabase.co"; // Your Supabase project URL
+const TRY_DIRECT_FIRST = false; // Direct connection doesn't work (CORS blocked)
 
 // --- INTERFACES ---
 interface HotresDay {
@@ -33,16 +36,22 @@ interface HotresRoomResponse {
 
 const buildUrl = (endpoint: string, params: Record<string, string>, useDirect: boolean = false) => {
   const queryString = new URLSearchParams(params).toString();
-  if (USE_LOCAL_PROXY) {
-    return `/api_hotres${endpoint}?${queryString}`;
-  } else if (useDirect) {
-    // Direct connection (may fail due to CORS)
+
+  if (useDirect) {
+    // Direct connection to Hotres (blocked by CORS, but try anyway)
     return `https://panel.hotres.pl${endpoint}?${queryString}`;
-  } else {
-    const targetUrl = `https://panel.hotres.pl${endpoint}?${queryString}`;
-    // Using corsproxy.org - simple and stable
-    return `https://corsproxy.org/?${encodeURIComponent(targetUrl)}`;
   }
+
+  if (USE_SUPABASE_PROXY) {
+    // Use Supabase Edge Function as proxy
+    // Format: https://<project>.supabase.co/functions/v1/hotres-proxy?endpoint=/api_rooms&user=...&password=...
+    const proxyParams = new URLSearchParams({ endpoint, ...params });
+    return `${SUPABASE_PROJECT_URL}/functions/v1/hotres-proxy?${proxyParams.toString()}`;
+  }
+
+  // Fallback to public CORS proxy (may not work for POST)
+  const targetUrl = `https://panel.hotres.pl${endpoint}?${queryString}`;
+  return `https://corsproxy.org/?${encodeURIComponent(targetUrl)}`;
 };
 
 // Helper to try fetch with fallback from direct to proxy
@@ -50,18 +59,20 @@ const fetchWithFallback = async (endpoint: string, params: Record<string, string
   if (TRY_DIRECT_FIRST) {
     try {
       const directUrl = buildUrl(endpoint, params, true);
-      console.log('Trying direct connection to Hotres:', directUrl);
+      console.log('[Hotres] Trying direct connection:', directUrl);
       const response = await fetch(directUrl, options);
-      console.log('Direct connection successful!');
+      console.log('[Hotres] Direct connection successful!');
       return response;
     } catch (directError) {
-      console.log('Direct connection failed, falling back to proxy:', directError);
+      console.log('[Hotres] Direct connection failed (CORS), using proxy');
     }
   }
 
-  // Fallback to proxy
+  // Use proxy (Supabase Edge Function or public proxy)
   const proxyUrl = buildUrl(endpoint, params, false);
-  console.log('Using CORS proxy:', proxyUrl);
+  const proxyType = USE_SUPABASE_PROXY ? 'Supabase Edge Function' : 'Public CORS proxy';
+  console.log(`[Hotres] Using ${proxyType}:`, proxyUrl);
+
   return await fetch(proxyUrl, options);
 };
 
