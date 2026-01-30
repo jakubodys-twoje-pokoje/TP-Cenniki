@@ -1,0 +1,8 @@
+# Supabase Configuration
+
+[auth]
+enabled = true
+
+# Edge Functions configuration
+[functions.hotres-proxy]
+verify_jwt = false  # Disable JWT verification - make this function public

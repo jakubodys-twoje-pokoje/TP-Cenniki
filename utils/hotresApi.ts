@@ -1,6 +1,7 @@
 
 import { RoomType, Season, GlobalSettings, Channel } from "../types";
 import { calculateDirectPrice, calculateChannelPrice } from "./pricingEngine";
+import { supabase } from "./supabaseClient";
 
 // --- API CREDENTIALS ---
 const USER = "admin@twojepokoje.com.pl";
@@ -73,7 +74,21 @@ const fetchWithFallback = async (endpoint: string, params: Record<string, string
   const proxyType = USE_SUPABASE_PROXY ? 'Supabase Edge Function' : 'Public CORS proxy';
   console.log(`[Hotres] Using ${proxyType}:`, proxyUrl);
 
-  return await fetch(proxyUrl, options);
+  // Add auth headers for Supabase Edge Function
+  let finalOptions = { ...options };
+  if (USE_SUPABASE_PROXY) {
+    const { data: { session } } = await supabase.auth.getSession();
+    const headers = new Headers(finalOptions.headers);
+
+    // Add Supabase anon key for public Edge Function access
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN0ZGVweWJsd2NjZWxwYnJxanV4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ4Nzg0MjksImV4cCI6MjA4MDQ1NDQyOX0.4PI0txHrLVQIscfoOgj_Aeo-uRwbIWARvzArk12erqg';
+    headers.set('apikey', SUPABASE_ANON_KEY);
+    headers.set('Authorization', `Bearer ${SUPABASE_ANON_KEY}`);
+
+    finalOptions.headers = headers;
+  }
+
+  return await fetch(proxyUrl, finalOptions);
 };
 
 const calculatePercentage = (totalDays: number, bookedDays: number): number => {
