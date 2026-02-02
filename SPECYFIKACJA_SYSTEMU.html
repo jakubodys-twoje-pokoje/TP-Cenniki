@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Specyfikacja Systemu TP-Cenniki</title>
+    <style>
+        @media print {
+            @page {
+                margin: 2cm;
+                size: A4;
+            }
+            body {
+                font-size: 10pt;
+            }
+            h1 { page-break-before: always; font-size: 18pt; }
+            h2 { page-break-after: avoid; font-size: 14pt; margin-top: 1.5em; }
+            h3 { page-break-after: avoid; font-size: 12pt; }
+            pre, code { page-break-inside: avoid; }
+            table { page-break-inside: avoid; }
+            .no-print { display: none; }
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+
+        .container {
+            background: white;
+            padding: 40px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            color: #1a56db;
+            border-bottom: 3px solid #1a56db;
+            padding-bottom: 10px;
+            margin-top: 40px;
+            font-size: 28px;
+        }
+
+        h1:first-child {
+            margin-top: 0;
+        }
+
+        h2 {
+            color: #1e40af;
+            border-left: 4px solid #1e40af;
+            padding-left: 15px;
+            margin-top: 30px;
+            font-size: 22px;
+        }
+
+        h3 {
+            color: #2563eb;
+            margin-top: 20px;
+            font-size: 18px;
+        }
+
+        h4 {
+            color: #3b82f6;
+            margin-top: 15px;
+            font-size: 16px;
+        }
+
+        code {
+            background: #f3f4f6;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            color: #dc2626;
+        }
+
+        pre {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+
+        pre code {
+            background: transparent;
+            color: inherit;
+            padding: 0;
+        }
+
+        ul, ol {
+            margin-left: 20px;
+        }
+
+        li {
+            margin: 8px 0;
+        }
+
+        strong {
+            color: #1f2937;
+            font-weight: 600;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        th, td {
+            border: 1px solid #d1d5db;
+            padding: 10px;
+            text-align: left;
+        }
+
+        th {
+            background: #f3f4f6;
+            font-weight: 600;
+        }
+
+        .highlight {
+            background: #fef3c7;
+            padding: 15px;
+            border-left: 4px solid #f59e0b;
+            margin: 15px 0;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            background: #3b82f6;
+            color: white;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .print-button {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            padding: 15px 30px;
+            background: #1a56db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(26, 86, 219, 0.3);
+            z-index: 1000;
+        }
+
+        .print-button:hover {
+            background: #1e40af;
+        }
+
+        hr {
+            border: none;
+            border-top: 2px solid #e5e7eb;
+            margin: 30px 0;
+        }
+
+        blockquote {
+            border-left: 4px solid #d1d5db;
+            padding-left: 15px;
+            margin: 15px 0;
+            color: #6b7280;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <button class="print-button no-print" onclick="window.print()">📄 Zapisz jako PDF</button>
+
+    <div class="container">
+        <h1>Specyfikacja Systemu TP-Cenniki</h1>
+
+        <h2>1. Przegląd Projektu</h2>
+        <p><strong>Nazwa:</strong> TP-Cenniki (Twoje Pokoje - System Zarządzania Cennikami)</p>
+        <p><strong>Cel:</strong> System do dynamicznego zarządzania cenami pokoi w obiektach noclegowych, z automatycznymi obliczeniami opartymi na sezonach, obłożeniu, kanałach sprzedaży i integracji z PMS Hotres.</p>
+        <p><strong>Typ aplikacji:</strong> Single Page Application (SPA) z autoryzacją użytkowników i bazą danych w chmurze.</p>
+
+        <p><strong>Grupa docelowa:</strong></p>
+        <ul>
+            <li>Właściciele obiektów noclegowych (hotele, pensjonaty, apartamenty)</li>
+            <li>Menedżerowie zarządzający wieloma obiektami</li>
+            <li>Klienci przeglądający cenniki (widok publiczny)</li>
+        </ul>
+
+        <hr>
+
+        <h2>2. Stack Technologiczny</h2>
+
+        <h3>Frontend</h3>
+        <ul>
+            <li><strong>Framework:</strong> React 18 z TypeScript</li>
+            <li><strong>Build:</strong> Vite</li>
+            <li><strong>Styling:</strong> Tailwind CSS</li>
+            <li><strong>Ikony:</strong> Lucide React</li>
+            <li><strong>Wykresy:</strong> Recharts (do wizualizacji obłożenia)</li>
+        </ul>
+
+        <h3>Backend/Infrastruktura</h3>
+        <ul>
+            <li><strong>BaaS:</strong> Supabase
+                <ul>
+                    <li>Auth: Email/Password authentication</li>
+                    <li>Database: PostgreSQL (tabele: users, properties, profiles)</li>
+                    <li>Edge Functions: CORS proxy dla Hotres API</li>
+                </ul>
+            </li>
+            <li><strong>API zewnętrzne:</strong> Hotres PMS (panel.hotres.pl)</li>
+        </ul>
+
+        <hr>
+
+        <h2>3. Role Użytkowników i Uprawnienia</h2>
+
+        <h3>3.1 Admin</h3>
+        <ul>
+            <li>Pełny dostęp do wszystkich funkcji</li>
+            <li>Zarządzanie użytkownikami (dodawanie, edycja, usuwanie)</li>
+            <li>Zarządzanie wieloma obiektami</li>
+            <li>Tworzenie i przypisywanie obiektów do klientów</li>
+            <li>Edycja wszystkich danych (pokoje, sezony, kanały, ustawienia)</li>
+            <li>Import z Hotres</li>
+            <li>Upload cenników do Hotres</li>
+        </ul>
+
+        <h3>3.2 Client (Klient)</h3>
+        <ul>
+            <li>Dostęp tylko do przypisanych obiektów</li>
+            <li>Przeglądanie i edycja danych obiektów (pokoje, sezony, ceny)</li>
+            <li><strong>Brak dostępu</strong> do:
+                <ul>
+                    <li>Zarządzania użytkownikami</li>
+                    <li>Tworzenia nowych obiektów</li>
+                    <li>Usuwania obiektów</li>
+                </ul>
+            </li>
+        </ul>
+
+        <h3>3.3 Widok publiczny (bez logowania)</h3>
+        <ul>
+            <li>Dostęp przez specjalny link: <code>/?oid={propertyId}</code></li>
+            <li>Tylko odczyt cennika</li>
+            <li>Dwa widoki: Overview i Season View</li>
+        </ul>
+
+        <hr>
+
+        <h2>4. Struktura Danych</h2>
+
+        <h3>4.1 Baza Danych Supabase</h3>
+
+        <h4>Tabela: users</h4>
+        <pre><code>- id (uuid, primary key)
+- email (text, unique)
+- role (text: 'admin' | 'client')
+- created_at (timestamp)</code></pre>
+
+        <h4>Tabela: properties</h4>
+        <pre><code>- id (uuid, primary key)
+- name (text)
+- oid (text) - ID obiektu w Hotres
+- user_id (uuid, foreign key → users.id)
+- created_at (timestamp)
+- updated_at (timestamp)</code></pre>
+
+        <h4>Tabela: profiles</h4>
+        <pre><code>- id (uuid, primary key)
+- property_id (uuid, foreign key → properties.id)
+- name (text) - nazwa profilu cenowego
+- rooms (jsonb) - array pokoi
+- seasons (jsonb) - array sezonów
+- channels (jsonb) - array kanałów sprzedaży
+- settings (jsonb) - globalne ustawienia
+- created_at (timestamp)
+- updated_at (timestamp)</code></pre>
+
+        <h3>4.2 Struktura JSON</h3>
+
+        <h4>Room (Pokój)</h4>
+        <pre><code>{
+  id: string,
+  name: string,
+  maxOccupancy: number,
+  tid?: string, // ID typu pokoju w Hotres
+
+  // Ceny bazowe
+  basePricePeak: number,
+  seasonBasePrices?: Record&lt;seasonId, number&gt;,
+
+  // OBP (Opłata za Brakujące Pokoje)
+  obpPerPerson?: number,
+  minObpOccupancy?: number,
+  seasonalObpActive?: Record&lt;seasonId, boolean&gt;,
+
+  // Wyżywienie
+  foodBreakfastPrice?: number,
+  foodFullPrice?: number,
+  seasonalFoodOption?: Record&lt;seasonId, 'none' | 'breakfast' | 'full'&gt;,
+
+  // Konfiguracja sezonowa (nadpisuje globalne wartości)
+  seasonalConfig?: Record&lt;seasonId, {
+    obpPerPerson?: number,
+    minObpOccupancy?: number,
+    foodBreakfastPrice?: number,
+    foodFullPrice?: number
+  }&gt;,
+
+  // Ręczne ceny Direct (nadpisują kalkulację)
+  manualDirectPrices?: Record&lt;seasonId, number&gt;,
+
+  // Mapowanie kanałów Hotres
+  channelRidMap?: Record&lt;channelId, string&gt;
+}</code></pre>
+
+        <hr>
+
+        <h2>5. Logika Biznesowa - Obliczanie Cen</h2>
+
+        <h3>5.1 Hierarchia Obliczeń (Cena Direct)</h3>
+
+        <div class="highlight">
+            <p><strong>Krok 1: Ustal cenę bazową</strong></p>
+            <pre><code>JEŚLI istnieje manualDirectPrices[seasonId]:
+  cena = manualDirectPrices[seasonId]
+W PRZECIWNYM RAZIE:
+  JEŚLI istnieje seasonBasePrices[seasonId]:
+    cena = seasonBasePrices[seasonId] * season.multiplier
+  W PRZECIWNYM RAZIE:
+    cena = room.basePricePeak * season.multiplier</code></pre>
+        </div>
+
+        <div class="highlight">
+            <p><strong>Krok 2: Zastosuj OBP (jeśli włączone)</strong></p>
+            <pre><code>JEŚLI settings.obpEnabled === true I seasonalObpActive[seasonId] !== false:
+  minOccupancy = seasonalConfig[seasonId]?.minObpOccupancy ?? room.minObpOccupancy ?? 1
+  obpAmount = seasonalConfig[seasonId]?.obpPerPerson ?? room.obpPerPerson ?? 30
+
+  effectiveOccupancy = max(actualOccupancy, minOccupancy)
+  missingPeople = max(0, room.maxOccupancy - effectiveOccupancy)
+
+  cena = cena - (missingPeople * obpAmount)</code></pre>
+        </div>
+
+        <div class="highlight">
+            <p><strong>Krok 3: Dodaj wyżywienie (jeśli włączone)</strong></p>
+            <pre><code>JEŚLI settings.foodEnabled === true I seasonalFoodOption[seasonId] !== 'none':
+  foodOption = seasonalFoodOption[seasonId]
+
+  JEŚLI foodOption === 'breakfast':
+    price = seasonalConfig[seasonId]?.foodBreakfastPrice ?? room.foodBreakfastPrice ?? 50
+    cena = cena + (price * actualOccupancy)
+
+  JEŚLI foodOption === 'full':
+    price = seasonalConfig[seasonId]?.foodFullPrice ?? room.foodFullPrice ?? 100
+    cena = cena + (price * actualOccupancy)</code></pre>
+        </div>
+
+        <h3>5.2 Obliczanie Cen Kanałowych</h3>
+        <pre><code>directPrice = calculateDirectPrice(room, season, occupancy)
+
+channelPrice = directPrice * (1 + channel.margin / 100)
+channelPrice = Math.round(channelPrice)</code></pre>
+
+        <p><strong>Przykład:</strong></p>
+        <ul>
+            <li>Direct: 500 zł</li>
+            <li>Booking.com (margin 15%): 500 * 1.15 = 575 zł</li>
+        </ul>
+
+        <hr>
+
+        <h2>6. Funkcjonalności Główne</h2>
+
+        <h3>6.1 Dashboard Administratora</h3>
+
+        <p><strong>Nagłówek aplikacji:</strong></p>
+        <ul>
+            <li>Logo/Nazwa aplikacji</li>
+            <li>Wybór aktywnego obiektu (dropdown)</li>
+            <li>Przycisk "Dodaj obiekt" (tylko admin)</li>
+            <li>Kalkulator ceny (ikona kalkulatora)</li>
+            <li>Panel użytkownika:
+                <ul>
+                    <li>Wyświetlanie email zalogowanego użytkownika</li>
+                    <li>Przycisk "Zarządzaj użytkownikami" (tylko admin)</li>
+                    <li>Przycisk wylogowania</li>
+                </ul>
+            </li>
+        </ul>
+
+        <h3>6.2 Widok Dashboard</h3>
+
+        <p><strong>Główna tabela cennikowa:</strong></p>
+        <ul>
+            <li><strong>Kolumny:</strong>
+                <ul>
+                    <li>Pokój/Sezon (nagłówki)</li>
+                    <li>Direct Price <span class="badge">EDYTOWALNA</span></li>
+                    <li>Kanały sprzedaży (dynamiczne)</li>
+                    <li>Obłożenie (% z Hotres)</li>
+                    <li>Wykres obłożenia (mini chart)</li>
+                </ul>
+            </li>
+        </ul>
+
+        <p><strong>Cena Direct - funkcjonalność edycji:</strong></p>
+        <ul>
+            <li>Kliknij w cenę → zmienia się na input</li>
+            <li>Zmień wartość → zapisz (Enter lub onBlur)</li>
+            <li>Jeśli cena ręczna:
+                <ul>
+                    <li>🟠 Pomarańczowe tło</li>
+                    <li>Przycisk reset (⟲) obok ceny</li>
+                </ul>
+            </li>
+            <li>Ręczna cena to baza dla obliczeń (OBP i food nadal się stosują!)</li>
+        </ul>
+
+        <h3>6.3 Panel Ustawień</h3>
+
+        <h4>A) Pokoje</h4>
+        <ul>
+            <li>Lista wszystkich pokoi</li>
+            <li>Każdy pokój zawiera:
+                <ul>
+                    <li>Nazwa, Pojemność (max)</li>
+                    <li>Cena bazowa (peak)</li>
+                    <li>OBP (kwota na osobę, min. zajętość)</li>
+                    <li>Wyżywienie (śniadanie, pełne - ceny)</li>
+                    <li>TID (Hotres type_id)</li>
+                    <li>⚙️ Ikona Settings → modal konfiguracji sezonowej</li>
+                </ul>
+            </li>
+        </ul>
+
+        <div class="highlight">
+            <p><strong>Modal konfiguracji sezonowej:</strong></p>
+            <ul>
+                <li>Pokazuje wszystkie sezony w tabeli</li>
+                <li>Dla każdego sezonu można nadpisać: OBP, min. zajętość, ceny wyżywienia</li>
+                <li>Puste pola = używa wartości globalnych</li>
+                <li>Wiersze z nadpisaniem: 🔵 niebieskie tło + badge "Nadpisane"</li>
+            </ul>
+        </div>
+
+        <h4>B) Sezony</h4>
+        <ul>
+            <li>Nazwa, Daty (start - koniec)</li>
+            <li>Mnożnik ceny</li>
+            <li>Min. noce</li>
+            <li>Kolor (color picker)</li>
+        </ul>
+
+        <h4>C) Kanały Sprzedaży</h4>
+        <ul>
+            <li>Nazwa (np. Booking.com, Airbnb)</li>
+            <li>Marża (%)</li>
+            <li>Kolor</li>
+            <li>Mapowanie RID dla Hotres (dla każdego pokoju)</li>
+        </ul>
+
+        <hr>
+
+        <h2>7. Integracja Hotres API</h2>
+
+        <h3>7.1 Problem CORS</h3>
+        <p>Hotres API nie obsługuje CORS → bezpośrednie wywołania z przeglądarki są blokowane.</p>
+        <p><strong>Rozwiązanie:</strong> Supabase Edge Function jako proxy.</p>
+
+        <h3>7.2 Supabase Edge Function: hotres-proxy</h3>
+
+        <p><strong>Lokalizacja:</strong> <code>supabase/functions/hotres-proxy/index.ts</code></p>
+
+        <p><strong>Funkcjonalność:</strong></p>
+        <ul>
+            <li>Przyjmuje request z aplikacji</li>
+            <li>Parametr <code>endpoint</code> określa ścieżkę API Hotres</li>
+            <li>Wykonuje request do <code>panel.hotres.pl</code></li>
+            <li>Zwraca odpowiedź z headerami CORS</li>
+        </ul>
+
+        <p><strong>Deployment:</strong></p>
+        <pre><code>supabase functions deploy hotres-proxy --no-verify-jwt</code></pre>
+
+        <h3>7.3 Endpointy Hotres</h3>
+
+        <h4>GET /api_rooms</h4>
+        <p>Pobiera listę pokoi dla obiektu.</p>
+        <pre><code>Parametry:
+- user: admin email
+- password: admin password
+- oid: ID obiektu
+
+Response: [{type_id, code, single, double, sofa, sofa_single}]</code></pre>
+
+        <h4>GET /api_availability</h4>
+        <p>Pobiera dane o dostępności pokoi w okresie.</p>
+        <pre><code>Parametry:
+- user, password, oid
+- type_id: ID typu pokoju (opcjonalnie)
+- from: YYYY-MM-DD
+- till: YYYY-MM-DD
+
+Response: [{type_id, dates: [{date, available: "0"|"1"}]}]</code></pre>
+
+        <p><strong>Obliczanie obłożenia:</strong></p>
+        <pre><code>total = dates.length
+booked = dates.filter(d => d.available === "0").length
+occupancy = Math.round((booked / total) * 100)</code></pre>
+
+        <h4>POST /api_updateprices</h4>
+        <p>Aktualizuje ceny w systemie Hotres.</p>
+        <pre><code>Body (JSON): [
+  {
+    rid: "123",
+    prices: {
+      "2024-01-01": 500,
+      "2024-01-02": 500,
+      ...
+    }
+  }
+]</code></pre>
+
+        <hr>
+
+        <h2>8. Interfejs Użytkownika (UI/UX)</h2>
+
+        <h3>8.1 Schemat Kolorów</h3>
+        <ul>
+            <li><strong>Primary:</strong> Niebieski (#3B82F6)</li>
+            <li><strong>Success:</strong> Zielony (#10B981)</li>
+            <li><strong>Warning:</strong> Pomarańczowy (#F59E0B)</li>
+            <li><strong>Danger:</strong> Czerwony (#EF4444)</li>
+            <li><strong>Neutral:</strong> Szary (#6B7280)</li>
+        </ul>
+
+        <h3>8.2 Responsywność</h3>
+        <ul>
+            <li>Desktop first</li>
+            <li>Breakpoint mobile: &lt; 768px</li>
+            <li>Na mobile: tabele z horizontal scroll, buttons full width</li>
+        </ul>
+
+        <hr>
+
+        <h2>9. Testowanie</h2>
+
+        <h3>9.1 Scenariusze testowe</h3>
+
+        <p><strong>T1: Logowanie</strong></p>
+        <ol>
+            <li>Otwórz aplikację</li>
+            <li>Wprowadź poprawne dane</li>
+            <li>Sprawdź przekierowanie do Dashboard</li>
+            <li>Sprawdź wyświetlanie email w nagłówku</li>
+        </ol>
+
+        <p><strong>T5: Ręczna cena Direct</strong></p>
+        <ol>
+            <li>Dashboard → Kliknij w cenę Direct</li>
+            <li>Wpisz 999</li>
+            <li>Sprawdź: pomarańczowe tło, przycisk reset</li>
+            <li>Zmień zajętość → sprawdź czy OBP się stosuje</li>
+            <li>Kliknij reset → sprawdź powrót do kalkulacji</li>
+        </ol>
+
+        <p><strong>T8: Upload do Hotres</strong></p>
+        <ol>
+            <li>Ustawienia → Hotres Integration</li>
+            <li>Zmapuj RID dla każdego pokoju i kanału</li>
+            <li>Kliknij "Wyślij cennik"</li>
+            <li>Sprawdź logi w konsoli</li>
+            <li>Sprawdź w Hotres czy ceny się pojawiły</li>
+        </ol>
+
+        <hr>
+
+        <h2>10. Słownik Pojęć</h2>
+
+        <table>
+            <tr>
+                <th>Termin</th>
+                <th>Definicja</th>
+            </tr>
+            <tr>
+                <td><strong>OBP</strong></td>
+                <td>Opłata za Brakujące Osoby - mechanizm obniżania ceny, gdy zajętość jest mniejsza niż maksymalna pojemność pokoju</td>
+            </tr>
+            <tr>
+                <td><strong>Direct Price</strong></td>
+                <td>Cena bazowa (bez prowizji kanałów)</td>
+            </tr>
+            <tr>
+                <td><strong>Channel Price</strong></td>
+                <td>Cena z doliczonym marginesem kanału sprzedaży</td>
+            </tr>
+            <tr>
+                <td><strong>TID</strong></td>
+                <td>Type ID - ID typu pokoju w systemie Hotres</td>
+            </tr>
+            <tr>
+                <td><strong>RID</strong></td>
+                <td>Room ID - ID kanału sprzedaży w Hotres (mapowanie pokój+kanał)</td>
+            </tr>
+            <tr>
+                <td><strong>OID</strong></td>
+                <td>Object ID - ID obiektu noclegowego w Hotres</td>
+            </tr>
+            <tr>
+                <td><strong>Manual Price</strong></td>
+                <td>Ręcznie wprowadzona cena nadpisująca kalkulację</td>
+            </tr>
+        </table>
+
+        <hr>
+
+        <h2>11. Struktura Plików Projektu</h2>
+
+        <pre><code>tp-cenniki/
+├── src/
+│   ├── App.tsx                      # Główny komponent aplikacji
+│   ├── types.ts                     # TypeScript interfaces
+│   ├── constants.ts                 # Domyślne wartości
+│   ├── utils/
+│   │   ├── pricingEngine.ts         # Logika obliczeń cenowych
+│   │   ├── hotresApi.ts             # Integracja z Hotres API
+│   │   └── supabaseClient.ts        # Konfiguracja Supabase
+│   ├── components/
+│   │   ├── Dashboard.tsx            # Główny widok cennika
+│   │   ├── SettingsPanel.tsx        # Panel konfiguracji
+│   │   ├── ClientDashboard.tsx      # Widok publiczny cennika
+│   │   ├── CalculatorModal.tsx      # Kalkulator ceny
+│   │   └── UsersManagement.tsx      # Zarządzanie użytkownikami
+│   └── index.css                    # Tailwind CSS imports
+├── supabase/
+│   ├── functions/
+│   │   └── hotres-proxy/
+│   │       └── index.ts             # Edge Function proxy CORS
+│   └── config.toml                  # Konfiguracja Supabase
+└── package.json</code></pre>
+
+        <hr>
+
+        <h2>12. Podsumowanie</h2>
+
+        <p>Ten dokument zawiera <strong>kompletną specyfikację</strong> systemu TP-Cenniki. Używając tej specyfikacji, możesz:</p>
+
+        <ul>
+            <li>✅ Zbudować system od zera (wszystkie detale są opisane)</li>
+            <li>✅ Onboardować nowych deweloperów</li>
+            <li>✅ Tworzyć testy (scenariusze testowe w sekcji 9)</li>
+            <li>✅ Troubleshootować problemy</li>
+        </ul>
+
+        <p><strong>Szacowany czas implementacji:</strong> 40-60 godzin (doświadczony dev React + TypeScript)</p>
+
+        <hr>
+
+        <p style="text-align: center; color: #6b7280; margin-top: 40px;">
+            <strong>Wersja dokumentu:</strong> 1.0<br>
+            <strong>Data:</strong> 2026-02-02<br>
+            <strong>Projekt:</strong> TP-Cenniki System
+        </p>
+    </div>
+
+    <script>
+        // Smooth scroll for links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                document.querySelector(this.getAttribute('href')).scrollIntoView({
+                    behavior: 'smooth'
+                });
+            });
+        });
+    </script>
+</body>
+</html>
