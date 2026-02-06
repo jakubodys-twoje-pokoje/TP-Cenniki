@@ -117,7 +117,8 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
     
     // 4. Calculate actual prices based on this virtual room
     // Direct Price should match targetNetInput (roughly due to rounding)
-    const actualDirectPrice = calculateDirectPrice(virtualRoom, selectedSeason, currentOccupancy, settings);
+    // IMPORTANT: Pass false to ignore manual prices in calculator
+    const actualDirectPrice = calculateDirectPrice(virtualRoom, selectedSeason, currentOccupancy, settings, false);
 
     const channelResults = channels.map(channel => {
        const calc = calculateChannelPrice(actualDirectPrice, channel, selectedSeason.id);
@@ -130,7 +131,8 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
     // 5. OBP Matrix Simulation (Ladder)
     const obpLadder = [];
     for (let i = 1; i <= selectedRoom.maxOccupancy; i++) {
-        const simDirectPrice = calculateDirectPrice(virtualRoom, selectedSeason, i, settings);
+        // IMPORTANT: Pass false to ignore manual prices in calculator
+        const simDirectPrice = calculateDirectPrice(virtualRoom, selectedSeason, i, settings, false);
         
         const simChannelPrices = channels.map(c => {
             const calc = calculateChannelPrice(simDirectPrice, c, selectedSeason.id);
