@@ -310,6 +310,138 @@ export const updateHotresPrices = async (
  * Pushes manually calculated prices from the Calculator to Hotres for a specific date range.
  * Does NOT update the internal database state.
  */
+export const pushMultipleSnapshotsToHotres = async (
+  oid: string,
+  snapshots: {
+    roomIds: string[],
+    startDate: string,
+    endDate: string,
+    minNights: number,
+    obpLadder: { occupancy: number, channelPrices: { id: string, listPrice: number }[] }[]
+  }[],
+  rooms: RoomType[],
+  channels: Channel[]
+): Promise<void> => {
+  if (!oid) throw new Error("Brak OID obiektu.");
+  if (snapshots.length === 0) throw new Error("Brak snapshotów do wysłania.");
+
+  // Group all snapshots by room to minimize API calls
+  // For each unique room, collect ALL price entries from ALL snapshots
+  const roomSnapshotMap = new Map<string, {
+    room: RoomType,
+    priceData: {
+      dateRange: { startDate: string, endDate: string, minNights: number },
+      obpLadder: { occupancy: number, channelPrices: { id: string, listPrice: number }[] }[]
+    }[]
+  }>();
+
+  // Build the map
+  snapshots.forEach(snapshot => {
+    snapshot.roomIds.forEach(roomId => {
+      const room = rooms.find(r => r.id === roomId);
+      if (!room || !room.tid) return;
+
+      if (!roomSnapshotMap.has(roomId)) {
+        roomSnapshotMap.set(roomId, { room, priceData: [] });
+      }
+
+      roomSnapshotMap.get(roomId)!.priceData.push({
+        dateRange: {
+          startDate: snapshot.startDate,
+          endDate: snapshot.endDate,
+          minNights: snapshot.minNights
+        },
+        obpLadder: snapshot.obpLadder
+      });
+    });
+  });
+
+  // Now build ONE big payload with all rooms and all their price entries
+  const payloadMap = new Map<string, { type_id: number, rate_id: number, mode: string, prices: any[] }>();
+
+  roomSnapshotMap.forEach(({ room, priceData }) => {
+    channels.forEach(channel => {
+      if (!channel.rid || channel.rid.trim() === "") return;
+
+      const allPriceEntries: any[] = [];
+
+      // For each price data (snapshot) for this room
+      priceData.forEach(({ dateRange, obpLadder }) => {
+        const maxOccRow = obpLadder.find(r => r.occupancy === room.maxOccupancy);
+        if (!maxOccRow) return;
+
+        const channelMaxPrice = maxOccRow.channelPrices.find(cp => cp.id === channel.id)?.listPrice;
+        if (channelMaxPrice === undefined) return;
+
+        const priceEntry: any = {
+          from: dateRange.startDate,
+          till: dateRange.endDate,
+          baseprice: channelMaxPrice,
+          min: dateRange.minNights,
+          child: 0
+        };
+
+        // Add per-person prices from the ladder
+        obpLadder.forEach(row => {
+          const cPrice = row.channelPrices.find(cp => cp.id === channel.id)?.listPrice;
+          if (cPrice !== undefined && row.occupancy <= 8) {
+            priceEntry[`pers${row.occupancy}`] = cPrice;
+          }
+        });
+
+        allPriceEntries.push(priceEntry);
+      });
+
+      if (allPriceEntries.length > 0) {
+        const key = `${room.tid}-${channel.rid}`;
+        payloadMap.set(key, {
+          type_id: parseInt(room.tid),
+          rate_id: parseInt(channel.rid),
+          mode: "delta",
+          prices: allPriceEntries
+        });
+      }
+    });
+  });
+
+  const payload = Array.from(payloadMap.values());
+  if (payload.length === 0) throw new Error("Brak zmapowanych kanałów (RID) dla wybranych pokoi.");
+
+  console.log('[Hotres] Sending bulk update:', {
+    snapshots: snapshots.length,
+    rooms: roomSnapshotMap.size,
+    totalPriceEntries: payload.reduce((sum, p) => sum + p.prices.length, 0),
+    payloadSize: payload.length
+  });
+
+  try {
+    const response = await fetchWithFallback('/api_updateprices', {
+      user: USER,
+      password: PASS,
+      oid: oid
+    }, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Błąd HTTP: ${response.status} - ${errorText}`);
+    }
+
+    const result = await response.json();
+    if (result.result !== 'success') {
+       throw new Error(`Hotres Error: ${JSON.stringify(result)}`);
+    }
+
+    console.log('[Hotres] Bulk update successful');
+  } catch (error) {
+    console.error("Hotres Bulk Update Error:", error);
+    throw error;
+  }
+};
+
 export const pushManualPriceUpdate = async (
   oid: string,
   room: RoomType,

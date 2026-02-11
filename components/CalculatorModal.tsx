@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Channel, GlobalSettings, RoomType, Season } from '../types';
 import { calculateChannelPrice, calculateDirectPrice } from '../utils/pricingEngine';
-import { pushManualPriceUpdate } from '../utils/hotresApi';
+import { pushMultipleSnapshotsToHotres } from '../utils/hotresApi';
 import { X, Calculator, TrendingUp, Users, Info, Calendar, CloudUpload, Loader2, CheckCircle2 } from 'lucide-react';
 
 interface CalculatorModalProps {
@@ -231,7 +231,10 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
       return `${idx + 1}. ${roomNamesForRange}\n   📅 ${r.startDate} - ${r.endDate} (min ${r.minNights} nocy)\n   💰 Netto: ${r.targetNet} zł | Sezon: ${r.seasonName}`;
     }).join('\n\n');
 
-    if (!confirm(`⚠️ POTWIERDZENIE WYSYŁKI ⚠️\n\nZamierzasz wysłać ${dateRanges.length} różnych konfiguracji:\n\n${rangesText}\n\nTa operacja NADPISZE ceny w Hotres.\n\nKontynuować?`)) {
+    // Calculate unique rooms count
+    const uniqueRoomIds = new Set(dateRanges.flatMap(r => r.roomIds));
+
+    if (!confirm(`⚠️ POTWIERDZENIE WYSYŁKI ⚠️\n\nZamierzasz wysłać ${dateRanges.length} różnych konfiguracji dla ${uniqueRoomIds.size} pokoi:\n\n${rangesText}\n\nTa operacja NADPISZE ceny w Hotres.\n\n✅ Optymalizacja: Wszystko zostanie wysłane w JEDNYM requescie!\n\nKontynuować?`)) {
         return;
     }
 
@@ -239,21 +242,13 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
     setSendError(null);
     setSendSuccess(false);
     try {
-        // Send each snapshot separately
-        for (const snapshot of dateRanges) {
-            const snapshotRooms = rooms.filter(r => snapshot.roomIds.includes(r.id));
-
-            // For each room in this snapshot, send its prices
-            for (const room of snapshotRooms) {
-                await pushManualPriceUpdate(
-                    propertyOid,
-                    room,
-                    [{ startDate: snapshot.startDate, endDate: snapshot.endDate, minNights: snapshot.minNights }],
-                    channels,
-                    snapshot.obpLadder  // Use snapshot's calculated prices
-                );
-            }
-        }
+        // Send ALL snapshots in ONE request (optimized!)
+        await pushMultipleSnapshotsToHotres(
+            propertyOid,
+            dateRanges,
+            rooms,
+            channels
+        );
         setSendSuccess(true);
         setTimeout(() => setSendSuccess(false), 5000);
     } catch (err: any) {
