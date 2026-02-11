@@ -27,10 +27,13 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
   const [selectedRoomIds, setSelectedRoomIds] = useState<string[]>(rooms[0] ? [rooms[0].id] : []);
   const [selectedSeasonId, setSelectedSeasonId] = useState<string>(seasons[0]?.id || "");
 
-  // Custom Date Range State
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [minNights, setMinNights] = useState<number>(1);
+  // Multiple Date Ranges State
+  const [dateRanges, setDateRanges] = useState<{ id: string, startDate: string, endDate: string, minNights: number }[]>([]);
+
+  // Temporary inputs for adding new range
+  const [tempStartDate, setTempStartDate] = useState("");
+  const [tempEndDate, setTempEndDate] = useState("");
+  const [tempMinNights, setTempMinNights] = useState<number>(1);
 
   // Food pricing toggle for calculator
   const [includeFoodPricing, setIncludeFoodPricing] = useState(true);
@@ -55,14 +58,37 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
   const maxOcc = selectedRoom?.maxOccupancy || 2;
   const currentOccupancy = maxOcc; 
 
-  // Sync dates and minNights when season changes
+  // Sync temporary dates when season changes
   useEffect(() => {
     if (selectedSeason) {
-      setStartDate(selectedSeason.startDate);
-      setEndDate(selectedSeason.endDate);
-      setMinNights(selectedSeason.minNights || 1);
+      setTempStartDate(selectedSeason.startDate);
+      setTempEndDate(selectedSeason.endDate);
+      setTempMinNights(selectedSeason.minNights || 1);
     }
   }, [selectedSeasonId, seasons]);
+
+  // Functions for managing date ranges
+  const addDateRange = () => {
+    if (!tempStartDate || !tempEndDate) {
+      alert("Wypełnij daty rozpoczęcia i zakończenia.");
+      return;
+    }
+    if (tempStartDate > tempEndDate) {
+      alert("Data rozpoczęcia nie może być późniejsza niż data zakończenia.");
+      return;
+    }
+    const newRange = {
+      id: Date.now().toString(),
+      startDate: tempStartDate,
+      endDate: tempEndDate,
+      minNights: tempMinNights
+    };
+    setDateRanges([...dateRanges, newRange]);
+  };
+
+  const removeDateRange = (id: string) => {
+    setDateRanges(dateRanges.filter(r => r.id !== id));
+  };
 
   // --- CALCULATION LOGIC ---
   const calculationResult = useMemo(() => {
@@ -164,10 +190,16 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
   const handleSendToHotres = async () => {
     if (!propertyOid || selectedRoomIds.length === 0 || !selectedSeason || !calculationResult) return;
 
+    if (dateRanges.length === 0) {
+      alert("Dodaj przynajmniej jeden zakres dat przed wysłaniem.");
+      return;
+    }
+
     const selectedRooms = rooms.filter(r => selectedRoomIds.includes(r.id));
     const roomNames = selectedRooms.map(r => r.name).join(', ');
+    const rangesText = dateRanges.map(r => `  • ${r.startDate} - ${r.endDate} (min ${r.minNights} nocy)`).join('\n');
 
-    if (!confirm(`⚠️ POTWIERDZENIE WYSYŁKI ⚠️\n\nZamierzasz wysłać ceny dla:\n🏠 ${roomNames}\n📅 ${startDate} - ${endDate}\n\nTa operacja NADPISZE ceny w Hotres. Zmiany nie zostaną zapisane w lokalnej bazie danych aplikacji.\n\nKontynuować?`)) {
+    if (!confirm(`⚠️ POTWIERDZENIE WYSYŁKI ⚠️\n\nZamierzasz wysłać ceny dla:\n🏠 Pokoje: ${roomNames}\n\n📅 Zakresy dat:\n${rangesText}\n\nTa operacja NADPISZE ceny w Hotres. Zmiany nie zostaną zapisane w lokalnej bazie danych aplikacji.\n\nKontynuować?`)) {
         return;
     }
 
@@ -180,11 +212,9 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
             await pushManualPriceUpdate(
                 propertyOid,
                 room,
-                startDate,
-                endDate,
+                dateRanges,
                 channels,
-                calculationResult.obpLadder,
-                minNights
+                calculationResult.obpLadder
             );
         }
         setSendSuccess(true);
@@ -331,55 +361,95 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
                   </div>
                </div>
 
-               {/* Date Range Selection for API Push */}
+               {/* Multiple Date Ranges Management */}
                <div className="border-t border-slate-200 pt-4 mt-2">
-                  <div className="flex flex-col md:flex-row gap-4 items-end">
-                      <div className="flex-1 w-full">
-                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1 flex items-center gap-1"><Calendar size={12}/> Obowiązuje od</label>
-                         <input
-                           type="date"
-                           value={startDate}
-                           onChange={(e) => setStartDate(e.target.value)}
-                           className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm font-medium"
-                         />
-                      </div>
-                      <div className="flex-1 w-full">
-                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1 flex items-center gap-1"><Calendar size={12}/> Obowiązuje do</label>
-                         <input
-                           type="date"
-                           value={endDate}
-                           onChange={(e) => setEndDate(e.target.value)}
-                           className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm font-medium"
-                         />
-                      </div>
-                      <div className="w-32">
-                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Min. nocy</label>
-                         <input
-                           type="number"
-                           min="1"
-                           max="30"
-                           value={minNights}
-                           onChange={(e) => setMinNights(Number(e.target.value))}
-                           className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm font-medium"
-                         />
-                      </div>
-                      <div className="w-full md:w-auto">
-                         <button 
-                            onClick={handleSendToHotres}
-                            disabled={isSending || !propertyOid}
-                            className={`w-full md:w-auto px-6 py-2.5 rounded-lg font-bold text-white shadow-sm flex items-center justify-center gap-2 transition-all ${
-                                isSending ? 'bg-slate-400 cursor-not-allowed' : 'bg-orange-600 hover:bg-orange-700 active:scale-95'
-                            } ${!propertyOid ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            title={!propertyOid ? "Brak OID w konfiguracji" : "Wyślij ceny"}
-                         >
-                            {isSending ? <Loader2 size={20} className="animate-spin" /> : <CloudUpload size={20} />}
-                            {isSending ? 'Wysyłanie...' : 'Wyślij do Hotres'}
-                         </button>
-                      </div>
+                  <div className="mb-3">
+                     <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Zakresy dat do wysłania ({dateRanges.length})</label>
+
+                     {/* Add new range form */}
+                     <div className="flex flex-col md:flex-row gap-2 items-end bg-blue-50 p-3 rounded-lg border border-blue-200">
+                        <div className="flex-1 w-full">
+                           <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><Calendar size={10}/> Od</label>
+                           <input
+                             type="date"
+                             value={tempStartDate}
+                             onChange={(e) => setTempStartDate(e.target.value)}
+                             className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs font-medium"
+                           />
+                        </div>
+                        <div className="flex-1 w-full">
+                           <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><Calendar size={10}/> Do</label>
+                           <input
+                             type="date"
+                             value={tempEndDate}
+                             onChange={(e) => setTempEndDate(e.target.value)}
+                             className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs font-medium"
+                           />
+                        </div>
+                        <div className="w-24">
+                           <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Min. nocy</label>
+                           <input
+                             type="number"
+                             min="1"
+                             max="30"
+                             value={tempMinNights}
+                             onChange={(e) => setTempMinNights(Number(e.target.value))}
+                             className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs font-medium"
+                           />
+                        </div>
+                        <button
+                          onClick={addDateRange}
+                          className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-bold text-sm flex items-center gap-1 transition-colors"
+                        >
+                          + Dodaj
+                        </button>
+                     </div>
+
+                     {/* List of added ranges */}
+                     {dateRanges.length > 0 && (
+                       <div className="mt-3 space-y-2">
+                         {dateRanges.map((range) => (
+                           <div key={range.id} className="flex items-center justify-between bg-white border border-slate-200 rounded-lg px-3 py-2">
+                             <div className="flex items-center gap-3 text-sm">
+                               <Calendar size={14} className="text-blue-600"/>
+                               <span className="font-medium text-slate-700">{range.startDate}</span>
+                               <span className="text-slate-400">→</span>
+                               <span className="font-medium text-slate-700">{range.endDate}</span>
+                               <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                                 min {range.minNights} {range.minNights === 1 ? 'noc' : range.minNights <= 4 ? 'noce' : 'nocy'}
+                               </span>
+                             </div>
+                             <button
+                               onClick={() => removeDateRange(range.id)}
+                               className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1 rounded transition-colors"
+                               title="Usuń zakres"
+                             >
+                               <X size={16}/>
+                             </button>
+                           </div>
+                         ))}
+                       </div>
+                     )}
                   </div>
+
+                  {/* Send button */}
+                  <div className="flex justify-end">
+                     <button
+                        onClick={handleSendToHotres}
+                        disabled={isSending || !propertyOid || dateRanges.length === 0}
+                        className={`px-6 py-2.5 rounded-lg font-bold text-white shadow-sm flex items-center gap-2 transition-all ${
+                            isSending ? 'bg-slate-400 cursor-not-allowed' : 'bg-orange-600 hover:bg-orange-700 active:scale-95'
+                        } ${!propertyOid || dateRanges.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        title={!propertyOid ? "Brak OID w konfiguracji" : dateRanges.length === 0 ? "Dodaj przynajmniej jeden zakres dat" : "Wyślij ceny"}
+                     >
+                        {isSending ? <Loader2 size={20} className="animate-spin" /> : <CloudUpload size={20} />}
+                        {isSending ? 'Wysyłanie...' : `Wyślij do Hotres (${dateRanges.length})`}
+                     </button>
+                  </div>
+
                   {sendSuccess && (
                       <div className="mt-3 bg-green-50 text-green-700 px-4 py-2 rounded-md flex items-center gap-2 text-sm font-medium animate-in fade-in slide-in-from-top-1">
-                          <CheckCircle2 size={16} /> Pomyślnie wysłano ceny do Hotres!
+                          <CheckCircle2 size={16} /> Pomyślnie wysłano ceny do Hotres dla {dateRanges.length} zakresów!
                       </div>
                   )}
                   {sendError && (

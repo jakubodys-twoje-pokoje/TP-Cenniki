@@ -313,45 +313,47 @@ export const updateHotresPrices = async (
 export const pushManualPriceUpdate = async (
   oid: string,
   room: RoomType,
-  startDate: string,
-  endDate: string,
+  dateRanges: { startDate: string, endDate: string, minNights: number }[], // Array of date ranges
   channels: Channel[],
   // Data from calculator
-  obpLadder: { occupancy: number, channelPrices: { id: string, listPrice: number }[] }[],
-  minNights: number
+  obpLadder: { occupancy: number, channelPrices: { id: string, listPrice: number }[] }[]
 ): Promise<void> => {
   if (!oid) throw new Error("Brak OID obiektu.");
   if (!room.tid) throw new Error("Brak TID dla wybranego pokoju.");
+  if (dateRanges.length === 0) throw new Error("Musisz dodać przynajmniej jeden zakres dat.");
 
   const payloadMap = new Map<string, { type_id: number, rate_id: number, mode: string, prices: any[] }>();
-  
+
   // Iterate only through channels that have a valid RID and are present in the calculation
   channels.forEach(channel => {
     if (!channel.rid || channel.rid.trim() === "") return;
 
     // Get Base Price (Usually Max Occupancy price)
-    // In Hotres logic, 'baseprice' often acts as the standard rate or max occupancy rate depending on config.
-    // Here we take the price for Max Occupancy from the ladder.
     const maxOccRow = obpLadder.find(r => r.occupancy === room.maxOccupancy);
     if (!maxOccRow) return;
 
     const channelMaxPrice = maxOccRow.channelPrices.find(cp => cp.id === channel.id)?.listPrice;
     if (channelMaxPrice === undefined) return;
 
-    const priceEntry: any = {
-      from: startDate,
-      till: endDate,
-      baseprice: channelMaxPrice,
-      min: minNights,
-      child: 0
-    };
+    // Create price entries for each date range
+    const priceEntries = dateRanges.map(range => {
+      const priceEntry: any = {
+        from: range.startDate,
+        till: range.endDate,
+        baseprice: channelMaxPrice,
+        min: range.minNights,
+        child: 0
+      };
 
-    // Add per-person prices from the ladder
-    obpLadder.forEach(row => {
-       const cPrice = row.channelPrices.find(cp => cp.id === channel.id)?.listPrice;
-       if (cPrice !== undefined && row.occupancy <= 8) {
-          priceEntry[`pers${row.occupancy}`] = cPrice;
-       }
+      // Add per-person prices from the ladder
+      obpLadder.forEach(row => {
+         const cPrice = row.channelPrices.find(cp => cp.id === channel.id)?.listPrice;
+         if (cPrice !== undefined && row.occupancy <= 8) {
+            priceEntry[`pers${row.occupancy}`] = cPrice;
+         }
+      });
+
+      return priceEntry;
     });
 
     const key = `${room.tid}-${channel.rid}`;
@@ -359,7 +361,7 @@ export const pushManualPriceUpdate = async (
       type_id: parseInt(room.tid),
       rate_id: parseInt(channel.rid),
       mode: "delta",
-      prices: [priceEntry]
+      prices: priceEntries // Multiple entries now!
     });
   });
 
