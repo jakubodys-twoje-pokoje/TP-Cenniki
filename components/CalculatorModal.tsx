@@ -27,8 +27,19 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
   const [selectedRoomIds, setSelectedRoomIds] = useState<string[]>(rooms[0] ? [rooms[0].id] : []);
   const [selectedSeasonId, setSelectedSeasonId] = useState<string>(seasons[0]?.id || "");
 
-  // Multiple Date Ranges State
-  const [dateRanges, setDateRanges] = useState<{ id: string, startDate: string, endDate: string, minNights: number }[]>([]);
+  // Snapshot-based Date Ranges State
+  // Each range is a snapshot of: rooms, prices, dates
+  const [dateRanges, setDateRanges] = useState<{
+    id: string,
+    startDate: string,
+    endDate: string,
+    minNights: number,
+    roomIds: string[],  // Which rooms for THIS range
+    targetNet: number,  // What net price was calculated
+    obpLadder: { occupancy: number, directPrice: number, channelPrices: { id: string, name: string, color: string, listPrice: number, net: number }[] }[],
+    seasonId: string,
+    seasonName: string
+  }[]>([]);
 
   // Temporary inputs for adding new range
   const [tempStartDate, setTempStartDate] = useState("");
@@ -67,7 +78,7 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
     }
   }, [selectedSeasonId, seasons]);
 
-  // Functions for managing date ranges
+  // Functions for managing date ranges (snapshot-based)
   const addDateRange = () => {
     if (!tempStartDate || !tempEndDate) {
       alert("Wypełnij daty rozpoczęcia i zakończenia.");
@@ -77,11 +88,30 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
       alert("Data rozpoczęcia nie może być późniejsza niż data zakończenia.");
       return;
     }
+    if (selectedRoomIds.length === 0) {
+      alert("Wybierz przynajmniej jeden pokój.");
+      return;
+    }
+    if (!calculationResult) {
+      alert("Wylicz cenę przed dodaniem zakresu.");
+      return;
+    }
+    if (!selectedSeason) {
+      alert("Wybierz sezon.");
+      return;
+    }
+
+    // Create snapshot of current state
     const newRange = {
       id: Date.now().toString(),
       startDate: tempStartDate,
       endDate: tempEndDate,
-      minNights: tempMinNights
+      minNights: tempMinNights,
+      roomIds: [...selectedRoomIds],  // Snapshot of selected rooms
+      targetNet: targetNetInput,
+      obpLadder: calculationResult.obpLadder,  // Snapshot of calculated prices
+      seasonId: selectedSeasonId,
+      seasonName: selectedSeason.name
     };
     setDateRanges([...dateRanges, newRange]);
   };
@@ -188,18 +218,20 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
 
 
   const handleSendToHotres = async () => {
-    if (!propertyOid || selectedRoomIds.length === 0 || !selectedSeason || !calculationResult) return;
+    if (!propertyOid) return;
 
     if (dateRanges.length === 0) {
       alert("Dodaj przynajmniej jeden zakres dat przed wysłaniem.");
       return;
     }
 
-    const selectedRooms = rooms.filter(r => selectedRoomIds.includes(r.id));
-    const roomNames = selectedRooms.map(r => r.name).join(', ');
-    const rangesText = dateRanges.map(r => `  • ${r.startDate} - ${r.endDate} (min ${r.minNights} nocy)`).join('\n');
+    // Build confirmation message with all snapshots
+    const rangesText = dateRanges.map((r, idx) => {
+      const roomNamesForRange = rooms.filter(room => r.roomIds.includes(room.id)).map(room => room.name).join(', ');
+      return `${idx + 1}. ${roomNamesForRange}\n   📅 ${r.startDate} - ${r.endDate} (min ${r.minNights} nocy)\n   💰 Netto: ${r.targetNet} zł | Sezon: ${r.seasonName}`;
+    }).join('\n\n');
 
-    if (!confirm(`⚠️ POTWIERDZENIE WYSYŁKI ⚠️\n\nZamierzasz wysłać ceny dla:\n🏠 Pokoje: ${roomNames}\n\n📅 Zakresy dat:\n${rangesText}\n\nTa operacja NADPISZE ceny w Hotres. Zmiany nie zostaną zapisane w lokalnej bazie danych aplikacji.\n\nKontynuować?`)) {
+    if (!confirm(`⚠️ POTWIERDZENIE WYSYŁKI ⚠️\n\nZamierzasz wysłać ${dateRanges.length} różnych konfiguracji:\n\n${rangesText}\n\nTa operacja NADPISZE ceny w Hotres.\n\nKontynuować?`)) {
         return;
     }
 
@@ -207,15 +239,20 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
     setSendError(null);
     setSendSuccess(false);
     try {
-        // Send updates for all selected rooms
-        for (const room of selectedRooms) {
-            await pushManualPriceUpdate(
-                propertyOid,
-                room,
-                dateRanges,
-                channels,
-                calculationResult.obpLadder
-            );
+        // Send each snapshot separately
+        for (const snapshot of dateRanges) {
+            const snapshotRooms = rooms.filter(r => snapshot.roomIds.includes(r.id));
+
+            // For each room in this snapshot, send its prices
+            for (const room of snapshotRooms) {
+                await pushManualPriceUpdate(
+                    propertyOid,
+                    room,
+                    [{ startDate: snapshot.startDate, endDate: snapshot.endDate, minNights: snapshot.minNights }],
+                    channels,
+                    snapshot.obpLadder  // Use snapshot's calculated prices
+                );
+            }
         }
         setSendSuccess(true);
         setTimeout(() => setSendSuccess(false), 5000);
@@ -405,29 +442,70 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
                         </button>
                      </div>
 
-                     {/* List of added ranges */}
+                     {/* List of added snapshots */}
                      {dateRanges.length > 0 && (
                        <div className="mt-3 space-y-2">
-                         {dateRanges.map((range) => (
-                           <div key={range.id} className="flex items-center justify-between bg-white border border-slate-200 rounded-lg px-3 py-2">
-                             <div className="flex items-center gap-3 text-sm">
-                               <Calendar size={14} className="text-blue-600"/>
-                               <span className="font-medium text-slate-700">{range.startDate}</span>
-                               <span className="text-slate-400">→</span>
-                               <span className="font-medium text-slate-700">{range.endDate}</span>
-                               <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
-                                 min {range.minNights} {range.minNights === 1 ? 'noc' : range.minNights <= 4 ? 'noce' : 'nocy'}
-                               </span>
+                         {dateRanges.map((snapshot, idx) => {
+                           const snapshotRooms = rooms.filter(r => snapshot.roomIds.includes(r.id));
+                           const roomNames = snapshotRooms.map(r => r.name).join(', ');
+                           const maxOccRow = snapshot.obpLadder.find(r => r.occupancy === (snapshotRooms[0]?.maxOccupancy || 2));
+                           const directPrice = maxOccRow?.directPrice || snapshot.targetNet;
+
+                           return (
+                             <div key={snapshot.id} className="bg-gradient-to-r from-white to-blue-50 border-l-4 border-blue-500 rounded-lg p-3 shadow-sm">
+                               <div className="flex items-start justify-between">
+                                 <div className="flex-1 space-y-2">
+                                   {/* Header with index */}
+                                   <div className="flex items-center gap-2">
+                                     <span className="bg-blue-500 text-white text-xs font-bold px-2 py-0.5 rounded">#{idx + 1}</span>
+                                     <span className="text-xs text-slate-500">{snapshot.seasonName}</span>
+                                   </div>
+
+                                   {/* Rooms */}
+                                   <div className="flex items-center gap-2 text-sm">
+                                     <span className="text-[10px] text-slate-500 uppercase font-bold">Pokoje:</span>
+                                     <span className="font-medium text-slate-700">{roomNames}</span>
+                                   </div>
+
+                                   {/* Dates */}
+                                   <div className="flex items-center gap-2 text-sm">
+                                     <Calendar size={12} className="text-blue-600"/>
+                                     <span className="font-medium text-slate-700">{snapshot.startDate}</span>
+                                     <span className="text-slate-400">→</span>
+                                     <span className="font-medium text-slate-700">{snapshot.endDate}</span>
+                                     <span className="text-xs text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200">
+                                       min {snapshot.minNights} {snapshot.minNights === 1 ? 'noc' : snapshot.minNights <= 4 ? 'noce' : 'nocy'}
+                                     </span>
+                                   </div>
+
+                                   {/* Price */}
+                                   <div className="flex items-center gap-3">
+                                     <div className="flex items-center gap-1">
+                                       <span className="text-[10px] text-slate-500 uppercase font-bold">Netto:</span>
+                                       <span className="text-sm font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                         {snapshot.targetNet} zł
+                                       </span>
+                                     </div>
+                                     <div className="flex items-center gap-1">
+                                       <span className="text-[10px] text-slate-500 uppercase font-bold">Direct:</span>
+                                       <span className="text-sm font-bold text-blue-700">
+                                         {directPrice} zł
+                                       </span>
+                                     </div>
+                                   </div>
+                                 </div>
+
+                                 <button
+                                   onClick={() => removeDateRange(snapshot.id)}
+                                   className="text-red-500 hover:text-red-700 hover:bg-red-100 p-1.5 rounded transition-colors ml-2"
+                                   title="Usuń snapshot"
+                                 >
+                                   <X size={18}/>
+                                 </button>
+                               </div>
                              </div>
-                             <button
-                               onClick={() => removeDateRange(range.id)}
-                               className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1 rounded transition-colors"
-                               title="Usuń zakres"
-                             >
-                               <X size={16}/>
-                             </button>
-                           </div>
-                         ))}
+                           );
+                         })}
                        </div>
                      )}
                   </div>
@@ -449,7 +527,7 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
 
                   {sendSuccess && (
                       <div className="mt-3 bg-green-50 text-green-700 px-4 py-2 rounded-md flex items-center gap-2 text-sm font-medium animate-in fade-in slide-in-from-top-1">
-                          <CheckCircle2 size={16} /> Pomyślnie wysłano ceny do Hotres dla {dateRanges.length} zakresów!
+                          <CheckCircle2 size={16} /> Pomyślnie wysłano {dateRanges.length} {dateRanges.length === 1 ? 'konfigurację' : dateRanges.length <= 4 ? 'konfiguracje' : 'konfiguracji'} do Hotres!
                       </div>
                   )}
                   {sendError && (
