@@ -234,7 +234,12 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
     // Calculate unique rooms count
     const uniqueRoomIds = new Set(dateRanges.flatMap(r => r.roomIds));
 
-    if (!confirm(`⚠️ POTWIERDZENIE WYSYŁKI ⚠️\n\nZamierzasz wysłać ${dateRanges.length} różnych konfiguracji dla ${uniqueRoomIds.size} pokoi:\n\n${rangesText}\n\nTa operacja NADPISZE ceny w Hotres.\n\n✅ Optymalizacja: Wszystko zostanie wysłane w JEDNYM requescie!\n\nKontynuować?`)) {
+    // Count payload items (room×channel combinations)
+    const roomsWithTid = rooms.filter(r => uniqueRoomIds.has(r.id) && r.tid);
+    const channelsWithRid = channels.filter(c => c.rid && c.rid.trim() !== "");
+    const estimatedPayloadSize = roomsWithTid.length * channelsWithRid.length;
+
+    if (!confirm(`⚠️ POTWIERDZENIE WYSYŁKI ⚠️\n\nZamierzasz wysłać ${dateRanges.length} różnych konfiguracji dla ${uniqueRoomIds.size} pokoi:\n\n${rangesText}\n\nTa operacja NADPISZE ceny w Hotres.\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n✅ Optymalizacja: 1 HTTP request\n⚠️  Hotres API cost: ~2-5 "calls" (varies)\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nKontynuować?`)) {
         return;
     }
 

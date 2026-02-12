@@ -421,11 +421,18 @@ export const pushMultipleSnapshotsToHotres = async (
   console.log('  📝 Payload items (room×channel):', payload.length);
   console.log('  📅 Total price entries:', totalPriceEntries);
   console.log('  ');
-  console.log('  🚀 HTTP REQUESTS TO HOTRES API: 1 (ONE!)');
+  console.log('  🚀 OUR HTTP REQUESTS: 1 (optimized!)');
   console.log('  ');
-  console.log('  ℹ️  Note: Hotres may count each price entry as');
-  console.log('     separate "call" in their dashboard, but we');
-  console.log('     only send ONE HTTP request with all data.');
+  console.log('  ⚠️  HOTRES API CALLS COST:');
+  console.log('     According to Hotres docs, /api_updateprices');
+  console.log('     costs "5 request POST" per call.');
+  console.log('     ');
+  console.log('     Expected cost: ~2-5 calls (varies)');
+  console.log('     Actual cost: Check Hotres dashboard after send');
+  console.log('  ');
+  console.log('  💡 TIP: We send everything in ONE HTTP request,');
+  console.log('     but Hotres counts it based on their internal');
+  console.log('     pricing (may depend on payload size/items).');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
   try {
