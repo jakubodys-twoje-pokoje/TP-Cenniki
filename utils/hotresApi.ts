@@ -72,7 +72,10 @@ const fetchWithFallback = async (endpoint: string, params: Record<string, string
   // Use proxy (Supabase Edge Function or public proxy)
   const proxyUrl = buildUrl(endpoint, params, false);
   const proxyType = USE_SUPABASE_PROXY ? 'Supabase Edge Function' : 'Public CORS proxy';
-  console.log(`[Hotres] Using ${proxyType}:`, proxyUrl);
+
+  const requestMethod = options?.method || 'GET';
+  console.log(`[Hotres] 🔄 HTTP ${requestMethod} REQUEST #1 via ${proxyType}`);
+  console.log(`[Hotres] URL:`, proxyUrl.substring(0, 100) + '...');
 
   // Add auth headers for Supabase Edge Function
   let finalOptions = { ...options };
@@ -88,6 +91,7 @@ const fetchWithFallback = async (endpoint: string, params: Record<string, string
     finalOptions.headers = headers;
   }
 
+  console.log('[Hotres] ⏳ Waiting for response...');
   return await fetch(proxyUrl, finalOptions);
 };
 
@@ -407,14 +411,27 @@ export const pushMultipleSnapshotsToHotres = async (
   const payload = Array.from(payloadMap.values());
   if (payload.length === 0) throw new Error("Brak zmapowanych kanałów (RID) dla wybranych pokoi.");
 
-  console.log('[Hotres] Sending bulk update:', {
-    snapshots: snapshots.length,
-    rooms: roomSnapshotMap.size,
-    totalPriceEntries: payload.reduce((sum, p) => sum + p.prices.length, 0),
-    payloadSize: payload.length
-  });
+  const totalPriceEntries = payload.reduce((sum, p) => sum + p.prices.length, 0);
+
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('[Hotres] 📊 BULK UPDATE SUMMARY:');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('  📸 Snapshots added:', snapshots.length);
+  console.log('  🏠 Unique rooms:', roomSnapshotMap.size);
+  console.log('  📝 Payload items (room×channel):', payload.length);
+  console.log('  📅 Total price entries:', totalPriceEntries);
+  console.log('  ');
+  console.log('  🚀 HTTP REQUESTS TO HOTRES API: 1 (ONE!)');
+  console.log('  ');
+  console.log('  ℹ️  Note: Hotres may count each price entry as');
+  console.log('     separate "call" in their dashboard, but we');
+  console.log('     only send ONE HTTP request with all data.');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
   try {
+    console.log('[Hotres] 🌐 Starting HTTP POST request...');
+    const startTime = Date.now();
+
     const response = await fetchWithFallback('/api_updateprices', {
       user: USER,
       password: PASS,
@@ -424,6 +441,9 @@ export const pushMultipleSnapshotsToHotres = async (
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
+
+    const duration = Date.now() - startTime;
+    console.log(`[Hotres] ✅ HTTP request completed in ${duration}ms. Status:`, response.status);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -435,7 +455,8 @@ export const pushMultipleSnapshotsToHotres = async (
        throw new Error(`Hotres Error: ${JSON.stringify(result)}`);
     }
 
-    console.log('[Hotres] Bulk update successful');
+    console.log('[Hotres] ✅ Bulk update successful!');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   } catch (error) {
     console.error("Hotres Bulk Update Error:", error);
     throw error;
