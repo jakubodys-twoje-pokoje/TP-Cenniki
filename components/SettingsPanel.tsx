@@ -626,7 +626,17 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                         </td>
                         
                         <td className="px-3 py-2">
-                           <input disabled={isReadOnly} type="text" value={room.name} onChange={(e) => updateItem<RoomType>(room.id, "name", e.target.value, rooms, setRooms)} className={`w-full ${inputClass}`} />
+                          <div className="flex items-center gap-2">
+                            <button
+                              disabled={isReadOnly}
+                              onClick={() => updateItem<RoomType>(room.id, "hotresSyncEnabled", !(room.hotresSyncEnabled ?? true), rooms, setRooms)}
+                              title={(room.hotresSyncEnabled ?? true) ? "Wysyłka do Hotres włączona – kliknij aby wyłączyć" : "Wysyłka do Hotres wyłączona – kliknij aby włączyć"}
+                              className={`flex-shrink-0 w-8 h-5 rounded-full transition-colors relative ${isReadOnly ? 'cursor-default opacity-60' : 'cursor-pointer'} ${(room.hotresSyncEnabled ?? true) ? 'bg-green-500' : 'bg-slate-300'}`}
+                            >
+                              <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${(room.hotresSyncEnabled ?? true) ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
+                            </button>
+                            <input disabled={isReadOnly} type="text" value={room.name} onChange={(e) => updateItem<RoomType>(room.id, "name", e.target.value, rooms, setRooms)} className={`w-full ${inputClass}`} />
+                          </div>
                         </td>
                         
                         <td className="px-3 py-2">

@@ -97,6 +97,9 @@ export interface RoomType {
 
   // Sorting order
   sortOrder?: number;
+
+  // Hotres sync toggle - if false, this room is excluded from all price updates sent to Hotres
+  hotresSyncEnabled?: boolean;
 }
 
 export interface Season {

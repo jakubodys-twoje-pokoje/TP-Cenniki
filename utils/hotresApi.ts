@@ -240,6 +240,12 @@ export const updateHotresPrices = async (
   if (validChannels.length === 0) throw new Error("Brak kanałów ze zdefiniowanym RID.");
 
   validRooms.forEach(room => {
+    // Skip rooms with Hotres sync disabled
+    if (room.hotresSyncEnabled === false) {
+      console.log(`[Hotres] ⏭️  Skipping room "${room.name}" (sync disabled)`);
+      return;
+    }
+
     seasons.forEach(season => {
       validChannels.forEach(channel => {
          const channelRid = channel.rid;
@@ -344,6 +350,12 @@ export const pushMultipleSnapshotsToHotres = async (
     snapshot.roomIds.forEach(roomId => {
       const room = rooms.find(r => r.id === roomId);
       if (!room || !room.tid) return;
+
+      // Skip rooms with Hotres sync disabled
+      if (room.hotresSyncEnabled === false) {
+        console.log(`[Hotres] ⏭️  Skipping room "${room.name}" (sync disabled)`);
+        return;
+      }
 
       if (!roomSnapshotMap.has(roomId)) {
         roomSnapshotMap.set(roomId, { room, priceData: [] });
