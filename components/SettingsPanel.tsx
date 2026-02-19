@@ -611,29 +611,32 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
-                    {rooms.map((room, index) => (
-                      <tr 
+                    {rooms.map((room, index) => {
+                      const syncEnabled = room.hotresSyncEnabled ?? true;
+                      const isBeingDragged = draggedListType === 'rooms' && draggedIndex === index;
+                      return (
+                      <tr
                         key={room.id}
                         draggable={!isReadOnly}
                         onDragStart={() => handleDragStart(index, 'rooms')}
                         onDragOver={handleDragOver}
                         onDrop={() => handleDrop(index, rooms, setRooms, 'rooms')}
                         onDragEnd={handleDragEnd}
-                        className={`bg-white ${draggedListType === 'rooms' && draggedIndex === index ? 'opacity-50' : ''}`}
+                        className={`transition-colors ${syncEnabled ? 'bg-white' : 'bg-slate-100'} ${isBeingDragged ? 'opacity-50' : !syncEnabled ? 'opacity-60' : ''}`}
                       >
                         <td className={`px-3 py-2 text-center text-slate-400 ${!isReadOnly ? 'cursor-grab active:cursor-grabbing' : ''}`}>
                           {!isReadOnly && <GripVertical size={16} />}
                         </td>
-                        
+
                         <td className="px-3 py-2">
                           <div className="flex items-center gap-2">
                             <button
                               disabled={isReadOnly}
-                              onClick={() => updateItem<RoomType>(room.id, "hotresSyncEnabled", !(room.hotresSyncEnabled ?? true), rooms, setRooms)}
-                              title={(room.hotresSyncEnabled ?? true) ? "Wysyłka do Hotres włączona – kliknij aby wyłączyć" : "Wysyłka do Hotres wyłączona – kliknij aby włączyć"}
-                              className={`flex-shrink-0 w-8 h-5 rounded-full transition-colors relative ${isReadOnly ? 'cursor-default opacity-60' : 'cursor-pointer'} ${(room.hotresSyncEnabled ?? true) ? 'bg-green-500' : 'bg-slate-300'}`}
+                              onClick={(e) => { e.stopPropagation(); updateItem<RoomType>(room.id, "hotresSyncEnabled", !syncEnabled, rooms, setRooms); }}
+                              title={syncEnabled ? "Wysyłka do Hotres włączona – kliknij aby wyłączyć" : "Wysyłka do Hotres wyłączona – kliknij aby włączyć"}
+                              className={`flex-shrink-0 relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-1 ${isReadOnly ? 'cursor-default opacity-60' : 'cursor-pointer'} ${syncEnabled ? 'bg-green-500' : 'bg-slate-300'}`}
                             >
-                              <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${(room.hotresSyncEnabled ?? true) ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
+                              <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform duration-200 ${syncEnabled ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
                             </button>
                             <input disabled={isReadOnly} type="text" value={room.name} onChange={(e) => updateItem<RoomType>(room.id, "name", e.target.value, rooms, setRooms)} className={`w-full ${inputClass}`} />
                           </div>
@@ -749,7 +752,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                           </div>
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
