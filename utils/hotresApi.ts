@@ -288,15 +288,20 @@ export const updateHotresPrices = async (
 
   // Split into chunks to avoid Hotres API payload size limits
   const CHUNK_SIZE = 20;
+  const CHUNK_DELAY_MS = 800;
   const chunks: typeof payload[] = [];
   for (let i = 0; i < payload.length; i += CHUNK_SIZE) {
     chunks.push(payload.slice(i, i + CHUNK_SIZE));
   }
 
-  console.log(`[Hotres] Sending ${payload.length} items in ${chunks.length} chunk(s)...`);
+  console.log(`[Hotres] Sending ${payload.length} items in ${chunks.length} chunk(s), ${CHUNK_DELAY_MS}ms apart...`);
 
   try {
     for (let i = 0; i < chunks.length; i++) {
+      if (i > 0) {
+        await new Promise(resolve => setTimeout(resolve, CHUNK_DELAY_MS));
+      }
+
       const chunk = chunks[i];
       console.log(`[Hotres] Chunk ${i + 1}/${chunks.length}: ${chunk.length} items`);
 
@@ -437,6 +442,7 @@ export const pushMultipleSnapshotsToHotres = async (
 
   // Split into chunks to avoid Hotres API payload size limits
   const CHUNK_SIZE = 20;
+  const CHUNK_DELAY_MS = 800; // delay between chunks to avoid Hotres rate limiting
   const chunks: typeof payload[] = [];
   for (let i = 0; i < payload.length; i += CHUNK_SIZE) {
     chunks.push(payload.slice(i, i + CHUNK_SIZE));
@@ -449,11 +455,16 @@ export const pushMultipleSnapshotsToHotres = async (
   console.log('  🏠 Unique rooms:', roomSnapshotMap.size);
   console.log('  📝 Payload items (room×channel):', payload.length);
   console.log('  📅 Total price entries:', totalPriceEntries);
-  console.log(`  🚀 HTTP REQUESTS: ${chunks.length} chunk(s) of max ${CHUNK_SIZE} items`);
+  console.log(`  🚀 HTTP REQUESTS: ${chunks.length} chunk(s) of max ${CHUNK_SIZE} items, ${CHUNK_DELAY_MS}ms apart`);
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
   try {
     for (let i = 0; i < chunks.length; i++) {
+      if (i > 0) {
+        console.log(`[Hotres] ⏳ Waiting ${CHUNK_DELAY_MS}ms before next chunk...`);
+        await new Promise(resolve => setTimeout(resolve, CHUNK_DELAY_MS));
+      }
+
       const chunk = chunks[i];
       console.log(`[Hotres] 🌐 Sending chunk ${i + 1}/${chunks.length} (${chunk.length} items)...`);
       const startTime = Date.now();
