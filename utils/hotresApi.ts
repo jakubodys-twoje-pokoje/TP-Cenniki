@@ -100,6 +100,25 @@ const calculatePercentage = (totalDays: number, bookedDays: number): number => {
   return Math.round((bookedDays / totalDays) * 100);
 };
 
+// Sanitize payload: replace NaN/Infinity with 0 so Hotres doesn't reject the request
+const sanitizePricePayload = (payload: { type_id: number, rate_id: number, mode: string, prices: any[] }[]) => {
+  return payload.map(item => ({
+    ...item,
+    prices: item.prices.map((p: any) => {
+      const clean: any = {};
+      for (const [k, v] of Object.entries(p)) {
+        if (typeof v === 'number' && !isFinite(v)) {
+          console.warn(`[Hotres] ⚠️ Invalid value (${v}) for "${k}" in type_id=${item.type_id} rate_id=${item.rate_id} – replacing with 0`);
+          clean[k] = 0;
+        } else {
+          clean[k] = v;
+        }
+      }
+      return clean;
+    })
+  }));
+};
+
 // --- CORE FUNCTIONS ---
 
 export const fetchHotresOccupancy = async (
@@ -283,8 +302,9 @@ export const updateHotresPrices = async (
     });
   });
 
-  const payload = Array.from(payloadMap.values());
-  if (payload.length === 0) throw new Error("Brak danych do wysłania.");
+  const rawPayload = Array.from(payloadMap.values());
+  if (rawPayload.length === 0) throw new Error("Brak danych do wysłania.");
+  const payload = sanitizePricePayload(rawPayload);
 
   const CHUNK_DELAY_MS = 1500;
   // Group by type_id so all channels for one room are always in the same chunk
@@ -293,7 +313,7 @@ export const updateHotresPrices = async (
     if (!groupedByRoom.has(item.type_id)) groupedByRoom.set(item.type_id, []);
     groupedByRoom.get(item.type_id)!.push(item);
   }
-  const MAX_ROOMS_PER_CHUNK = 4;
+  const MAX_ROOMS_PER_CHUNK = 1; // 1 room per chunk to stay within Hotres limits
   const chunks: (typeof payload)[] = [];
   let currentChunk: typeof payload = [];
   let roomsInChunk = 0;
@@ -449,8 +469,9 @@ export const pushMultipleSnapshotsToHotres = async (
     });
   });
 
-  const payload = Array.from(payloadMap.values());
-  if (payload.length === 0) throw new Error("Brak zmapowanych kanałów (RID) dla wybranych pokoi.");
+  const rawPayload = Array.from(payloadMap.values());
+  if (rawPayload.length === 0) throw new Error("Brak zmapowanych kanałów (RID) dla wybranych pokoi.");
+  const payload = sanitizePricePayload(rawPayload);
 
   const totalPriceEntries = payload.reduce((sum, p) => sum + p.prices.length, 0);
 
@@ -461,7 +482,7 @@ export const pushMultipleSnapshotsToHotres = async (
     if (!groupedByRoom.has(item.type_id)) groupedByRoom.set(item.type_id, []);
     groupedByRoom.get(item.type_id)!.push(item);
   }
-  const MAX_ROOMS_PER_CHUNK = 4;
+  const MAX_ROOMS_PER_CHUNK = 1; // 1 room per chunk to stay within Hotres limits
   const chunks: (typeof payload)[] = [];
   let currentChunk: typeof payload = [];
   let roomsInChunk = 0;

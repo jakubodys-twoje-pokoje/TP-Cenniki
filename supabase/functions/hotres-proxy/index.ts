@@ -18,19 +18,26 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
+  const endpoint = new URL(req.url).searchParams.get('endpoint') || '(none)';
+
   try {
     const url = new URL(req.url);
 
+    // Read body BEFORE any other async operations
+    const body = req.method !== 'GET' && req.method !== 'HEAD'
+      ? await req.text()
+      : undefined;
+
     // Extract target endpoint and query params from request
-    const endpoint = url.searchParams.get('endpoint') || '';
-    const targetUrl = `${HOTRES_BASE_URL}${endpoint}`;
+    const targetEndpoint = url.searchParams.get('endpoint') || '';
+    const targetUrl = `${HOTRES_BASE_URL}${targetEndpoint}`;
 
     // Remove 'endpoint' param and forward the rest to Hotres
     url.searchParams.delete('endpoint');
     const queryString = url.search.substring(1); // Remove leading '?'
     const finalUrl = queryString ? `${targetUrl}?${queryString}` : targetUrl;
 
-    console.log('Proxying request to:', finalUrl);
+    console.log(`[proxy] ${req.method} ${targetEndpoint} | body: ${body?.length ?? 0} bytes`);
 
     // Forward the request to Hotres
     const hotresResponse = await fetch(finalUrl, {
@@ -38,15 +45,15 @@ serve(async (req) => {
       headers: {
         'Content-Type': req.headers.get('Content-Type') || 'application/json',
       },
-      body: req.method !== 'GET' ? await req.text() : undefined,
+      body,
     });
 
     // Get response data
     const data = await hotresResponse.text();
 
-    console.log('Hotres response status:', hotresResponse.status);
+    console.log(`[proxy] Hotres ${hotresResponse.status} | body: ${data.substring(0, 500)}`);
 
-    // Return with CORS headers
+    // Return with CORS headers, forwarding Hotres' actual status
     return new Response(data, {
       status: hotresResponse.status,
       headers: {
@@ -56,9 +63,10 @@ serve(async (req) => {
     });
 
   } catch (error) {
-    console.error('Proxy error:', error);
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error(`[proxy] Error for ${endpoint}: ${msg}`);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: msg }),
       {
         status: 500,
         headers: {
