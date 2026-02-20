@@ -286,15 +286,29 @@ export const updateHotresPrices = async (
   const payload = Array.from(payloadMap.values());
   if (payload.length === 0) throw new Error("Brak danych do wysłania.");
 
-  // Split into chunks to avoid Hotres API payload size limits
-  const CHUNK_SIZE = 20;
-  const CHUNK_DELAY_MS = 800;
-  const chunks: typeof payload[] = [];
-  for (let i = 0; i < payload.length; i += CHUNK_SIZE) {
-    chunks.push(payload.slice(i, i + CHUNK_SIZE));
+  const CHUNK_DELAY_MS = 1500;
+  // Group by type_id so all channels for one room are always in the same chunk
+  const groupedByRoom = new Map<number, typeof payload>();
+  for (const item of payload) {
+    if (!groupedByRoom.has(item.type_id)) groupedByRoom.set(item.type_id, []);
+    groupedByRoom.get(item.type_id)!.push(item);
   }
+  const MAX_ROOMS_PER_CHUNK = 4;
+  const chunks: (typeof payload)[] = [];
+  let currentChunk: typeof payload = [];
+  let roomsInChunk = 0;
+  for (const roomItems of groupedByRoom.values()) {
+    if (roomsInChunk >= MAX_ROOMS_PER_CHUNK && currentChunk.length > 0) {
+      chunks.push(currentChunk);
+      currentChunk = [];
+      roomsInChunk = 0;
+    }
+    currentChunk.push(...roomItems);
+    roomsInChunk++;
+  }
+  if (currentChunk.length > 0) chunks.push(currentChunk);
 
-  console.log(`[Hotres] Sending ${payload.length} items in ${chunks.length} chunk(s), ${CHUNK_DELAY_MS}ms apart...`);
+  console.log(`[Hotres] Sending ${payload.length} items (${groupedByRoom.size} rooms) in ${chunks.length} chunk(s), ${CHUNK_DELAY_MS}ms apart...`);
 
   try {
     for (let i = 0; i < chunks.length; i++) {
@@ -440,13 +454,27 @@ export const pushMultipleSnapshotsToHotres = async (
 
   const totalPriceEntries = payload.reduce((sum, p) => sum + p.prices.length, 0);
 
-  // Split into chunks to avoid Hotres API payload size limits
-  const CHUNK_SIZE = 20;
-  const CHUNK_DELAY_MS = 800; // delay between chunks to avoid Hotres rate limiting
-  const chunks: typeof payload[] = [];
-  for (let i = 0; i < payload.length; i += CHUNK_SIZE) {
-    chunks.push(payload.slice(i, i + CHUNK_SIZE));
+  const CHUNK_DELAY_MS = 1500;
+  // Group by type_id so all channels for one room are always in the same chunk
+  const groupedByRoom = new Map<number, typeof payload>();
+  for (const item of payload) {
+    if (!groupedByRoom.has(item.type_id)) groupedByRoom.set(item.type_id, []);
+    groupedByRoom.get(item.type_id)!.push(item);
   }
+  const MAX_ROOMS_PER_CHUNK = 4;
+  const chunks: (typeof payload)[] = [];
+  let currentChunk: typeof payload = [];
+  let roomsInChunk = 0;
+  for (const roomItems of groupedByRoom.values()) {
+    if (roomsInChunk >= MAX_ROOMS_PER_CHUNK && currentChunk.length > 0) {
+      chunks.push(currentChunk);
+      currentChunk = [];
+      roomsInChunk = 0;
+    }
+    currentChunk.push(...roomItems);
+    roomsInChunk++;
+  }
+  if (currentChunk.length > 0) chunks.push(currentChunk);
 
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log('[Hotres] 📊 BULK UPDATE SUMMARY:');
@@ -455,7 +483,7 @@ export const pushMultipleSnapshotsToHotres = async (
   console.log('  🏠 Unique rooms:', roomSnapshotMap.size);
   console.log('  📝 Payload items (room×channel):', payload.length);
   console.log('  📅 Total price entries:', totalPriceEntries);
-  console.log(`  🚀 HTTP REQUESTS: ${chunks.length} chunk(s) of max ${CHUNK_SIZE} items, ${CHUNK_DELAY_MS}ms apart`);
+  console.log(`  🚀 HTTP REQUESTS: ${chunks.length} chunk(s), max 4 rooms each, ${CHUNK_DELAY_MS}ms apart`);
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
   try {
