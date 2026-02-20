@@ -330,15 +330,18 @@ export const updateHotresPrices = async (
 
   console.log(`[Hotres] Sending ${payload.length} items (${groupedByRoom.size} rooms) in ${chunks.length} chunk(s), ${CHUNK_DELAY_MS}ms apart...`);
 
-  try {
-    for (let i = 0; i < chunks.length; i++) {
-      if (i > 0) {
-        await new Promise(resolve => setTimeout(resolve, CHUNK_DELAY_MS));
-      }
+  const failedTypeIds: number[] = [];
 
-      const chunk = chunks[i];
-      console.log(`[Hotres] Chunk ${i + 1}/${chunks.length}: ${chunk.length} items`);
+  for (let i = 0; i < chunks.length; i++) {
+    if (i > 0) {
+      await new Promise(resolve => setTimeout(resolve, CHUNK_DELAY_MS));
+    }
 
+    const chunk = chunks[i];
+    const typeIds = [...new Set(chunk.map(c => c.type_id))];
+    console.log(`[Hotres] Chunk ${i + 1}/${chunks.length}: type_id=${typeIds.join(',')} (${chunk.length} items)`);
+
+    try {
       const response = await fetchWithFallback('/api_updateprices', {
         user: USER,
         password: PASS,
@@ -351,17 +354,27 @@ export const updateHotresPrices = async (
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Błąd HTTP (chunk ${i + 1}/${chunks.length}): ${response.status} - ${errorText.substring(0, 200)}`);
+        console.error(`[Hotres] ❌ Chunk ${i + 1} FAILED: HTTP ${response.status} for type_id=${typeIds.join(',')} | ${errorText.substring(0, 300)}`);
+        failedTypeIds.push(...typeIds);
+        continue; // skip, try remaining rooms
       }
 
       const result = await response.json();
       if (result.result !== 'success') {
-        throw new Error(`Hotres API Error (chunk ${i + 1}): ${JSON.stringify(result)}`);
+        console.error(`[Hotres] ❌ Chunk ${i + 1} REJECTED by Hotres: type_id=${typeIds.join(',')} | ${JSON.stringify(result)}`);
+        failedTypeIds.push(...typeIds);
+        continue;
       }
+
+      console.log(`[Hotres] ✅ Chunk ${i + 1} OK (type_id=${typeIds.join(',')})`);
+    } catch (err) {
+      console.error(`[Hotres] ❌ Chunk ${i + 1} network error: type_id=${typeIds.join(',')} |`, err);
+      failedTypeIds.push(...typeIds);
     }
-  } catch (error) {
-    console.error("Hotres Update Prices Error:", error);
-    throw error;
+  }
+
+  if (failedTypeIds.length > 0) {
+    throw new Error(`Hotres: nie udało się zaktualizować TID: ${failedTypeIds.join(', ')}. Sprawdź logi konsoli po szczegóły.`);
   }
 };
 
@@ -504,20 +517,23 @@ export const pushMultipleSnapshotsToHotres = async (
   console.log('  🏠 Unique rooms:', roomSnapshotMap.size);
   console.log('  📝 Payload items (room×channel):', payload.length);
   console.log('  📅 Total price entries:', totalPriceEntries);
-  console.log(`  🚀 HTTP REQUESTS: ${chunks.length} chunk(s), max 4 rooms each, ${CHUNK_DELAY_MS}ms apart`);
+  console.log(`  🚀 HTTP REQUESTS: ${chunks.length} chunk(s), 1 room each, ${CHUNK_DELAY_MS}ms apart`);
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-  try {
-    for (let i = 0; i < chunks.length; i++) {
-      if (i > 0) {
-        console.log(`[Hotres] ⏳ Waiting ${CHUNK_DELAY_MS}ms before next chunk...`);
-        await new Promise(resolve => setTimeout(resolve, CHUNK_DELAY_MS));
-      }
+  const failedTypeIds: number[] = [];
 
-      const chunk = chunks[i];
-      console.log(`[Hotres] 🌐 Sending chunk ${i + 1}/${chunks.length} (${chunk.length} items)...`);
-      const startTime = Date.now();
+  for (let i = 0; i < chunks.length; i++) {
+    if (i > 0) {
+      console.log(`[Hotres] ⏳ Waiting ${CHUNK_DELAY_MS}ms before next chunk...`);
+      await new Promise(resolve => setTimeout(resolve, CHUNK_DELAY_MS));
+    }
 
+    const chunk = chunks[i];
+    const typeIds = [...new Set(chunk.map(c => c.type_id))];
+    const startTime = Date.now();
+    console.log(`[Hotres] 🌐 Sending chunk ${i + 1}/${chunks.length}: type_id=${typeIds.join(',')} (${chunk.length} items)...`);
+
+    try {
       const response = await fetchWithFallback('/api_updateprices', {
         user: USER,
         password: PASS,
@@ -529,25 +545,33 @@ export const pushMultipleSnapshotsToHotres = async (
       });
 
       const duration = Date.now() - startTime;
-      console.log(`[Hotres] ✅ Chunk ${i + 1} completed in ${duration}ms. Status:`, response.status);
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Błąd HTTP (chunk ${i + 1}/${chunks.length}): ${response.status} - ${errorText}`);
+        console.error(`[Hotres] ❌ Chunk ${i + 1} FAILED in ${duration}ms: HTTP ${response.status} for type_id=${typeIds.join(',')} | ${errorText.substring(0, 300)}`);
+        failedTypeIds.push(...typeIds);
+        continue;
       }
 
       const result = await response.json();
       if (result.result !== 'success') {
-        throw new Error(`Hotres Error (chunk ${i + 1}): ${JSON.stringify(result)}`);
+        console.error(`[Hotres] ❌ Chunk ${i + 1} REJECTED by Hotres in ${duration}ms: type_id=${typeIds.join(',')} | ${JSON.stringify(result)}`);
+        failedTypeIds.push(...typeIds);
+        continue;
       }
-    }
 
-    console.log('[Hotres] ✅ All chunks sent successfully!');
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  } catch (error) {
-    console.error("Hotres Bulk Update Error:", error);
-    throw error;
+      console.log(`[Hotres] ✅ Chunk ${i + 1} OK in ${duration}ms (type_id=${typeIds.join(',')})`);
+    } catch (err) {
+      console.error(`[Hotres] ❌ Chunk ${i + 1} network error: type_id=${typeIds.join(',')} |`, err);
+      failedTypeIds.push(...typeIds);
+    }
   }
+
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  if (failedTypeIds.length > 0) {
+    throw new Error(`Hotres: nie udało się zaktualizować TID: ${failedTypeIds.join(', ')}. Sprawdź logi konsoli po szczegóły.`);
+  }
+  console.log('[Hotres] ✅ All chunks sent successfully!');
 };
 
 export const pushManualPriceUpdate = async (
