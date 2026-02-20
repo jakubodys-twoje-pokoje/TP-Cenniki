@@ -286,30 +286,40 @@ export const updateHotresPrices = async (
   const payload = Array.from(payloadMap.values());
   if (payload.length === 0) throw new Error("Brak danych do wysłania.");
 
+  // Split into chunks to avoid Hotres API payload size limits
+  const CHUNK_SIZE = 20;
+  const chunks: typeof payload[] = [];
+  for (let i = 0; i < payload.length; i += CHUNK_SIZE) {
+    chunks.push(payload.slice(i, i + CHUNK_SIZE));
+  }
+
+  console.log(`[Hotres] Sending ${payload.length} items in ${chunks.length} chunk(s)...`);
+
   try {
-    const response = await fetchWithFallback('/api_updateprices', {
-      user: USER,
-      password: PASS,
-      oid: oid
-    }, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
+      console.log(`[Hotres] Chunk ${i + 1}/${chunks.length}: ${chunk.length} items`);
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Błąd HTTP: ${response.status} ${response.statusText} - ${errorText.substring(0, 200)}`);
-    }
+      const response = await fetchWithFallback('/api_updateprices', {
+        user: USER,
+        password: PASS,
+        oid: oid
+      }, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(chunk)
+      });
 
-    const result = await response.json();
-    
-    if (result.result !== 'success') {
-       throw new Error(`Hotres API Error: ${JSON.stringify(result)}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Błąd HTTP (chunk ${i + 1}/${chunks.length}): ${response.status} - ${errorText.substring(0, 200)}`);
+      }
+
+      const result = await response.json();
+      if (result.result !== 'success') {
+        throw new Error(`Hotres API Error (chunk ${i + 1}): ${JSON.stringify(result)}`);
+      }
     }
-    
   } catch (error) {
     console.error("Hotres Update Prices Error:", error);
     throw error;
@@ -425,6 +435,13 @@ export const pushMultipleSnapshotsToHotres = async (
 
   const totalPriceEntries = payload.reduce((sum, p) => sum + p.prices.length, 0);
 
+  // Split into chunks to avoid Hotres API payload size limits
+  const CHUNK_SIZE = 20;
+  const chunks: typeof payload[] = [];
+  for (let i = 0; i < payload.length; i += CHUNK_SIZE) {
+    chunks.push(payload.slice(i, i + CHUNK_SIZE));
+  }
+
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log('[Hotres] 📊 BULK UPDATE SUMMARY:');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -432,49 +449,40 @@ export const pushMultipleSnapshotsToHotres = async (
   console.log('  🏠 Unique rooms:', roomSnapshotMap.size);
   console.log('  📝 Payload items (room×channel):', payload.length);
   console.log('  📅 Total price entries:', totalPriceEntries);
-  console.log('  ');
-  console.log('  🚀 OUR HTTP REQUESTS: 1 (optimized!)');
-  console.log('  ');
-  console.log('  ⚠️  HOTRES API CALLS COST:');
-  console.log('     According to Hotres docs, /api_updateprices');
-  console.log('     costs "5 request POST" per call.');
-  console.log('     ');
-  console.log('     Expected cost: ~2-5 calls (varies)');
-  console.log('     Actual cost: Check Hotres dashboard after send');
-  console.log('  ');
-  console.log('  💡 TIP: We send everything in ONE HTTP request,');
-  console.log('     but Hotres counts it based on their internal');
-  console.log('     pricing (may depend on payload size/items).');
+  console.log(`  🚀 HTTP REQUESTS: ${chunks.length} chunk(s) of max ${CHUNK_SIZE} items`);
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
   try {
-    console.log('[Hotres] 🌐 Starting HTTP POST request...');
-    const startTime = Date.now();
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
+      console.log(`[Hotres] 🌐 Sending chunk ${i + 1}/${chunks.length} (${chunk.length} items)...`);
+      const startTime = Date.now();
 
-    const response = await fetchWithFallback('/api_updateprices', {
-      user: USER,
-      password: PASS,
-      oid: oid
-    }, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
+      const response = await fetchWithFallback('/api_updateprices', {
+        user: USER,
+        password: PASS,
+        oid: oid
+      }, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(chunk)
+      });
 
-    const duration = Date.now() - startTime;
-    console.log(`[Hotres] ✅ HTTP request completed in ${duration}ms. Status:`, response.status);
+      const duration = Date.now() - startTime;
+      console.log(`[Hotres] ✅ Chunk ${i + 1} completed in ${duration}ms. Status:`, response.status);
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Błąd HTTP: ${response.status} - ${errorText}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Błąd HTTP (chunk ${i + 1}/${chunks.length}): ${response.status} - ${errorText}`);
+      }
+
+      const result = await response.json();
+      if (result.result !== 'success') {
+        throw new Error(`Hotres Error (chunk ${i + 1}): ${JSON.stringify(result)}`);
+      }
     }
 
-    const result = await response.json();
-    if (result.result !== 'success') {
-       throw new Error(`Hotres Error: ${JSON.stringify(result)}`);
-    }
-
-    console.log('[Hotres] ✅ Bulk update successful!');
+    console.log('[Hotres] ✅ All chunks sent successfully!');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   } catch (error) {
     console.error("Hotres Bulk Update Error:", error);
