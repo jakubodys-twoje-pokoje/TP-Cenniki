@@ -977,7 +977,7 @@ const App: React.FC = () => {
       );
   }
 
-  // Handler to save calculator snapshots: update seasons + set manual prices
+  // Handler to save calculator snapshots to pending changes (staging area)
   const handleSaveSnapshotsToSeasons = (snapshots: {
     seasonId: string;
     startDate: string;
@@ -989,47 +989,24 @@ const App: React.FC = () => {
     if (userPermissions.role === 'client') return;
     if (!activeProfile) return;
 
-    // 1. Update season dates
-    const updatedSeasons = activeProfile.seasons.map(season => {
-      const snapshot = snapshots.find(s => s.seasonId === season.id);
-      if (snapshot) {
-        return {
-          ...season,
-          startDate: snapshot.startDate,
-          endDate: snapshot.endDate,
-          minNights: snapshot.minNights
-        };
-      }
-      return season;
+    const currentPending = activeProfile.pendingPriceChanges || [];
+
+    const newPendingChanges = snapshots.map(snapshot => {
+      const season = activeProfile.seasons.find(s => s.id === snapshot.seasonId);
+      return {
+        id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+        seasonId: snapshot.seasonId,
+        seasonName: season?.name || 'Nieznany sezon',
+        startDate: snapshot.startDate,
+        endDate: snapshot.endDate,
+        minNights: snapshot.minNights,
+        roomIds: snapshot.roomIds,
+        obpLadder: snapshot.obpLadder,
+        createdAt: new Date().toISOString()
+      };
     });
 
-    // 2. Update room manual prices
-    const updatedRooms = activeProfile.rooms.map(room => {
-      let updatedRoom = { ...room };
-
-      snapshots.forEach(snapshot => {
-        // Only update rooms that are in this snapshot
-        if (!snapshot.roomIds.includes(room.id)) return;
-
-        // Find max occupancy price from ladder
-        const maxOccRow = snapshot.obpLadder.find(r => r.occupancy === (room.maxOccupancy || 2));
-        if (!maxOccRow) return;
-
-        // Set manual direct price for this season
-        const currentManualPrices = updatedRoom.manualDirectPrices || {};
-        updatedRoom = {
-          ...updatedRoom,
-          manualDirectPrices: {
-            ...currentManualPrices,
-            [snapshot.seasonId]: maxOccRow.directPrice
-          }
-        };
-      });
-
-      return updatedRoom;
-    });
-
-    updateActiveProfile({ seasons: updatedSeasons, rooms: updatedRooms });
+    updateActiveProfile({ pendingPriceChanges: [...currentPending, ...newPendingChanges] });
   };
 
   return (
@@ -1468,6 +1445,8 @@ const App: React.FC = () => {
                   onDeleteProfile={handleDeleteProfile}
                   onDuplicateProfile={handleDuplicateProfile}
                   onProfileUpdate={handleProfileUpdate}
+                  pendingPriceChanges={activeProfile.pendingPriceChanges || []}
+                  setPendingPriceChanges={(changes) => updateActiveProfile({ pendingPriceChanges: changes })}
                 />
                 )
               )}

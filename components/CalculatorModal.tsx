@@ -289,7 +289,7 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
       return `${idx + 1}. ${r.seasonName}\n   📅 ${r.startDate} - ${r.endDate} (min ${r.minNights} nocy)\n   🏠 ${roomNamesForRange}`;
     }).join('\n\n');
 
-    if (!confirm(`💾 ZAPIS DO CENNIKA\n\nZamierzasz nadpisać ${dateRanges.length} ${dateRanges.length === 1 ? 'sezon' : dateRanges.length <= 4 ? 'sezony' : 'sezonów'}:\n\n${rangesText}\n\nSezony zostaną zaktualizowane i ręczne ceny zapisane dla wybranych pokoi.\n\nKontynuować?`)) {
+    if (!confirm(`💾 ZAPIS DO KOLEJKI\n\nZamierzasz dodać ${dateRanges.length} ${dateRanges.length === 1 ? 'zmianę' : dateRanges.length <= 4 ? 'zmiany' : 'zmian'} do poczekalni:\n\n${rangesText}\n\nZmiany będą czekać na wysłanie do Hotres w zakładce "Ręczne Zmiany".\n\nKontynuować?`)) {
       return;
     }
 
@@ -309,7 +309,7 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
       // Clear date ranges after successful save
       setDateRanges([]);
 
-      alert(`✅ Pomyślnie zaktualizowano ${dateRanges.length} ${dateRanges.length === 1 ? 'sezon' : dateRanges.length <= 4 ? 'sezony' : 'sezonów'} i zapisano ceny dla pokoi!`);
+      alert(`✅ Dodano ${dateRanges.length} ${dateRanges.length === 1 ? 'zmianę' : dateRanges.length <= 4 ? 'zmiany' : 'zmian'} do poczekalni!\n\nPrzejdź do zakładki "Ręczne Zmiany" aby je wysłać.`);
     } catch (err: any) {
       alert(`Błąd podczas zapisu: ${err.message}`);
     }

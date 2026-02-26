@@ -1,8 +1,8 @@
 
 import React, { useState } from "react";
-import { Channel, ChannelDiscountProfile, ChannelDiscountLabels, GlobalSettings, Profile, Property, RoomType, Season, SettingsTab } from "../types";
-import { Plus, Trash2, X, Copy, GripVertical, ArrowRightLeft, Check, AlertCircle, Lock, ToggleLeft, ToggleRight, Layers, CloudUpload, Loader2, Link as LinkIcon, Edit3, Settings } from "lucide-react";
-import { updateHotresPrices } from "../utils/hotresApi";
+import { Channel, ChannelDiscountProfile, ChannelDiscountLabels, GlobalSettings, PendingPriceChange, Profile, Property, RoomType, Season, SettingsTab } from "../types";
+import { Plus, Trash2, X, Copy, GripVertical, ArrowRightLeft, Check, AlertCircle, Lock, ToggleLeft, ToggleRight, Layers, CloudUpload, Loader2, Link as LinkIcon, Edit3, Settings, Calendar } from "lucide-react";
+import { updateHotresPrices, pushMultipleSnapshotsToHotres } from "../utils/hotresApi";
 import ProfileManagement from "./ProfileManagement";
 import { useScrollRestoration } from "../hooks/useScrollRestoration";
 
@@ -36,6 +36,9 @@ interface SettingsPanelProps {
   onDeleteProfile?: (profileId: string) => void;
   onDuplicateProfile?: (profileId: string) => void;
   onProfileUpdate?: (profileId: string, updates: Partial<Profile>) => void;
+  // Pending price changes props
+  pendingPriceChanges?: PendingPriceChange[];
+  setPendingPriceChanges?: (changes: PendingPriceChange[]) => void;
 }
 
 const SettingsPanel: React.FC<SettingsPanelProps> = ({
@@ -68,6 +71,9 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   onDeleteProfile = () => {},
   onDuplicateProfile = () => {},
   onProfileUpdate = () => {},
+  // Pending price changes props
+  pendingPriceChanges = [],
+  setPendingPriceChanges = () => {},
 }) => {
   // Drag and Drop State
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
@@ -443,7 +449,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     profiles: "Profile",
     rooms: "Pokoje",
     seasons: "Sezony",
-    channels: "Kanały"
+    channels: "Kanały",
+    pending: "Ręczne Zmiany"
   };
 
   const inputClass = `block w-full rounded-md border border-slate-300 bg-white text-slate-900 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed`;
@@ -462,7 +469,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
       {/* Tabs */}
       <div className="flex border-b border-slate-200 bg-slate-50 overflow-x-auto">
-        {(["global", "rooms", "seasons", "channels", "profiles"] as const).map((tab) => (
+        {(["global", "rooms", "seasons", "channels", "pending", "profiles"] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => onTabChange(tab)}
@@ -1049,6 +1056,148 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
               );
               })}
             </div>
+          </div>
+        )}
+
+        {/* Pending Changes Tab */}
+        {activeTab === "pending" && (
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <div>
+                <h3 className="text-lg font-semibold text-slate-800">Ręczne Zmiany Cenowe</h3>
+                <p className="text-sm text-slate-500">Zmiany wprowadzone z kalkulatora czekają na wysłanie do Hotres</p>
+              </div>
+              {pendingPriceChanges.length > 0 && !isReadOnly && (
+                <button
+                  onClick={() => {
+                    if (confirm(`Czy na pewno chcesz usunąć wszystkie ${pendingPriceChanges.length} oczekujących zmian?`)) {
+                      setPendingPriceChanges([]);
+                    }
+                  }}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                >
+                  <Trash2 size={16} />
+                  Usuń wszystkie ({pendingPriceChanges.length})
+                </button>
+              )}
+            </div>
+
+            {pendingPriceChanges.length === 0 ? (
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-8 text-center">
+                <Calendar size={48} className="mx-auto text-slate-300 mb-3" />
+                <p className="text-slate-500 font-medium">Brak oczekujących zmian</p>
+                <p className="text-sm text-slate-400 mt-1">Użyj kalkulatora i kliknij "Zapisz do cennika" aby dodać zmiany</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {pendingPriceChanges.map((change) => {
+                  const changeRooms = rooms.filter(r => change.roomIds.includes(r.id));
+                  const roomNames = changeRooms.map(r => r.name).join(', ');
+
+                  return (
+                    <div key={change.id} className="bg-white border border-slate-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 space-y-2">
+                          {/* Header */}
+                          <div className="flex items-center gap-3">
+                            <span className="text-sm font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                              {change.seasonName}
+                            </span>
+                            <span className="text-xs text-slate-500">
+                              Dodano: {new Date(change.createdAt).toLocaleString('pl-PL')}
+                            </span>
+                          </div>
+
+                          {/* Dates */}
+                          <div className="flex items-center gap-2 text-sm">
+                            <Calendar size={14} className="text-slate-400"/>
+                            <span className="font-medium text-slate-700">{change.startDate}</span>
+                            <span className="text-slate-400">→</span>
+                            <span className="font-medium text-slate-700">{change.endDate}</span>
+                            <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded ml-2">
+                              min {change.minNights} {change.minNights === 1 ? 'noc' : 'nocy'}
+                            </span>
+                          </div>
+
+                          {/* Rooms */}
+                          <div className="flex items-center gap-2 text-sm">
+                            <span className="text-slate-500">Pokoje:</span>
+                            <span className="font-medium text-slate-700">{roomNames}</span>
+                          </div>
+
+                          {/* Prices */}
+                          <div className="flex items-center gap-4 text-sm">
+                            {change.obpLadder.map(row => {
+                              const maxRoom = changeRooms[0];
+                              if (!maxRoom || row.occupancy !== maxRoom.maxOccupancy) return null;
+                              return (
+                                <div key={row.occupancy} className="flex items-center gap-2">
+                                  <span className="text-slate-500">Direct:</span>
+                                  <span className="font-bold text-emerald-600">{row.directPrice} zł</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        {!isReadOnly && (
+                          <button
+                            onClick={() => {
+                              if (confirm(`Usunąć tę zmianę dla "${change.seasonName}"?`)) {
+                                setPendingPriceChanges(pendingPriceChanges.filter(c => c.id !== change.id));
+                              }
+                            }}
+                            className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded transition-colors"
+                            title="Usuń zmianę"
+                          >
+                            <Trash2 size={18}/>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Send all button */}
+            {pendingPriceChanges.length > 0 && !isReadOnly && propertyOid && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-6">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <h4 className="font-semibold text-slate-800 mb-1">Gotowe do wysłania</h4>
+                    <p className="text-sm text-slate-600">
+                      {pendingPriceChanges.length} {pendingPriceChanges.length === 1 ? 'zmiana czeka' : pendingPriceChanges.length <= 4 ? 'zmiany czekają' : 'zmian czeka'} na wysłanie do Hotres
+                    </p>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      if (!confirm(`Wysłać ${pendingPriceChanges.length} ${pendingPriceChanges.length === 1 ? 'zmianę' : 'zmian'} do Hotres?`)) return;
+
+                      try {
+                        // Convert pending changes to Hotres format and send
+                        await pushMultipleSnapshotsToHotres(
+                          propertyOid,
+                          pendingPriceChanges,
+                          rooms,
+                          channels
+                        );
+
+                        alert(`✅ Pomyślnie wysłano ${pendingPriceChanges.length} ${pendingPriceChanges.length === 1 ? 'zmianę' : 'zmian'} do Hotres!`);
+                        setPendingPriceChanges([]); // Clear after successful send
+                      } catch (err: any) {
+                        alert(`Błąd podczas wysyłki: ${err.message}`);
+                      }
+                    }}
+                    className="px-6 py-2.5 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-bold flex items-center gap-2 transition-colors"
+                  >
+                    <CloudUpload size={20} />
+                    Wyślij do Hotres ({pendingPriceChanges.length})
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
