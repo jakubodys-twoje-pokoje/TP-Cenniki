@@ -13,12 +13,13 @@ interface CalculatorModalProps {
   onClose: () => void;
   propertyOid?: string; // Needed for sending to API
   onSaveToSeasons?: (snapshots: {
+    seasonId: string;
     startDate: string;
     endDate: string;
     minNights: number;
-    seasonName: string;
-    multiplier: number;
-  }[]) => void; // Callback to save snapshots as seasons in the system
+    roomIds: string[];
+    obpLadder: { occupancy: number, directPrice: number, channelPrices: { id: string, listPrice: number }[] }[];
+  }[]) => void; // Callback to save snapshots: update season dates + set manual prices for rooms
 }
 
 const CalculatorModal: React.FC<CalculatorModalProps> = ({
@@ -284,32 +285,31 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
 
     // Build confirmation message
     const rangesText = dateRanges.map((r, idx) => {
-      return `${idx + 1}. ${r.seasonName}\n   📅 ${r.startDate} - ${r.endDate} (min ${r.minNights} nocy)`;
+      const roomNamesForRange = rooms.filter(room => r.roomIds.includes(room.id)).map(room => room.name).join(', ');
+      return `${idx + 1}. ${r.seasonName}\n   📅 ${r.startDate} - ${r.endDate} (min ${r.minNights} nocy)\n   🏠 ${roomNamesForRange}`;
     }).join('\n\n');
 
-    if (!confirm(`💾 ZAPIS DO CENNIKA\n\nZamierzasz dodać ${dateRanges.length} ${dateRanges.length === 1 ? 'nowy sezon' : dateRanges.length <= 4 ? 'nowe sezony' : 'nowych sezonów'}:\n\n${rangesText}\n\nTe sezony zostaną dodane do cennika lokalnego (bez wysyłki do Hotres).\n\nKontynuować?`)) {
+    if (!confirm(`💾 ZAPIS DO CENNIKA\n\nZamierzasz nadpisać ${dateRanges.length} ${dateRanges.length === 1 ? 'sezon' : dateRanges.length <= 4 ? 'sezony' : 'sezonów'}:\n\n${rangesText}\n\nSezony zostaną zaktualizowane i ręczne ceny zapisane dla wybranych pokoi.\n\nKontynuować?`)) {
       return;
     }
 
     try {
-      // Convert snapshots to season format
-      const newSeasons = dateRanges.map(snapshot => {
-        const baseSeason = seasons.find(s => s.id === snapshot.seasonId);
-        return {
-          startDate: snapshot.startDate,
-          endDate: snapshot.endDate,
-          minNights: snapshot.minNights,
-          seasonName: snapshot.seasonName,
-          multiplier: baseSeason?.multiplier || 1.0
-        };
-      });
+      // Pass full snapshot data to handler
+      const snapshotsToSave = dateRanges.map(snapshot => ({
+        seasonId: snapshot.seasonId,
+        startDate: snapshot.startDate,
+        endDate: snapshot.endDate,
+        minNights: snapshot.minNights,
+        roomIds: snapshot.roomIds,
+        obpLadder: snapshot.obpLadder
+      }));
 
-      onSaveToSeasons(newSeasons);
+      onSaveToSeasons(snapshotsToSave);
 
       // Clear date ranges after successful save
       setDateRanges([]);
 
-      alert(`✅ Pomyślnie dodano ${newSeasons.length} ${newSeasons.length === 1 ? 'sezon' : newSeasons.length <= 4 ? 'sezony' : 'sezonów'} do cennika!`);
+      alert(`✅ Pomyślnie zaktualizowano ${dateRanges.length} ${dateRanges.length === 1 ? 'sezon' : dateRanges.length <= 4 ? 'sezony' : 'sezonów'} i zapisano ceny dla pokoi!`);
     } catch (err: any) {
       alert(`Błąd podczas zapisu: ${err.message}`);
     }

@@ -977,22 +977,59 @@ const App: React.FC = () => {
       );
   }
 
-  // Handler to save calculator snapshots as new seasons
-  const handleSaveSnapshotsToSeasons = (snapshots: { startDate: string; endDate: string; minNights: number; seasonName: string; multiplier: number }[]) => {
+  // Handler to save calculator snapshots: update seasons + set manual prices
+  const handleSaveSnapshotsToSeasons = (snapshots: {
+    seasonId: string;
+    startDate: string;
+    endDate: string;
+    minNights: number;
+    roomIds: string[];
+    obpLadder: { occupancy: number, directPrice: number, channelPrices: { id: string, listPrice: number }[] }[];
+  }[]) => {
     if (userPermissions.role === 'client') return;
     if (!activeProfile) return;
 
-    const newSeasons: Season[] = snapshots.map(snapshot => ({
-      id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
-      name: snapshot.seasonName,
-      startDate: snapshot.startDate,
-      endDate: snapshot.endDate,
-      multiplier: snapshot.multiplier,
-      minNights: snapshot.minNights
-    }));
+    // 1. Update season dates
+    const updatedSeasons = activeProfile.seasons.map(season => {
+      const snapshot = snapshots.find(s => s.seasonId === season.id);
+      if (snapshot) {
+        return {
+          ...season,
+          startDate: snapshot.startDate,
+          endDate: snapshot.endDate,
+          minNights: snapshot.minNights
+        };
+      }
+      return season;
+    });
 
-    const updatedSeasons = [...activeProfile.seasons, ...newSeasons];
-    updateActiveProfile({ seasons: updatedSeasons });
+    // 2. Update room manual prices
+    const updatedRooms = activeProfile.rooms.map(room => {
+      let updatedRoom = { ...room };
+
+      snapshots.forEach(snapshot => {
+        // Only update rooms that are in this snapshot
+        if (!snapshot.roomIds.includes(room.id)) return;
+
+        // Find max occupancy price from ladder
+        const maxOccRow = snapshot.obpLadder.find(r => r.occupancy === (room.maxOccupancy || 2));
+        if (!maxOccRow) return;
+
+        // Set manual direct price for this season
+        const currentManualPrices = updatedRoom.manualDirectPrices || {};
+        updatedRoom = {
+          ...updatedRoom,
+          manualDirectPrices: {
+            ...currentManualPrices,
+            [snapshot.seasonId]: maxOccRow.directPrice
+          }
+        };
+      });
+
+      return updatedRoom;
+    });
+
+    updateActiveProfile({ seasons: updatedSeasons, rooms: updatedRooms });
   };
 
   return (
