@@ -16,7 +16,7 @@ import {
   INITIAL_SETTINGS,
   createDefaultProfile,
 } from "./constants";
-import { Channel, Property, RoomType, SettingsTab, UserPermissions, UserRole } from "./types";
+import { Channel, Property, RoomType, Season, SettingsTab, UserPermissions, UserRole } from "./types";
 import { supabase } from "./utils/supabaseClient";
 import { fetchSeasonOccupancyMap, fetchHotresRooms } from "./utils/hotresApi";
 import { DEFAULT_DENIED_PERMISSION } from "./utils/userConfig";
@@ -977,6 +977,24 @@ const App: React.FC = () => {
       );
   }
 
+  // Handler to save calculator snapshots as new seasons
+  const handleSaveSnapshotsToSeasons = (snapshots: { startDate: string; endDate: string; minNights: number; seasonName: string; multiplier: number }[]) => {
+    if (userPermissions.role === 'client') return;
+    if (!activeProfile) return;
+
+    const newSeasons: Season[] = snapshots.map(snapshot => ({
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+      name: snapshot.seasonName,
+      startDate: snapshot.startDate,
+      endDate: snapshot.endDate,
+      multiplier: snapshot.multiplier,
+      minNights: snapshot.minNights
+    }));
+
+    const updatedSeasons = [...activeProfile.seasons, ...newSeasons];
+    updateActiveProfile({ seasons: updatedSeasons });
+  };
+
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden print:overflow-visible print:h-auto print:block">
       {/* Sidebar */}
@@ -1439,6 +1457,7 @@ const App: React.FC = () => {
            settings={activeProfile.settings}
            onClose={() => setShowCalculator(false)}
            propertyOid={activeProperty.oid} // Pass OID for Hotres Sync
+           onSaveToSeasons={handleSaveSnapshotsToSeasons} // Save snapshots as seasons
         />
       )}
 

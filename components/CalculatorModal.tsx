@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Channel, GlobalSettings, RoomType, Season } from '../types';
 import { calculateChannelPrice, calculateDirectPrice } from '../utils/pricingEngine';
 import { pushMultipleSnapshotsToHotres } from '../utils/hotresApi';
-import { X, Calculator, TrendingUp, Users, Info, Calendar, CloudUpload, Loader2, CheckCircle2 } from 'lucide-react';
+import { X, Calculator, TrendingUp, Users, Info, Calendar, CloudUpload, Loader2, CheckCircle2, Save } from 'lucide-react';
 
 interface CalculatorModalProps {
   rooms: RoomType[];
@@ -12,6 +12,13 @@ interface CalculatorModalProps {
   settings: GlobalSettings;
   onClose: () => void;
   propertyOid?: string; // Needed for sending to API
+  onSaveToSeasons?: (snapshots: {
+    startDate: string;
+    endDate: string;
+    minNights: number;
+    seasonName: string;
+    multiplier: number;
+  }[]) => void; // Callback to save snapshots as seasons in the system
 }
 
 const CalculatorModal: React.FC<CalculatorModalProps> = ({
@@ -20,7 +27,8 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
   channels,
   settings,
   onClose,
-  propertyOid
+  propertyOid,
+  onSaveToSeasons
 }) => {
   // Form State
   const [targetNetInput, setTargetNetInput] = useState<number>(200);
@@ -260,6 +268,50 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
         setSendError(err.message);
     } finally {
         setIsSending(false);
+    }
+  };
+
+  const handleSaveToPriceList = () => {
+    if (!onSaveToSeasons) {
+      alert("Funkcja zapisu do cennika nie jest dostępna.");
+      return;
+    }
+
+    if (dateRanges.length === 0) {
+      alert("Dodaj przynajmniej jeden zakres dat przed zapisem.");
+      return;
+    }
+
+    // Build confirmation message
+    const rangesText = dateRanges.map((r, idx) => {
+      return `${idx + 1}. ${r.seasonName}\n   📅 ${r.startDate} - ${r.endDate} (min ${r.minNights} nocy)`;
+    }).join('\n\n');
+
+    if (!confirm(`💾 ZAPIS DO CENNIKA\n\nZamierzasz dodać ${dateRanges.length} ${dateRanges.length === 1 ? 'nowy sezon' : dateRanges.length <= 4 ? 'nowe sezony' : 'nowych sezonów'}:\n\n${rangesText}\n\nTe sezony zostaną dodane do cennika lokalnego (bez wysyłki do Hotres).\n\nKontynuować?`)) {
+      return;
+    }
+
+    try {
+      // Convert snapshots to season format
+      const newSeasons = dateRanges.map(snapshot => {
+        const baseSeason = seasons.find(s => s.id === snapshot.seasonId);
+        return {
+          startDate: snapshot.startDate,
+          endDate: snapshot.endDate,
+          minNights: snapshot.minNights,
+          seasonName: snapshot.seasonName,
+          multiplier: baseSeason?.multiplier || 1.0
+        };
+      });
+
+      onSaveToSeasons(newSeasons);
+
+      // Clear date ranges after successful save
+      setDateRanges([]);
+
+      alert(`✅ Pomyślnie dodano ${newSeasons.length} ${newSeasons.length === 1 ? 'sezon' : newSeasons.length <= 4 ? 'sezony' : 'sezonów'} do cennika!`);
+    } catch (err: any) {
+      alert(`Błąd podczas zapisu: ${err.message}`);
     }
   };
 
@@ -510,8 +562,22 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
                      )}
                   </div>
 
-                  {/* Send button */}
-                  <div className="flex justify-end">
+                  {/* Action buttons */}
+                  <div className="flex justify-end gap-3">
+                     {/* Save to Price List button */}
+                     <button
+                        onClick={handleSaveToPriceList}
+                        disabled={!onSaveToSeasons || dateRanges.length === 0}
+                        className={`px-6 py-2.5 rounded-lg font-bold text-white shadow-sm flex items-center gap-2 transition-all ${
+                            !onSaveToSeasons || dateRanges.length === 0 ? 'bg-slate-400 cursor-not-allowed opacity-50' : 'bg-blue-600 hover:bg-blue-700 active:scale-95'
+                        }`}
+                        title={dateRanges.length === 0 ? "Dodaj przynajmniej jeden zakres dat" : "Zapisz jako sezony w lokalnym cenniku"}
+                     >
+                        <Save size={20} />
+                        Zapisz do cennika ({dateRanges.length})
+                     </button>
+
+                     {/* Send to Hotres button */}
                      <button
                         onClick={handleSendToHotres}
                         disabled={isSending || !propertyOid || dateRanges.length === 0}
