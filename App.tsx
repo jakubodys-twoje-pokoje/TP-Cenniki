@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from "react";
-import { LayoutDashboard, Settings as SettingsIcon, Menu, BedDouble, Calendar, Share2, Cog, ChevronDown, ChevronRight, Building, Plus, Trash2, Bed, CheckCircle2, Copy, Cloud, CloudOff, Loader2, RefreshCw, LogOut, Download, X, Lock, Users, Calculator, Eye, ShieldAlert, BarChart3, Layers } from "lucide-react";
+import { LayoutDashboard, Settings as SettingsIcon, Menu, BedDouble, Calendar, Share2, Cog, ChevronDown, ChevronRight, Building, Plus, Trash2, Bed, CheckCircle2, Copy, Cloud, CloudOff, Loader2, RefreshCw, LogOut, Download, X, Lock, Users, Calculator, Eye, ShieldAlert, BarChart3, Layers, ClipboardList } from "lucide-react";
 import SettingsPanel from "./components/SettingsPanel";
 import Dashboard from "./components/Dashboard";
 import ClientDashboard from "./components/ClientDashboard";
@@ -1126,31 +1126,48 @@ const App: React.FC = () => {
               <div className="flex items-center gap-3">
                 <SettingsIcon size={20} />
                 <span className="font-medium">Konfiguracja</span>
+                {activeProfile && (activeProfile.pendingPriceChanges?.length || 0) > 0 && (
+                  <span className="bg-orange-500 text-white text-xs font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center">
+                    {activeProfile.pendingPriceChanges?.length}
+                  </span>
+                )}
               </div>
               {isConfigExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
             </button>
 
             {isConfigExpanded && (
               <div className="mt-1 ml-4 pl-4 border-l border-slate-700 space-y-1">
-                {(["rooms", "seasons", "channels", "global"] as SettingsTab[]).map(tab => (
+                {(["rooms", "seasons", "channels", "pending", "global"] as SettingsTab[]).map(tab => {
+                  const pendingCount = tab === 'pending' && activeProfile ? (activeProfile.pendingPriceChanges?.length || 0) : 0;
+
+                  return (
                    <button
                     key={tab}
                     onClick={() => handleSettingsNav(tab)}
-                    className={`w-full flex items-center gap-3 px-4 py-2 text-sm rounded-lg transition-colors ${
+                    className={`w-full flex items-center justify-between gap-3 px-4 py-2 text-sm rounded-lg transition-colors ${
                       activeTab === "settings" && activeSettingsTab === tab
                         ? "bg-blue-600/50 text-white font-medium"
                         : "text-slate-400 hover:bg-slate-800/50 hover:text-white"
                     }`}
                   >
-                    {tab === 'rooms' && <BedDouble size={16} />}
-                    {tab === 'seasons' && <Calendar size={16} />}
-                    {tab === 'channels' && <Share2 size={16} />}
-                    {tab === 'global' && <Cog size={16} />}
-                    <span className="capitalize">
-                        {tab === 'rooms' ? 'Pokoje' : tab === 'seasons' ? 'Sezony' : tab === 'channels' ? 'Kanały' : 'Ogólne'}
-                    </span>
+                    <div className="flex items-center gap-3">
+                      {tab === 'rooms' && <BedDouble size={16} />}
+                      {tab === 'seasons' && <Calendar size={16} />}
+                      {tab === 'channels' && <Share2 size={16} />}
+                      {tab === 'pending' && <ClipboardList size={16} />}
+                      {tab === 'global' && <Cog size={16} />}
+                      <span className="capitalize">
+                          {tab === 'rooms' ? 'Pokoje' : tab === 'seasons' ? 'Sezony' : tab === 'channels' ? 'Kanały' : tab === 'pending' ? 'Ręczne Zmiany' : 'Ogólne'}
+                      </span>
+                    </div>
+                    {tab === 'pending' && pendingCount > 0 && (
+                      <span className="bg-orange-500 text-white text-xs font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center">
+                        {pendingCount}
+                      </span>
+                    )}
                   </button>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
