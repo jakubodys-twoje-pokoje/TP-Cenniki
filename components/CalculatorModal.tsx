@@ -272,9 +272,9 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
     }
   };
 
-  const handleSaveToPriceList = () => {
+  const handleApplyToSeasons = () => {
     if (!onSaveToSeasons) {
-      alert("Funkcja zapisu do cennika nie jest dostępna.");
+      alert("Funkcja nie jest dostępna.");
       return;
     }
 
@@ -289,7 +289,7 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
       return `${idx + 1}. ${r.seasonName}\n   📅 ${r.startDate} - ${r.endDate} (min ${r.minNights} nocy)\n   🏠 ${roomNamesForRange}`;
     }).join('\n\n');
 
-    if (!confirm(`💾 ZAPIS DO KOLEJKI\n\nZamierzasz dodać ${dateRanges.length} ${dateRanges.length === 1 ? 'zmianę' : dateRanges.length <= 4 ? 'zmiany' : 'zmian'} do poczekalni:\n\n${rangesText}\n\nZmiany będą czekać na wysłanie do Hotres w zakładce "Ręczne Zmiany".\n\nKontynuować?`)) {
+    if (!confirm(`✏️ NAŁÓŻ NA SEZON\n\nNadpiszesz ceny Direct dla ${dateRanges.length} ${dateRanges.length === 1 ? 'sezonu' : dateRanges.length <= 4 ? 'sezonów' : 'sezonów'}:\n\n${rangesText}\n\nCeny zostaną zapisane jako ręczne dla wybranych pokoi.\n\nKontynuować?`)) {
       return;
     }
 
@@ -309,7 +309,7 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
       // Clear date ranges after successful save
       setDateRanges([]);
 
-      alert(`✅ Dodano ${dateRanges.length} ${dateRanges.length === 1 ? 'zmianę' : dateRanges.length <= 4 ? 'zmiany' : 'zmian'} do poczekalni!\n\nPrzejdź do zakładki "Ręczne Zmiany" aby je wysłać.`);
+      alert(`✅ Nałożono ceny na ${dateRanges.length} ${dateRanges.length === 1 ? 'sezon' : dateRanges.length <= 4 ? 'sezony' : 'sezonów'}!\n\nWyślij cennik do Hotres z Settings → "Wyślij cały cennik".`);
     } catch (err: any) {
       alert(`Błąd podczas zapisu: ${err.message}`);
     }
@@ -564,17 +564,17 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
 
                   {/* Action buttons */}
                   <div className="flex justify-end gap-3">
-                     {/* Save to Price List button */}
+                     {/* Apply to Season button */}
                      <button
-                        onClick={handleSaveToPriceList}
+                        onClick={handleApplyToSeasons}
                         disabled={!onSaveToSeasons || dateRanges.length === 0}
                         className={`px-6 py-2.5 rounded-lg font-bold text-white shadow-sm flex items-center gap-2 transition-all ${
                             !onSaveToSeasons || dateRanges.length === 0 ? 'bg-slate-400 cursor-not-allowed opacity-50' : 'bg-blue-600 hover:bg-blue-700 active:scale-95'
                         }`}
-                        title={dateRanges.length === 0 ? "Dodaj przynajmniej jeden zakres dat" : "Zapisz jako sezony w lokalnym cenniku"}
+                        title={dateRanges.length === 0 ? "Dodaj przynajmniej jeden zakres dat" : "Nałóż ceny na wybrane sezony"}
                      >
                         <Save size={20} />
-                        Zapisz do cennika ({dateRanges.length})
+                        Nałóż na sezon ({dateRanges.length})
                      </button>
 
                      {/* Send to Hotres button */}

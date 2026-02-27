@@ -1,5 +1,5 @@
 
-export type SettingsTab = "global" | "rooms" | "seasons" | "channels" | "profiles" | "pending";
+export type SettingsTab = "global" | "rooms" | "seasons" | "channels" | "profiles";
 
 export type UserRole = 'super_admin' | 'admin' | 'client';
 
@@ -120,19 +120,6 @@ export interface GlobalSettings {
   foodEnabled: boolean; // Global toggle for food pricing (wyżywienie)
 }
 
-// Pending price changes - "poczekalnia" for manual price adjustments before sending to Hotres
-export interface PendingPriceChange {
-  id: string;
-  seasonId: string; // Which season this is based on
-  seasonName: string; // Display name
-  startDate: string;
-  endDate: string;
-  minNights: number;
-  roomIds: string[]; // Which rooms this applies to
-  obpLadder: { occupancy: number, directPrice: number, channelPrices: { id: string, listPrice: number }[] }[];
-  createdAt: string; // Timestamp when this was added
-}
-
 export interface Profile {
   id: string;
   name: string;
@@ -145,9 +132,6 @@ export interface Profile {
   channels: Channel[];
   rooms: RoomType[];
   seasons: Season[];
-
-  // Pending manual price changes (staging area before sending to Hotres)
-  pendingPriceChanges?: PendingPriceChange[];
 }
 
 export interface Property {
