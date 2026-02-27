@@ -34,7 +34,7 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
   // Form State
   const [targetNetInput, setTargetNetInput] = useState<number>(200);
   const [selectedRoomIds, setSelectedRoomIds] = useState<string[]>(rooms[0] ? [rooms[0].id] : []);
-  const [selectedSeasonId, setSelectedSeasonId] = useState<string>(seasons[0]?.id || "");
+  const [selectedSeasonIds, setSelectedSeasonIds] = useState<string[]>(seasons[0] ? [seasons[0].id] : []);
 
   // Snapshot-based Date Ranges State
   // Each range is a snapshot of: rooms, prices, dates
@@ -65,7 +65,7 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
 
   // Use first selected room for calculation preview
   const selectedRoom = rooms.find(r => r.id === selectedRoomIds[0]);
-  const selectedSeason = seasons.find(s => s.id === selectedSeasonId);
+  const selectedSeason = seasons.find(s => s.id === selectedSeasonIds[0]);
 
   const toggleRoomSelection = (roomId: string) => {
     setSelectedRoomIds(prev =>
@@ -75,17 +75,25 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
     );
   };
 
+  const toggleSeasonSelection = (seasonId: string) => {
+    setSelectedSeasonIds(prev =>
+      prev.includes(seasonId)
+        ? prev.filter(id => id !== seasonId)
+        : [...prev, seasonId]
+    );
+  };
+
   const maxOcc = selectedRoom?.maxOccupancy || 2;
   const currentOccupancy = maxOcc; 
 
-  // Sync temporary dates when season changes
+  // Sync temporary dates when season selection changes
   useEffect(() => {
     if (selectedSeason) {
       setTempStartDate(selectedSeason.startDate);
       setTempEndDate(selectedSeason.endDate);
       setTempMinNights(selectedSeason.minNights || 1);
     }
-  }, [selectedSeasonId, seasons]);
+  }, [selectedSeasonIds, seasons]);
 
   // Functions for managing date ranges (snapshot-based)
   const addDateRange = () => {
@@ -105,24 +113,28 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
       alert("Wylicz cenę przed dodaniem zakresu.");
       return;
     }
-    if (!selectedSeason) {
-      alert("Wybierz sezon.");
+    if (selectedSeasonIds.length === 0) {
+      alert("Wybierz przynajmniej jeden sezon.");
       return;
     }
 
-    // Create snapshot of current state
-    const newRange = {
-      id: Date.now().toString(),
-      startDate: tempStartDate,
-      endDate: tempEndDate,
-      minNights: tempMinNights,
-      roomIds: [...selectedRoomIds],  // Snapshot of selected rooms
-      targetNet: targetNetInput,
-      obpLadder: calculationResult.obpLadder,  // Snapshot of calculated prices
-      seasonId: selectedSeasonId,
-      seasonName: selectedSeason.name
-    };
-    setDateRanges([...dateRanges, newRange]);
+    // Create snapshots for ALL selected seasons
+    const newRanges = selectedSeasonIds.map((seasonId, idx) => {
+      const season = seasons.find(s => s.id === seasonId);
+      return {
+        id: Date.now().toString() + idx,
+        startDate: tempStartDate,
+        endDate: tempEndDate,
+        minNights: tempMinNights,
+        roomIds: [...selectedRoomIds],  // Snapshot of selected rooms
+        targetNet: targetNetInput,
+        obpLadder: calculationResult.obpLadder,  // Snapshot of calculated prices
+        seasonId: seasonId,
+        seasonName: season?.name || 'Nieznany sezon'
+      };
+    });
+
+    setDateRanges([...dateRanges, ...newRanges]);
   };
 
   const removeDateRange = (id: string) => {
@@ -223,7 +235,7 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
       channelResults,
       obpLadder
     };
-  }, [targetNetInput, selectedRoomIds, selectedSeasonId, currentOccupancy, rooms, seasons, channels, settings, includeFoodPricing]);
+  }, [targetNetInput, selectedRoomIds, selectedSeasonIds, currentOccupancy, rooms, seasons, channels, settings, includeFoodPricing]);
 
 
   const handleSendToHotres = async () => {
@@ -439,14 +451,21 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
                   </div>
 
                   <div className="col-span-1">
-                     <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Bazuj na sezonie</label>
-                     <select
-                       value={selectedSeasonId}
-                       onChange={(e) => setSelectedSeasonId(e.target.value)}
-                       className={inputBaseClass}
-                     >
-                        {seasons.map(s => <option key={s.id} value={s.id}>{s.name} (x{s.multiplier})</option>)}
-                     </select>
+                     <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Wybierz Sezony</label>
+                     <div className="border border-slate-300 rounded-lg p-3 bg-white max-h-[120px] overflow-y-auto space-y-2">
+                        {seasons.map(s => (
+                          <label key={s.id} className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 p-1 rounded transition-colors">
+                            <input
+                              type="checkbox"
+                              checked={selectedSeasonIds.includes(s.id)}
+                              onChange={() => toggleSeasonSelection(s.id)}
+                              className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="text-sm font-medium text-slate-700">{s.name} (x{s.multiplier})</span>
+                          </label>
+                        ))}
+                     </div>
+                     <div className="text-xs text-slate-500 mt-1">{selectedSeasonIds.length} wybranych</div>
                   </div>
                </div>
 
@@ -621,7 +640,7 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
                             Wymagana Cena Bazowa: <span className="font-bold text-lg text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 ml-1">{calculationResult.requiredBasePrice} zł</span>
                          </div>
                          {includeFoodPricing && (settings.foodEnabled ?? false) && selectedRoom && (() => {
-                           const foodOption = selectedRoom.seasonalFoodOption?.[selectedSeasonId];
+                           const foodOption = selectedRoom.seasonalFoodOption?.[selectedSeason.id];
                            if (foodOption === 'breakfast') {
                              const pricePerPerson = selectedRoom.foodBreakfastPrice ?? 50;
                              const totalPrice = pricePerPerson * currentOccupancy;
