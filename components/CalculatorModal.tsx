@@ -54,6 +54,7 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
   const [tempStartDate, setTempStartDate] = useState("");
   const [tempEndDate, setTempEndDate] = useState("");
   const [tempMinNights, setTempMinNights] = useState<number>(1);
+  const [useDefaultSeasonDates, setUseDefaultSeasonDates] = useState(true);
 
   // Food pricing toggle for calculator
   const [includeFoodPricing, setIncludeFoodPricing] = useState(true);
@@ -97,14 +98,18 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
 
   // Functions for managing date ranges (snapshot-based)
   const addDateRange = () => {
-    if (!tempStartDate || !tempEndDate) {
-      alert("Wypełnij daty rozpoczęcia i zakończenia.");
-      return;
+    // Validation only when NOT using default dates
+    if (!useDefaultSeasonDates) {
+      if (!tempStartDate || !tempEndDate) {
+        alert("Wypełnij daty rozpoczęcia i zakończenia.");
+        return;
+      }
+      if (tempStartDate > tempEndDate) {
+        alert("Data rozpoczęcia nie może być późniejsza niż data zakończenia.");
+        return;
+      }
     }
-    if (tempStartDate > tempEndDate) {
-      alert("Data rozpoczęcia nie może być późniejsza niż data zakończenia.");
-      return;
-    }
+
     if (selectedRoomIds.length === 0) {
       alert("Wybierz przynajmniej jeden pokój.");
       return;
@@ -121,11 +126,17 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
     // Create snapshots for ALL selected seasons
     const newRanges = selectedSeasonIds.map((seasonId, idx) => {
       const season = seasons.find(s => s.id === seasonId);
+
+      // Use season default dates if toggle is ON, otherwise use manual dates
+      const startDate = useDefaultSeasonDates ? (season?.startDate || tempStartDate) : tempStartDate;
+      const endDate = useDefaultSeasonDates ? (season?.endDate || tempEndDate) : tempEndDate;
+      const minNights = useDefaultSeasonDates ? (season?.minNights || 1) : tempMinNights;
+
       return {
         id: Date.now().toString() + idx,
-        startDate: tempStartDate,
-        endDate: tempEndDate,
-        minNights: tempMinNights,
+        startDate,
+        endDate,
+        minNights,
         roomIds: [...selectedRoomIds],  // Snapshot of selected rooms
         targetNet: targetNetInput,
         obpLadder: calculationResult.obpLadder,  // Snapshot of calculated prices
@@ -475,14 +486,30 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
                      <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Zakresy dat do wysłania ({dateRanges.length})</label>
 
                      {/* Add new range form */}
-                     <div className="flex flex-col md:flex-row gap-2 items-end bg-blue-50 p-3 rounded-lg border border-blue-200">
+                     <div className="flex flex-col gap-3 bg-blue-50 p-3 rounded-lg border border-blue-200">
+                        {/* Toggle for using full season dates */}
+                        <label className="flex items-center gap-2 cursor-pointer bg-white p-2 rounded border border-blue-200 hover:border-blue-400 transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={useDefaultSeasonDates}
+                            onChange={(e) => setUseDefaultSeasonDates(e.target.checked)}
+                            className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                          />
+                          <div className="flex flex-col">
+                            <span className="text-xs font-bold text-slate-700">Cały sezon</span>
+                            <span className="text-[10px] text-slate-500">Nałóż na pełny zakres dat każdego sezonu</span>
+                          </div>
+                        </label>
+
+                        <div className="flex flex-col md:flex-row gap-2 items-end">
                         <div className="flex-1 w-full">
                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><Calendar size={10}/> Od</label>
                            <input
                              type="date"
                              value={tempStartDate}
                              onChange={(e) => setTempStartDate(e.target.value)}
-                             className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs font-medium"
+                             disabled={useDefaultSeasonDates}
+                             className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs font-medium disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
                            />
                         </div>
                         <div className="flex-1 w-full">
@@ -491,7 +518,8 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
                              type="date"
                              value={tempEndDate}
                              onChange={(e) => setTempEndDate(e.target.value)}
-                             className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs font-medium"
+                             disabled={useDefaultSeasonDates}
+                             className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs font-medium disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
                            />
                         </div>
                         <div className="w-24">
@@ -502,7 +530,8 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
                              max="30"
                              value={tempMinNights}
                              onChange={(e) => setTempMinNights(Number(e.target.value))}
-                             className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs font-medium"
+                             disabled={useDefaultSeasonDates}
+                             className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs font-medium disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
                            />
                         </div>
                         <button
@@ -511,6 +540,7 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
                         >
                           + Dodaj
                         </button>
+                        </div>
                      </div>
 
                      {/* List of added snapshots */}
