@@ -179,7 +179,7 @@ export const updateHotresPrices = async (
         const channelRid = channel.rid;
         if (channelRid) {
           const directBasePrice = calculateDirectPrice(room, season, room.maxOccupancy, settings);
-          const channelBaseCalc = calculateChannelPrice(directBasePrice, channel, season.id);
+          const channelBaseCalc = calculateChannelPrice(directBasePrice, channel, season.id, settings.roundingEnabled ?? true);
           const priceEntry: any = {
             from: season.startDate,
             till: season.endDate,
@@ -190,7 +190,7 @@ export const updateHotresPrices = async (
           for (let i = 1; i <= room.maxOccupancy; i++) {
             if (i > 8) break;
             const directP = calculateDirectPrice(room, season, i, settings);
-            const chanCalc = calculateChannelPrice(directP, channel, season.id);
+            const chanCalc = calculateChannelPrice(directP, channel, season.id, settings.roundingEnabled ?? true);
             priceEntry[`pers${i}`] = chanCalc.listPrice;
           }
           const key = `${room.tid}-${channelRid}`;

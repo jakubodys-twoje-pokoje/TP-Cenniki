@@ -209,7 +209,7 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
     const actualDirectPrice = calculateDirectPrice(virtualRoom, selectedSeason, currentOccupancy, settings, false);
 
     const channelResults = channels.map(channel => {
-       const calc = calculateChannelPrice(actualDirectPrice, channel, selectedSeason.id);
+       const calc = calculateChannelPrice(actualDirectPrice, channel, selectedSeason.id, settings.roundingEnabled ?? true);
        return {
          channel,
          calc
@@ -223,7 +223,7 @@ const CalculatorModal: React.FC<CalculatorModalProps> = ({
         const simDirectPrice = calculateDirectPrice(virtualRoom, selectedSeason, i, settings, false);
         
         const simChannelPrices = channels.map(c => {
-            const calc = calculateChannelPrice(simDirectPrice, c, selectedSeason.id);
+            const calc = calculateChannelPrice(simDirectPrice, c, selectedSeason.id, settings.roundingEnabled ?? true);
             return {
                 id: c.id,
                 name: c.name,

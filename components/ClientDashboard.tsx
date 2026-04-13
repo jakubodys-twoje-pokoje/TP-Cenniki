@@ -85,7 +85,7 @@ const ClientDashboard: React.FC<ClientDashboardProps> = ({
       const directPrice = calculateDirectPrice(room, selectedSeason, room.maxOccupancy, settings);
       
       const channelPrices = channels.map(channel => {
-        const calc = calculateChannelPrice(directPrice, channel, selectedSeason.id);
+        const calc = calculateChannelPrice(directPrice, channel, selectedSeason.id, settings.roundingEnabled ?? true);
         const isBooking = channel.id.toLowerCase().includes('booking') || channel.name.toLowerCase().includes('booking');
         return {
           id: channel.id,

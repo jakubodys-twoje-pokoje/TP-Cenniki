@@ -833,7 +833,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                            let cCalc: any = null;
                                            if (activeView !== "ALL" && activeView !== "SUMMARY") {
                                               const chan = channels.find(c => c.id === activeView)!;
-                                              cCalc = calculateChannelPrice(dPrice, chan, row.seasonId);
+                                              cCalc = calculateChannelPrice(dPrice, chan, row.seasonId, settings.roundingEnabled ?? true);
                                            }
 
                                            return (
@@ -875,7 +875,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 
                                                {/* Summary View Details */}
                                                {activeView === "SUMMARY" && channels.map(c => {
-                                                  const calc = calculateChannelPrice(dPrice, c, row.seasonId);
+                                                  const calc = calculateChannelPrice(dPrice, c, row.seasonId, settings.roundingEnabled ?? true);
                                                   const isBooking = c.id.toLowerCase().includes('booking') || c.name.toLowerCase().includes('booking');
                                                   return (
                                                     <React.Fragment key={c.id}>

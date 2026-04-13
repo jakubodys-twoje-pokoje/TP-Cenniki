@@ -118,6 +118,7 @@ export interface Season {
 export interface GlobalSettings {
   obpEnabled: boolean; // Global toggle for OBP logic
   foodEnabled: boolean; // Global toggle for food pricing (wyżywienie)
+  roundingEnabled: boolean; // Global toggle for classic price rounding (< 0.50 zł down, >= 0.50 zł up)
 }
 
 export interface Profile {

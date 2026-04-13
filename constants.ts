@@ -4,6 +4,7 @@ import { Channel, GlobalSettings, Profile, RoomType, Season } from "./types";
 export const INITIAL_SETTINGS: GlobalSettings = {
   obpEnabled: true, // Default to enabled
   foodEnabled: false, // Default to disabled for backward compatibility
+  roundingEnabled: true, // Default to enabled
 };
 
 // Helper to create default discount map for initial seasons

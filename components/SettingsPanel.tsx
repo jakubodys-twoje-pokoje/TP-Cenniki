@@ -533,6 +533,20 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     <p className="text-xs text-slate-500">Włącz lub wyłącz opcje wyżywienia (śniadanie/pełne). Możesz wybrać opcję dla konkretnych pokoi i sezonów w zakładce Pokoje.</p>
                  </div>
               </div>
+
+              <div className="mt-4 flex items-center gap-3 bg-white p-3 rounded border border-slate-200">
+                 <button
+                  onClick={() => !isReadOnly && setSettings({...settings, roundingEnabled: !(settings.roundingEnabled ?? true)})}
+                  disabled={isReadOnly}
+                  className={`text-slate-600 transition-colors ${(settings.roundingEnabled ?? true) ? 'text-orange-600' : 'text-slate-400'}`}
+                 >
+                   {(settings.roundingEnabled ?? true) ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
+                 </button>
+                 <div>
+                    <h4 className="text-sm font-semibold text-slate-800">Zaokrąglanie Cen - Globalnie</h4>
+                    <p className="text-xs text-slate-500">Włącz klasyczne zaokrąglanie cen do pełnych złotych (do 49 gr — w dół, od 50 gr — w górę) dla całego obiektu.</p>
+                 </div>
+              </div>
             </div>
 
             {!isReadOnly && (

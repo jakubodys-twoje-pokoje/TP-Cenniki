@@ -2,10 +2,11 @@
 import { Channel, ChannelCalculation, GlobalSettings, PricingRow, RoomType, Season } from "../types";
 
 /**
- * rounds a price to a psychological price point (e.g. ends in 0, 5, or 9)
- * For this engine, we will simply round to nearest integer to keep it clean.
+ * Classic price rounding: < 0.50 zł rounds down, >= 0.50 zł rounds up.
+ * When disabled, returns the price as-is (no rounding).
  */
-const roundPrice = (price: number): number => {
+const roundPrice = (price: number, enabled: boolean = true): number => {
+  if (!enabled) return price;
   return Math.round(price);
 };
 
@@ -79,13 +80,14 @@ export const calculateDirectPrice = (
   const hasManualPrice = useManualPrice && room.manualDirectPrices?.[season.id] !== undefined;
   const finalPrice = hasManualPrice ? price : Math.max(price, 50);
 
-  return roundPrice(finalPrice);
+  return roundPrice(finalPrice, settings.roundingEnabled ?? true);
 };
 
 export const calculateChannelPrice = (
   directPrice: number,
   channel: Channel,
-  seasonId: string
+  seasonId: string,
+  roundingEnabled: boolean = true
 ): ChannelCalculation => {
   // Fetch discounts for this specific season
   const discounts = channel.seasonDiscounts[seasonId] || { 
@@ -129,7 +131,7 @@ export const calculateChannelPrice = (
   const safeFactor = Math.max(totalRetainedFactor, 0.01);
 
   const rawListPrice = targetNetPrice / safeFactor;
-  const listPrice = roundPrice(rawListPrice);
+  const listPrice = roundPrice(rawListPrice, roundingEnabled);
 
   // Forward check to get actual estimated net
   const priceAfterMobile = listPrice * (1 - (mobilePct / 100));
@@ -137,13 +139,13 @@ export const calculateChannelPrice = (
   const priceAfterSeasonal = priceAfterGenius * (1 - (seasonalPct / 100));
   const priceAfterFirst = priceAfterSeasonal * (1 - (firstMinutePct / 100));
   const priceAfterLast = priceAfterFirst * (1 - (lastMinutePct / 100));
-  
+
   const soldPrice = priceAfterLast;
   const commissionAmount = soldPrice * (channel.commissionPct / 100);
   const estimatedNet = soldPrice - commissionAmount;
 
   // Calculate Breakdown Values (Approximated based on list price cascade for display)
-  
+
   const mobileVal = listPrice * (mobilePct / 100);
   const geniusVal = (listPrice - mobileVal) * (geniusPct / 100);
   const seasonalVal = (listPrice - mobileVal - geniusVal) * (seasonalPct / 100);
@@ -152,16 +154,16 @@ export const calculateChannelPrice = (
 
   const result: ChannelCalculation = {
     listPrice,
-    estimatedNet: roundPrice(estimatedNet),
-    commission: roundPrice(commissionAmount),
+    estimatedNet: roundPrice(estimatedNet, roundingEnabled),
+    commission: roundPrice(commissionAmount, roundingEnabled),
     // Profitable if we meet the target net
-    isProfitable: roundPrice(estimatedNet) >= roundPrice(targetNetPrice) - 1, // Allow 1 unit margin of error
+    isProfitable: roundPrice(estimatedNet, roundingEnabled) >= roundPrice(targetNetPrice, roundingEnabled) - 1, // Allow 1 unit margin of error
     discountBreakdown: {
-      mobile: roundPrice(mobileVal),
-      genius: roundPrice(geniusVal),
-      seasonal: roundPrice(seasonalVal),
-      firstMinute: roundPrice(firstVal),
-      lastMinute: roundPrice(lastVal)
+      mobile: roundPrice(mobileVal, roundingEnabled),
+      genius: roundPrice(geniusVal, roundingEnabled),
+      seasonal: roundPrice(seasonalVal, roundingEnabled),
+      firstMinute: roundPrice(firstVal, roundingEnabled),
+      lastMinute: roundPrice(lastVal, roundingEnabled)
     },
     discountPercentages: {
       mobile: mobilePct,
@@ -176,12 +178,12 @@ export const calculateChannelPrice = (
   // Check if channel ID OR Name contains 'booking' to apply logic (for duplicate channels)
   const isBooking = channel.id.toLowerCase().includes('booking') || channel.name.toLowerCase().includes('booking');
   if (isBooking) {
-      result.pif5 = roundPrice(listPrice * 0.95);
-      result.pif10 = roundPrice(listPrice * 0.90);
-      
+      result.pif5 = roundPrice(listPrice * 0.95, roundingEnabled);
+      result.pif10 = roundPrice(listPrice * 0.90, roundingEnabled);
+
       // Calculate PIF based on Direct Price ("Małe ceny")
-      result.pif5Direct = roundPrice(directPrice * 0.95);
-      result.pif10Direct = roundPrice(directPrice * 0.90);
+      result.pif5Direct = roundPrice(directPrice * 0.95, roundingEnabled);
+      result.pif10Direct = roundPrice(directPrice * 0.90, roundingEnabled);
   }
 
   return result;
@@ -220,9 +222,10 @@ export const generatePricingGrid = (
       
       channels.forEach(channel => {
         channelCalculations[channel.id] = calculateChannelPrice(
-          directPrice, 
-          channel, 
-          season.id
+          directPrice,
+          channel,
+          season.id,
+          settings.roundingEnabled ?? true
         );
       });
 
