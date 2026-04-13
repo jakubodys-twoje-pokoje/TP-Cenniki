@@ -2,12 +2,13 @@
 import { Channel, ChannelCalculation, GlobalSettings, PricingRow, RoomType, Season } from "../types";
 
 /**
- * Classic price rounding: < 0.50 zł rounds down, >= 0.50 zł rounds up.
+ * Classic price rounding to nearest 10 zł: ones digit 0–4 rounds down, 5–9 rounds up.
+ * E.g. 194 → 190, 195 → 200, 198 → 200.
  * When disabled, returns the price as-is (no rounding).
  */
 const roundPrice = (price: number, enabled: boolean = true): number => {
   if (!enabled) return price;
-  return Math.round(price);
+  return Math.round(price / 10) * 10;
 };
 
 export const calculateDirectPrice = (

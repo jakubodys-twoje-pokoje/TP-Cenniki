@@ -544,7 +544,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                  </button>
                  <div>
                     <h4 className="text-sm font-semibold text-slate-800">Zaokrąglanie Cen - Globalnie</h4>
-                    <p className="text-xs text-slate-500">Włącz klasyczne zaokrąglanie cen do pełnych złotych (do 49 gr — w dół, od 50 gr — w górę) dla całego obiektu.</p>
+                    <p className="text-xs text-slate-500">Włącz zaokrąglanie cen do dziesiątek złotych (do 4 zł — w dół, od 5 zł — w górę). Np. 194 → 190, 198 → 200.</p>
                  </div>
               </div>
             </div>
